@@ -192,20 +192,6 @@ def optimize_1d(
     )
 
 
-def _greedy_bin_count(cut_lengths: list[float], stock_len: float, kerf_mm: float) -> int:
-    """Return a first-fit-decreasing upper bound on the number of boards needed."""
-    remaining: list[float] = []
-    for length in sorted(cut_lengths, reverse=True):
-        for i, free in enumerate(remaining):
-            need = length + (kerf_mm if free < stock_len else 0.0)
-            if need <= free:
-                remaining[i] = free - need
-                break
-        else:
-            remaining.append(stock_len - length)
-    return len(remaining)
-
-
 def _solve_group(
     parts: list[CutPart],
     section: str,
@@ -231,19 +217,13 @@ def _solve_group(
         )
 
     n_cuts = len(cuts)
-    # First-fit-decreasing bounds how many boards are needed.  Take the worst
-    # bound across every usable stock length, not just the longest: minimising
-    # purchased length can legitimately prefer more short boards to fewer long
-    # ones, and bounding on the longest alone would cut that solution off.
-    cut_lengths = [c[1] for c in cuts]
-    max_bins = min(
-        n_cuts,
-        max(
-            _greedy_bin_count(cut_lengths, length, kerf_mm)
-            for length in lengths
-            if length >= max(cut_lengths)
-        ),
-    )
+    # One bin per cut is the only sound bound when the objective is purchased
+    # length.  A greedy first-fit-decreasing pass bounds the *bin count*, but
+    # the cheapest plan may use more bins than that: with cuts of 2900 and ten
+    # of 999 against 1000 mm and 3000 mm stock, the optimum is one 3000 plus
+    # ten 1000s — eleven bins, where greedy on the only length long enough for
+    # the 2900 cut finds six and hides the answer.
+    max_bins = n_cuts
 
     model = cp_model.CpModel()
     scale = 1000  # work in micrometres (integer)

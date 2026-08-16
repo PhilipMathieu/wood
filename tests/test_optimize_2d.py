@@ -131,3 +131,44 @@ def test_pack_by_material_upgrades_to_the_larger_sheet_when_needed():
     result = next(iter(pack_by_material(parts, inv).values()))
     assert result.sheet_h_mm == pytest.approx(96 * _IN)
     assert result.unpacked == []
+
+
+def test_grain_lock_survives_rotation_being_disabled():
+    """Regression: rotation_allowed=False returned only the illegal orientation.
+
+    A grain-locked part has exactly one legal orientation, and it is not
+    always the unrotated one — disabling rotation must not offer the other.
+    """
+    panel = CutPart("hb", "plywood_cherry", "length", 61.25 * _IN, 11.5 * _IN, 17.86)
+    result = optimize_2d(
+        [panel], sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H, rotation_allowed=False
+    )
+    assert result.unpacked == []
+    assert result.placements[0].height_mm == pytest.approx(61.25 * _IN, abs=0.1)
+
+
+def test_group_is_split_across_sheet_sizes_when_no_one_size_fits_all():
+    """Regression: sizing a group's sheet from one part stranded the others.
+
+    A 62-1/2" slat fits only the 4x8; a 55x51" back fits only the 5x5. Both
+    sheets get bought rather than one part being reported un-nestable.
+    """
+    inv = Inventory.load()
+    parts = [
+        CutPart("slat", "plywood_baltic_birch", "none", 62.5 * _IN, 2.5 * _IN, 18.0),
+        CutPart("back", "plywood_baltic_birch", "none", 55 * _IN, 51 * _IN, 18.0),
+    ]
+    results = pack_by_material(parts, inv)
+    assert len(results) == 2
+    assert not any(r.unpacked for r in results.values())
+    heights = {round(r.sheet_h_mm) for r in results.values()}
+    assert heights == {round(96 * _IN), round(60 * _IN)}
+
+
+def test_one_sheet_size_is_kept_when_it_serves_the_whole_group():
+    inv = Inventory.load()
+    parts = [
+        CutPart("slat", "plywood_baltic_birch", "none", 62.5 * _IN, 2.5 * _IN, 18.0,
+                qty=16)
+    ]
+    assert len(pack_by_material(parts, inv)) == 1

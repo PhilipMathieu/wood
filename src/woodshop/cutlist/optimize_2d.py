@@ -37,7 +37,7 @@ from woodshop.cutlist.extract import CutPart
 from woodshop.lumber import KERF_MM
 
 if TYPE_CHECKING:
-    from woodshop.inventory import Inventory
+    from woodshop.inventory import Inventory, SheetStock
 
 __all__ = ["Placement", "Cut2DResult", "optimize_2d", "pack_by_material"]
 
@@ -135,11 +135,15 @@ def _orientations(
     unrotated = (length, width, False)
     rotated = (width, length, True)
 
-    if not rotation_allowed:
-        return [unrotated]
+    # Grain is a constraint on the part, not a preference, so it is settled
+    # before rotation_allowed: with rotation disabled, a grain-locked part
+    # still has exactly one legal orientation and it is not always the
+    # unrotated one.
     if respect_grain and sheet_grain != "none" and part.grain_direction != "none":
         # Whichever part dimension carries the grain must lie along +Y.
         return [rotated] if part.grain_direction == "length" else [unrotated]
+    if not rotation_allowed:
+        return [unrotated]
     return [unrotated, rotated]
 
 
@@ -431,18 +435,54 @@ def pack_by_material(
 
     results: dict[str, Cut2DResult] = {}
     for (material, thickness_mm), group in groups.items():
-        sheet = _match_sheet(inventory, material, thickness_mm, group)
-        results[f"{material} {sheet.nominal_thickness} ({sheet.size_label})"] = (
-            optimize_2d(
-                group,
+        for sheet, subset in _partition_by_sheet(
+            inventory, material, thickness_mm, group
+        ):
+            key = f"{material} {sheet.nominal_thickness} ({sheet.size_label})"
+            results[key] = optimize_2d(
+                subset,
                 sheet_w_mm=sheet.width_mm,
                 sheet_h_mm=sheet.height_mm,
                 kerf_mm=kerf_mm,
                 sheet_grain=sheet.grain,
                 **kwargs,  # type: ignore[arg-type]
             )
-        )
     return results
+
+
+def _partition_by_sheet(
+    inventory: "Inventory",
+    material: str,
+    thickness_mm: float,
+    parts: list[CutPart],
+) -> list[tuple["SheetStock", list[CutPart]]]:
+    """Split *parts* across the sheet sizes needed to yield them all.
+
+    One sheet size is used where one will do — that keeps parts together and
+    avoids buying a second size for the sake of one part.  When no single
+    stocked size fits everything, the group is split and both sizes are
+    bought, which is what a shop would actually do.  Parts that fit nothing
+    are left with the largest sheet so they surface as ``unpacked`` rather
+    than silently vanishing.
+    """
+    single = _match_sheet(inventory, material, thickness_mm, parts)
+    if all(
+        single.fits(p.length_mm, p.width_mm, p.grain_direction) for p in parts
+    ):
+        return [(single, parts)]
+
+    buckets: dict[tuple[float, float], tuple["SheetStock", list[CutPart]]] = {}
+    for part in parts:
+        sheet = inventory.best_sheet_for(
+            material,
+            length_mm=part.length_mm,
+            width_mm=part.width_mm,
+            part_grain=part.grain_direction,
+            thickness_mm=thickness_mm,
+        )
+        key = (sheet.width_mm, sheet.height_mm)
+        buckets.setdefault(key, (sheet, []))[1].append(part)
+    return list(buckets.values())
 
 
 def _match_sheet(
@@ -456,12 +496,14 @@ def _match_sheet(
     A material may be stocked in several sizes — Baltic birch is both 5'x5'
     and 4'x8' — so the sheet is chosen by what the parts need, falling back to
     the largest available when nothing fits everything.
+
+    Every part in the group is considered.  Sizing the sheet from the single
+    longest part is not enough: a long narrow part and a wide short one can
+    each fit a different sheet, and picking either one alone strands the other
+    in ``unpacked``.
     """
-    biggest = max(parts, key=lambda p: max(p.length_mm, p.width_mm))
-    return inventory.best_sheet_for(
+    return inventory.best_sheet_for_all(
         material,
-        length_mm=biggest.length_mm,
-        width_mm=biggest.width_mm,
-        part_grain=biggest.grain_direction,
+        [(p.length_mm, p.width_mm, p.grain_direction) for p in parts],
         thickness_mm=thickness_mm,
     )

@@ -218,3 +218,71 @@ def test_king_slat_exceeds_even_a_4x8_sheet():
 def test_invalid_variant_rejected():
     with pytest.raises(ValueError, match="variant"):
         MysaBed(size=SIZES["queen"], variant="carbon_fibre")
+
+
+def test_forced_split_is_reported_as_a_choice_not_a_stock_limit():
+    """Regression: the message named the sheet that *would* fit them whole.
+
+    With 4x8 Baltic birch stocked, a forced split is a decision — reporting
+    "sheets are only 96 inches" blamed stock for something the flag did.
+    """
+    bed = MysaBed(size=SIZES["queen"], variant="plywood", split_slats=True)
+    assembly = bed.build()
+    slats = [
+        f.message
+        for f in bed.check(assembly, extract(assembly)).findings
+        if f.code == "slats"
+    ]
+    assert any("by request, not by necessity" in m for m in slats)
+    assert not any("would come whole out of" in m for m in slats)
+
+
+def test_genuinely_forced_split_names_the_largest_stocked_sheet(monkeypatch):
+    inv = Inventory.from_dict(
+        {
+            "hardwood": [
+                {
+                    "species": "cherry", "thickness_quarter": q,
+                    "rough_thickness_in": r, "surfaced_thickness_in": s,
+                    "typical_width_in": 7, "lengths_ft": [8],
+                }
+                for q, r, s in [("4/4", 1.0, 0.75), ("5/4", 1.25, 1.0),
+                                ("8/4", 2.0, 1.75)]
+            ],
+            "sheet_goods": [
+                {
+                    "material": "plywood_cherry", "nominal_thickness": "3/4",
+                    "actual_thickness_in": 0.703125, "sheet_width_in": 48,
+                    "sheet_height_in": 96, "grain": "length",
+                },
+                {
+                    "material": "plywood_baltic_birch", "nominal_thickness": "3/4",
+                    "actual_thickness_in": 0.7087, "sheet_width_in": 60,
+                    "sheet_height_in": 60, "grain": "none",
+                },
+            ],
+        }
+    )
+    bed = MysaBed(size=SIZES["queen"], variant="plywood", inventory=inv)
+    assert bed.split_slats is True
+    assembly = bed.build()
+    slats = [
+        f.message
+        for f in bed.check(assembly, extract(assembly)).findings
+        if f.code == "slats"
+    ]
+    assert any('largest stocked plywood_baltic_birch sheet is 60" x 60"' in m
+               for m in slats)
+
+
+def test_forced_split_on_a_solid_bed_names_no_sheet():
+    """A solid-cherry bed has no Baltic birch in it to blame."""
+    bed = MysaBed(size=SIZES["queen"], split_slats=True)
+    assembly = bed.build()
+    slats = [
+        f.message
+        for f in bed.check(assembly, extract(assembly)).findings
+        if f.code == "slats"
+    ]
+    assert any("by request" in m for m in slats)
+    assert not any("plywood" in m for m in slats)

@@ -294,6 +294,11 @@ def nest_hardwood(
         group_parts, group_glue_ups = stave_wide_parts(group_parts, usable_width)
         glue_ups.extend(group_glue_ups)
         lengths = [board_length_mm] if board_length_mm is not None else stock.lengths_mm
+        if not lengths:
+            raise ValueError(
+                f"{stock.species} {stock.thickness_quarter}: no lengths_ft in "
+                "stock.yaml, so there is nothing to nest parts onto"
+            )
         candidates_for_group = []
         for length in lengths:
             # The board is the "sheet": its length runs along +Y so that parts
@@ -301,7 +306,11 @@ def nest_hardwood(
             # which is the only orientation solid stock allows.
             nesting = optimize_2d(
                 group_parts,
-                sheet_w_mm=stock.typical_width_in * _MM_PER_IN,
+                # Nest across the width that survives jointing, not the width
+                # as delivered — the first pass over the jointer removes it.
+                # Board feet still bill the full width, because that is what
+                # you buy.
+                sheet_w_mm=usable_width,
                 sheet_h_mm=length,
                 kerf_mm=kerf_mm,
                 sheet_grain="length",

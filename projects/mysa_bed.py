@@ -750,36 +750,59 @@ class MysaBed:
         )
 
         if self.split_slats:
-            sheet = self._slat_sheet()
-            report.findings.append(
-                Finding(
-                    Severity.WARN,
-                    "slats",
-                    f"a full-width slat is {self.slat_length / IN:.1f}\" but "
-                    f"{sheet.material} sheets are only "
-                    f"{sheet.sheet_height_in:g}\" — slats are split into "
-                    f"{self.n_slats * 2} halves of "
-                    f"{self.half_slat_length / IN:.2f}\" butting over a "
-                    f"{self.centre_rail_cap_in:g}\" centre cap",
-                )
+            split_geometry = (
+                f"slats are split into {self.n_slats * 2} halves of "
+                f"{self.half_slat_length / IN:.2f}\" butting over a "
+                f"{self.centre_rail_cap_in:g}\" centre cap"
             )
-            others = alternative_sheets(
-                self.inventory,
-                self.slat_length,
-                inches(self.slat_width_in),
-                grain_direction="none",
-                exclude_material=sheet.material,
-                reference_thickness_mm=sheet.thickness_mm,
-            )
-            if others:
+            # The split is only *forced* when no stocked sheet takes a
+            # full-width slat.  Setting split_slats by hand, or splitting a
+            # solid-wood bed, is a choice — and reporting it as a stock
+            # limitation would name a sheet that has nothing to do with it.
+            if self._slat_fits_stock():
+                sheet_note = ""
+                if self.variant == "plywood":
+                    sheet = self._slat_sheet()
+                    sheet_note = (
+                        f" — a {self.slat_length / IN:.1f}\" slat fits the stocked "
+                        f"{sheet.material} {sheet.size_label} sheet whole"
+                    )
                 report.findings.append(
                     Finding(
-                        Severity.INFO,
+                        Severity.WARN,
                         "slats",
-                        "full-length slats would come whole out of: "
-                        + "; ".join(others),
+                        f"slats are split by request, not by necessity"
+                        f"{sheet_note}. {split_geometry}",
                     )
                 )
+            else:
+                sheet = self._slat_sheet()
+                report.findings.append(
+                    Finding(
+                        Severity.WARN,
+                        "slats",
+                        f"a full-width slat is {self.slat_length / IN:.1f}\" but the "
+                        f"largest stocked {sheet.material} sheet is "
+                        f"{sheet.size_label} — {split_geometry}",
+                    )
+                )
+                others = alternative_sheets(
+                    self.inventory,
+                    self.slat_length,
+                    inches(self.slat_width_in),
+                    grain_direction="none",
+                    exclude_material=sheet.material,
+                    reference_thickness_mm=sheet.thickness_mm,
+                )
+                if others:
+                    report.findings.append(
+                        Finding(
+                            Severity.INFO,
+                            "slats",
+                            "full-length slats would come whole out of: "
+                            + "; ".join(others),
+                        )
+                    )
 
         slack = self.deck_length - self.slat_run
         report.findings.append(

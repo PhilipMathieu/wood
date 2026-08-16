@@ -108,3 +108,21 @@ def test_yield_and_waste_are_consistent():
     result = optimize_1d(parts, stock_lengths_mm=[2438.4])
     assert result.total_waste_mm == pytest.approx(sum(result.waste_mm))
     assert 0.0 < result.yield_fraction < 1.0
+
+
+def test_bin_bound_does_not_hide_a_cheaper_many_short_boards_plan():
+    """Regression: filtering the bound to lengths that fit the longest cut.
+
+    One 2900 cut plus ten 999s against 1000 and 3000 mm stock: the optimum is
+    one 3000 for the long cut and ten 1000s for the rest — 13000 mm over
+    eleven boards. Bounding the bin count by a greedy pass on the only length
+    long enough for the 2900 cut caps the search at six bins and returns
+    18000 mm.
+    """
+    parts = [
+        CutPart("long", "pine", "length", 2900.0, 88.9, 38.1),
+        CutPart("short", "pine", "length", 999.0, 88.9, 38.1, qty=10),
+    ]
+    result = optimize_1d(parts, stock_lengths_mm=[1000.0, 3000.0])
+    assert result.total_length_mm == pytest.approx(13000.0)
+    assert result.stock_used == 11

@@ -95,3 +95,48 @@ def test_glue_up_is_reported_rather_than_unpackable(inv):
     assert plan.boards_needed >= 1
     assert not any(g.nesting.unpacked for g in plan.groups)
     assert plan.glue_ups[0][0] == "headboard_panel"
+
+
+def test_nesting_respects_the_jointing_allowance(inv):
+    """Regression: parts were nested across width the jointer removes.
+
+    Both edges of a rough board must be jointed straight before anything is
+    ripped from it, so the usable width is narrower than the width billed.
+    """
+    from woodshop.cutlist.hardwood import JOINTING_ALLOWANCE_MM
+
+    parts = [CutPart("rail", "cherry", "length", 600.0, 85.0, 19.05, qty=8)]
+    group = nest_hardwood(parts, inv, "cherry").groups[0]
+    usable = group.stock.typical_width_in * _IN - JOINTING_ALLOWANCE_MM
+    assert max(p.x_mm + p.width_mm for p in group.nesting.placements) <= usable
+
+
+def test_board_feet_still_bill_the_full_width(inv):
+    """Jointing narrows what you can use, not what you pay for."""
+    parts = [CutPart("rail", "cherry", "length", 600.0, 85.0, 19.05, qty=8)]
+    group = nest_hardwood(parts, inv, "cherry").groups[0]
+    expected = (
+        group.boards_needed
+        * group.stock.typical_width_in
+        * (group.board_length_mm / _IN)
+        * group.stock.rough_thickness_in
+        / 144.0
+    )
+    assert group.board_feet == pytest.approx(expected)
+
+
+def test_stock_with_no_lengths_names_the_offending_row():
+    inv = Inventory.from_dict(
+        {
+            "hardwood": [
+                {
+                    "species": "cherry", "thickness_quarter": "4/4",
+                    "rough_thickness_in": 1.0, "surfaced_thickness_in": 0.75,
+                    "typical_width_in": 7, "lengths_ft": [],
+                }
+            ]
+        }
+    )
+    with pytest.raises(ValueError, match="cherry 4/4: no lengths_ft"):
+        nest_hardwood([CutPart("x", "cherry", "length", 600.0, 50.0, 19.05)],
+                      inv, "cherry")

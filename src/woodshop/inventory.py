@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import yaml
 
@@ -410,6 +410,49 @@ class Inventory:
         KeyError
             If the material is not stocked at all.
         """
+        return self.best_sheet_for_all(
+            material,
+            [(length_mm, width_mm, part_grain)],
+            nominal_thickness=nominal_thickness,
+            thickness_mm=thickness_mm,
+        )
+
+    def best_sheet_for_all(
+        self,
+        material: str,
+        requirements: Iterable[tuple[float, float, str]],
+        nominal_thickness: str | None = None,
+        thickness_mm: float | None = None,
+    ) -> SheetStock:
+        """Return the smallest stocked sheet that yields *every* requirement.
+
+        Sizing a sheet from one representative part is not enough — a long
+        narrow part and a wide short one can each fit a different sheet, and
+        choosing by either alone strands the other.
+
+        Parameters
+        ----------
+        material : str
+            Material key.
+        requirements : iterable of (float, float, str)
+            ``(length_mm, width_mm, part_grain)`` for each part that must come
+            off this sheet.
+        nominal_thickness : str, optional
+            Restrict to this nominal thickness label.
+        thickness_mm : float, optional
+            Restrict to the closest actual thickness to this value.
+
+        Returns
+        -------
+        SheetStock
+            The smallest sheet on which every requirement fits, or the largest
+            candidate if no single size fits them all.
+
+        Raises
+        ------
+        KeyError
+            If the material is not stocked at all.
+        """
         candidates = self.sheets_for(material, nominal_thickness)
         if not candidates:
             raise KeyError(
@@ -424,9 +467,12 @@ class Inventory:
                 if abs(abs(s.thickness_mm - thickness_mm) - closest) < 1e-9
             ]
 
-        fitting = [s for s in candidates if s.fits(length_mm, width_mm, part_grain)]
-        # sheets_for sorts by area, so the first fitting sheet is the smallest.
-        return fitting[0] if fitting else candidates[-1]
+        needed = list(requirements)
+        # sheets_for sorts by area, so the first match is the smallest.
+        for sheet in candidates:
+            if all(sheet.fits(length, width, grain) for length, width, grain in needed):
+                return sheet
+        return candidates[-1]
 
     def hardwood_for(self, species: str, thickness_quarter: str) -> HardwoodStock:
         """Return the hardwood entry for a species and quarter thickness.

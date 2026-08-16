@@ -64,12 +64,14 @@ and silently binned everything against the longest length. Each board now
 chooses its own stock length, and the default objective minimises *purchased
 length* rather than board count, because that is what you pay for.
 
-One subtlety worth recording: bounding the bin count with a greedy pass on the
-longest stock is wrong once lengths are heterogeneous — four 900 mm legs are
-cheaper as four 1000 mm boards (400 mm waste) than as two 8 ft boards (877 mm
-waste), and the tight bound cuts that solution off. The bound is now the worst
-case across all usable lengths. Regression test:
-`test_more_short_boards_can_beat_fewer_long_ones`.
+One subtlety worth recording: bounding the bin count with a greedy pass is
+wrong once lengths are heterogeneous — four 900 mm legs are cheaper as four
+1000 mm boards (400 mm waste) than as two 8 ft boards (877 mm waste), and a
+tight bound cuts that solution off. I got this wrong twice; see the review
+addendum for why one bin per cut is the only sound bound when the objective is
+purchased length. Regression tests:
+`test_more_short_boards_can_beat_fewer_long_ones`,
+`test_bin_bound_does_not_hide_a_cheaper_many_short_boards_plan`.
 
 ### 7. `optimize_2d` claimed to respect grain and did not — **fixed**
 
@@ -359,3 +361,46 @@ about mortises.
   sideways?" is answered by the drawing.
 - Output filenames were being built from keys like `plywood_cherry 3/4 (48" x
   96")`, producing filenames containing quotes and parentheses.
+
+## Addendum: what a review pass found
+
+Ran a review over the whole branch before asking anyone else to read it. Six
+findings, all reproduced before fixing, all real. Notably every one is in the
+code written to *fix* an earlier bug — the second-order mistakes, not the
+obvious ones.
+
+**The bin bound was unsound.** Fixing "only the longest stock length is used"
+introduced a greedy first-fit bound on the bin count. But a greedy pass bounds
+the *number of bins*, and the objective is *purchased length* — the cheapest
+plan may legitimately use more bins than any bin-minimising one. One 2900 mm
+cut plus ten 999s against 1000 and 3000 mm stock: the optimum is one 3000 plus
+ten 1000s, eleven boards and 13000 mm, and the bound capped the search at six
+and returned 18000. Reverted to one bin per cut, which is the only sound
+general bound here.
+
+**A group's sheet was sized from one part.** `_match_sheet` picked the sheet
+from the single longest part, so a long narrow part and a wide short one in the
+same group stranded each other in `unpacked`. Now one size is used where one
+will do, and the group is split across two sizes when nothing else works —
+which is what a shop does: buy both.
+
+**Jointing was subtracted twice, then not at all.** The allowance was applied
+to the staving decision but not to the nesting width, so parts were laid out
+across width the jointer removes. Eight 85 mm rails nested two-across to
+173.2 mm on a board with 171.45 mm of usable width. Board feet still bill the
+full width, because that is what you buy.
+
+**Grain lost to `rotation_allowed=False`.** Grain is a constraint, not a
+preference, and it was being checked *after* the rotation flag — so disabling
+rotation offered a grain-locked part its one illegal orientation and nothing
+else. The cherry headboard panel came back un-nestable while `check_sheet_fit`
+said it fitted.
+
+**Two smaller ones.** A hardwood row with no `lengths_ft` died on
+`min() arg is an empty sequence` instead of naming the row; and the split-slat
+warning blamed stock for a split that had been requested by hand, quoting the
+very sheet that would take the slats whole.
+
+The pattern worth remembering: none of these were in the original code. They
+all arrived with a fix, and four of the six were only visible on inputs the bed
+itself never produces — which is exactly why they survived a green test suite.
