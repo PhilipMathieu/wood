@@ -72,6 +72,7 @@ Run it
 from __future__ import annotations
 
 import argparse
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -91,9 +92,16 @@ from woodshop.checks import (
 from woodshop.cutlist.extract import CutPart, extract
 from woodshop.cutlist.hardwood import nest_hardwood
 from woodshop.cutlist.optimize_2d import pack_by_material
-from woodshop.cutlist.render import render_cut_list, render_sheet_diagram
 from woodshop.inventory import Inventory
 from woodshop.parts import Board, Panel
+from woodshop.render import (
+    export_assembly,
+    render_assembly,
+    render_board_diagram,
+    render_cut_list,
+    render_sheet_diagram,
+)
+from woodshop.render.sheets import cut_sequence
 
 IN = 25.4
 
@@ -845,7 +853,9 @@ def run(size_name: str, variant: str, outdir: Path) -> CheckReport:
         # Hardwood is nested in two dimensions — parts are ripped out of a
         # board's width as well as its length — and bought by the board foot.
         print(f"\n-- {bed.species} to buy {'-' * 55}")
-        print(nest_hardwood(solid, bed.inventory, bed.species).to_text())
+        plan = nest_hardwood(solid, bed.inventory, bed.species)
+        print(plan.to_text())
+        render_board_diagram(plan, output_pdf=outdir / f"{stem}_boards.pdf")
 
     if sheet:
         print(f"\n-- sheet goods {'-' * 63}")
@@ -859,17 +869,30 @@ def run(size_name: str, variant: str, outdir: Path) -> CheckReport:
             if res.unpacked:
                 print(f"    could not be nested: {sorted(set(res.unpacked))}")
             if res.sheets_used:
-                # Thickness labels contain a slash ("3/4"), which is not a
-                # filename.
-                slug = key.replace(" ", "_").replace("/", "-")
+                # Keys read like: plywood_cherry 3/4 (48" x 96"). Slashes,
+                # quotes and parentheses are all hostile in a filename.
+                slug = re.sub(r"[^0-9a-zA-Z]+", "_", key).strip("_")
                 render_sheet_diagram(
-                    res,
-                    sheet_w_mm=res.sheet_w_mm,
-                    sheet_h_mm=res.sheet_h_mm,
-                    output_pdf=outdir / f"{stem}_{slug}_sheets.pdf",
+                    res, output_pdf=outdir / f"{stem}_{slug}_sheets.pdf"
+                )
+                (outdir / f"{stem}_{slug}_cutorder.txt").write_text(
+                    "\n".join(cut_sequence(res)) + "\n", encoding="utf-8"
                 )
 
-    print(f"\nWrote cut list and diagrams to {outdir}/")
+    # Draw it. Everything above measures the model; this is the only step that
+    # would catch a part rotated about the wrong axis or buried inside another.
+    render_assembly(
+        assembly,
+        output_png=outdir / f"{stem}.png",
+        title=f"Mysa sleigh bed — {size_name}, {variant}",
+    )
+    export_assembly(
+        assembly,
+        output_step=outdir / f"{stem}.step",
+        output_stl=outdir / f"{stem}.stl",
+    )
+
+    print(f"\nWrote cut list, diagrams, views and CAD export to {outdir}/")
     return report
 
 

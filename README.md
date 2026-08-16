@@ -17,7 +17,11 @@ src/woodshop/
     hardwood.py       nest parts on random-width boards, total board feet
     optimize_1d.py    cutting stock for fixed-width lumber (CP-SAT)
     optimize_2d.py    grain-aware, guillotine-safe sheet nesting
-    render.py         CSV / Markdown cut lists and sheet diagrams
+  render/
+    tables.py         CSV / Markdown cut lists
+    sheets.py         sheet and board nesting diagrams, cut order
+    model3d.py        shaded 3-D views of an assembly
+    export.py         STEP / STL export, ocp_vscode preview
   joinery/            dado, rabbet, tenon, mortise, pocket hole
   hardware/           stocked fasteners
 projects/
@@ -35,8 +39,22 @@ uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 ```
 
-That writes a cut list (CSV and Markdown) plus sheet-layout diagrams to
-`build/`, and prints the design-check report.
+That writes to `build/`:
+
+| File | What it is |
+| --- | --- |
+| `*_cutlist.csv` / `.md` | the cut list |
+| `*.png` | isometric, front, side and plan views |
+| `*.step` / `*.stl` | CAD export, for a real viewer |
+| `*_boards.pdf` | hardwood nesting, one page per board |
+| `*_sheets.pdf` | sheet-goods nesting, one page per sheet |
+| `*_cutorder.txt` | crosscut-then-rip sequence for each sheet |
+
+and prints the design-check report.
+
+Look at the PNG. Everything else in this project *measures* the model; the
+views are the only step that would catch a part rotated about the wrong axis
+or buried inside another one.
 
 ## Modelling conventions
 
@@ -90,6 +108,14 @@ sheet a part actually fits on rather than guessing from thickness.
 
 **Prices in `stock.yaml` are unverified placeholders.** Quantities, board feet,
 and yields are real; dollar totals are not.
+
+## Known limitation of the 3-D views
+
+matplotlib has no depth buffer, so nearly-coincident surfaces sort
+unreliably — in the plan view the centre rail appears to lie over the slats it
+actually sits beneath. Use the STEP or STL export in a real viewer when that
+matters. `test_centre_rail_sits_below_the_slats` pins the geometry so the
+artifact cannot be mistaken for a model error.
 
 See [NOTES.md](NOTES.md) for what these checks caught on the first real project,
 and for the list of things still worth building.

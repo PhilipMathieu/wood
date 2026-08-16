@@ -219,11 +219,8 @@ Deliberately left undone, in rough order of how much they would have helped:
 - **Cost of sheet goods in the summary.** `stock.yaml` carries
   `price_per_sheet` and the hardwood plan reports cost, but the sheet-goods
   summary does not total it.
-- **3-D export.** The assembly is a real build123d compound, so STEP/STL export
-  and an `ocp_vscode` preview are a few lines — but nothing does it yet, and the
-  geometry has never been looked at, only measured.
-- **Cut-order sheets.** The layouts are guillotine-cuttable by construction, but
-  nothing emits the actual sequence of crosscuts and rips to make at the saw.
+- ~~**3-D export.**~~ Done — see the addendum on drawing the model.
+- ~~**Cut-order sheets.**~~ Done — `cut_sequence` reads the strips back out.
 
 ## Addendum: what the supplier actually stocks
 
@@ -294,3 +291,71 @@ the ~$1,100 cherry figure should not be quoted at anyone until someone phones
 from small family sawmills — white cedar, premium pine, reclaimed stock. A
 genuinely interesting supplier, but softwood-focused: no cherry, no hardwood
 plywood. Worth remembering for a different project; nothing here to model.
+
+## Addendum: drawing the model
+
+Everything above measures the bed. Nothing had ever *drawn* it, which meant
+every claim rested on `bounding_box()` and a cut list — and a part rotated about
+the wrong axis, or buried inside another, passes both without complaint.
+
+`woodshop/render/` now produces shaded isometric, front, side and plan views
+from `Shape.tessellate`, so what appears is the real solid rather than a stand-in
+built from part dimensions. Parts are coloured by material, which makes the
+plywood substitution visible at a glance.
+
+**The verdict: it looks like a bed.** Which is a low bar, and exactly the bar
+nothing had cleared until now.
+
+Three things came out of actually looking at it.
+
+### Two rendering bugs, found by looking
+
+The first render put an X across every board. Tessellation splits each
+rectangular face into two triangles, and drawing triangle edges draws the
+diagonal too. Fixed by dropping edges entirely and shading each triangle by its
+normal against a fixed light — which reads better anyway, since a flat fill
+makes a solid look like a silhouette.
+
+The second was worse: each part was its own `Poly3DCollection`, so matplotlib
+depth-sorted *within* parts but not *between* them. Everything now goes into one
+collection.
+
+### A limitation that stays
+
+Even with one collection, matplotlib has no depth buffer, and near-coincident
+surfaces still sort unreliably: in the plan view the centre rail appears to lie
+over the slats. It does not — its top is at 13-1/4" and the slats run 13-1/4" to
+14". `test_centre_rail_sits_below_the_slats` pins that, and the STEP/STL export
+is there for when it matters. Worth knowing before someone files a bug against
+the model for what is a bug in the picture.
+
+### What the drawing prompted: nothing is buried
+
+The obvious question once you can see it — is anything inside anything else? —
+turns out to be answerable in about fifteen lines of bounding-box overlap. The
+answer for the queen is that exactly eight pairs of parts interpenetrate, and
+all eight are joints:
+
+    foot_post / footboard_rail            tenon
+    head_post / headboard_{top,bottom}_rail   tenons
+    head_post / headboard_panel           panel into the post groove
+    headboard_panel / both rails          panel tongue in the groove
+    side_rail / slat, side_rail / spacer  slat ends in the rabbet
+
+Nothing else touches anything. That is now
+`test_only_joinery_parts_interpenetrate`, and it is the closest thing to joinery
+validation the project has — a stand-in until joints become real objects, since
+it would catch a mortise moved to the wrong face even though it knows nothing
+about mortises.
+
+### Also fixed while in there
+
+- Sheet diagrams never closed their figures; generating every size and variant
+  sailed past matplotlib's twenty-figure warning. Now closed by default, with
+  `close=False` for callers who want them.
+- Layout diagrams had inch axis *labels* over millimetre *ticks*. Mixed units on
+  a drawing read next to a tape measure is a bad way to lose a board.
+- Grain direction is now hatched on every nested part, so "why is this one
+  sideways?" is answered by the drawing.
+- Output filenames were being built from keys like `plywood_cherry 3/4 (48" x
+  96")`, producing filenames containing quotes and parentheses.

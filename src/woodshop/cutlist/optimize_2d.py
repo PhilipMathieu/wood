@@ -64,6 +64,9 @@ class Placement:
         ``True`` if the part was rotated 90° relative to its cut dimensions.
     material : str
         Material of the part, so mixed-material results stay readable.
+    grain_direction : str
+        The part's grain direction, carried through so a diagram can show
+        which way the grain runs and why a part is oriented as it is.
     """
 
     label: str
@@ -74,6 +77,7 @@ class Placement:
     height_mm: float
     rotated: bool = False
     material: str = ""
+    grain_direction: str = "none"
 
 
 @dataclass
@@ -273,6 +277,7 @@ def _pack_shelf(
                                 height_mm=dy - kerf_mm,
                                 rotated=rot,
                                 material=part.material,
+                                grain_direction=part.grain_direction,
                             )
                         )
                         shelf[2] = cursor + dx
@@ -301,6 +306,7 @@ def _pack_shelf(
                             height_mm=dy - kerf_mm,
                             rotated=rot,
                             material=part.material,
+                            grain_direction=part.grain_direction,
                         )
                     )
                     placed = True
@@ -322,6 +328,7 @@ def _pack_shelf(
                 height_mm=dy - kerf_mm,
                 rotated=rot,
                 material=part.material,
+                grain_direction=part.grain_direction,
             )
         )
 
@@ -370,6 +377,7 @@ def _pack_maxrects(
                     height_mm=rect.height - kerf_mm,
                     rotated=rotated,
                     material=part.material,
+                    grain_direction=part.grain_direction,
                 )
             )
             packed_ids.add(rid)
