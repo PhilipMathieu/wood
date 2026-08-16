@@ -103,41 +103,43 @@ def render_sheet_diagram(
     n_sheets = result.sheets_used
     figs: list[plt.Figure] = []
 
-    pdf: PdfPages | None = None
+    def _render_sheets(pdf: PdfPages | None) -> list[plt.Figure]:
+        for sheet_idx in range(n_sheets):
+            fig, ax = plt.subplots(figsize=(8, 16))
+            ax.set_xlim(0, sheet_w_mm)
+            ax.set_ylim(0, sheet_h_mm)
+            ax.set_aspect("equal")
+            ax.set_title(f"Sheet {sheet_idx + 1}")
+            ax.set_xlabel(f"Width  ({mm_to_fractional_inch(sheet_w_mm)})")
+            ax.set_ylabel(f"Height ({mm_to_fractional_inch(sheet_h_mm)})")
+
+            cmap = plt.get_cmap("tab20")
+            placements = [p for p in result.placements if p.sheet_index == sheet_idx]
+
+            for i, pl in enumerate(placements):
+                color = cmap(i % 20)
+                rect = mpatches.Rectangle(
+                    (pl.x_mm, pl.y_mm), pl.width_mm, pl.height_mm,
+                    linewidth=1, edgecolor="black", facecolor=color, alpha=0.6,
+                )
+                ax.add_patch(rect)
+                ax.text(
+                    pl.x_mm + pl.width_mm / 2,
+                    pl.y_mm + pl.height_mm / 2,
+                    pl.label,
+                    ha="center", va="center", fontsize=7, wrap=True,
+                )
+
+            figs.append(fig)
+            if pdf is not None:
+                pdf.savefig(fig)
+
+        return figs
+
     if output_pdf is not None:
-        pdf = PdfPages(output_pdf)
-
-    for sheet_idx in range(n_sheets):
-        fig, ax = plt.subplots(figsize=(8, 16))
-        ax.set_xlim(0, sheet_w_mm)
-        ax.set_ylim(0, sheet_h_mm)
-        ax.set_aspect("equal")
-        ax.set_title(f"Sheet {sheet_idx + 1}")
-        ax.set_xlabel(f"Width  ({mm_to_fractional_inch(sheet_w_mm)})")
-        ax.set_ylabel(f"Height ({mm_to_fractional_inch(sheet_h_mm)})")
-
-        cmap = plt.get_cmap("tab20")
-        placements = [p for p in result.placements if p.sheet_index == sheet_idx]
-
-        for i, pl in enumerate(placements):
-            color = cmap(i % 20)
-            rect = mpatches.Rectangle(
-                (pl.x_mm, pl.y_mm), pl.width_mm, pl.height_mm,
-                linewidth=1, edgecolor="black", facecolor=color, alpha=0.6,
-            )
-            ax.add_patch(rect)
-            ax.text(
-                pl.x_mm + pl.width_mm / 2,
-                pl.y_mm + pl.height_mm / 2,
-                pl.label,
-                ha="center", va="center", fontsize=7, wrap=True,
-            )
-
-        figs.append(fig)
-        if pdf is not None:
-            pdf.savefig(fig)
-
-    if pdf is not None:
-        pdf.close()
+        with PdfPages(output_pdf) as pdf:
+            _render_sheets(pdf)
+    else:
+        _render_sheets(None)
 
     return figs

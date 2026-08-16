@@ -58,8 +58,8 @@ def optimize_1d(
     parts : list[CutPart]
         Required cuts (``qty`` is honoured — each part is expanded).
     stock_lengths_mm : list[float]
-        Available stock lengths.  If more than one length is given the solver
-        chooses the best-fit per piece.
+        Available stock lengths.  If more than one length is given the longest
+        is used as the bin size (multi-length optimisation is not yet implemented).
     kerf_mm : float, optional
         Saw kerf added between cuts on the same piece, default ``KERF_MM``.
 
@@ -77,7 +77,9 @@ def optimize_1d(
     if not cuts:
         return Cut1DResult(stock_used=0)
 
-    # Use the longest stock length as the primary bin size.
+    # Use the longest available stock length as the bin size.
+    # Multi-length selection (choosing shorter offcuts per piece) is not yet
+    # implemented; the optimizer always bins against the longest piece.
     stock_len = max(stock_lengths_mm)
 
     n_cuts = len(cuts)

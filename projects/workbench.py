@@ -52,7 +52,7 @@ def main() -> None:
     result_1d = optimize_1d(parts, stock_lengths_mm=STOCK_LENGTHS_MM)
     print(f"\nStock pieces needed: {result_1d.stock_used}")
     for i, assignment in enumerate(result_1d.assignments):
-        labels = ", ".join(f"{lbl} ({l:.0f} mm)" for lbl, l in assignment)
+        labels = ", ".join(f"{lbl} ({length_mm:.0f} mm)" for lbl, length_mm in assignment)
         waste = result_1d.waste_mm[i]
         print(f"  Board {i + 1}: {labels}  | waste {waste:.0f} mm")
 
