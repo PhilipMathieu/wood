@@ -14,7 +14,7 @@ Usage example::
 
 from __future__ import annotations
 
-from build123d import Box, BuildPart, Mode, Locations
+from build123d import Box, Mode
 
 
 class Dado(Box):
