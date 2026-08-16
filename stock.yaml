@@ -1,0 +1,44 @@
+# Lumber inventory
+# Species, nominal sizes, available lengths, and sheet goods.
+# Keys match the string literals used in lumber.py NOMINAL_TO_ACTUAL.
+
+dimensional:
+  - species: pine
+    nominal: "2x4"
+    lengths_ft: [8, 10, 12]
+    qty: 6
+
+  - species: pine
+    nominal: "2x6"
+    lengths_ft: [8, 10, 12]
+    qty: 4
+
+  - species: pine
+    nominal: "1x6"
+    lengths_ft: [8]
+    qty: 4
+
+  - species: pine
+    nominal: "1x4"
+    lengths_ft: [8]
+    qty: 4
+
+  - species: poplar
+    nominal: "1x3"
+    lengths_ft: [8]
+    qty: 2
+
+sheet_goods:
+  - material: plywood_birch
+    nominal_thickness: "3/4"
+    actual_thickness_in: 0.71875   # 23/32"
+    sheet_width_in: 48
+    sheet_height_in: 96
+    qty: 2
+
+  - material: plywood_birch
+    nominal_thickness: "1/2"
+    actual_thickness_in: 0.46875   # 15/32"
+    sheet_width_in: 48
+    sheet_height_in: 96
+    qty: 1

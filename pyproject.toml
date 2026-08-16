@@ -1,0 +1,38 @@
+[project]
+name = "woodshop"
+version = "0.1.0"
+description = "Parametric furniture design and cut list generation"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "build123d>=0.9",
+    "bd_warehouse>=0.3",
+    "ortools>=9.10",
+    "rectpack>=0.2.2",
+    "pint>=0.24",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "ocp_vscode>=2.6",
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/woodshop"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
