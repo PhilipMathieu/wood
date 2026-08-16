@@ -11,8 +11,6 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
-
-from woodshop.cutlist.extract import extract
 from woodshop.cutlist.optimize_1d import optimize_1d
 from woodshop.cutlist.render import render_cut_list
 

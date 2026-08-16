@@ -28,6 +28,37 @@ dimensional:
     lengths_ft: [8]
     qty: 2
 
+# Hardwood is sold rough, in random widths, and priced by the board foot, so
+# width is an outcome of milling rather than a property of the stock.
+# `surfaced_thickness_in` is the number to design to.
+hardwood:
+  - species: cherry
+    thickness_quarter: "4/4"
+    rough_thickness_in: 1.0
+    surfaced_thickness_in: 0.75
+    typical_width_in: 7
+    lengths_ft: [8, 10]
+    qty_board_feet: 0        # buy to suit
+    price_per_bf: 12.50
+
+  - species: cherry
+    thickness_quarter: "8/4"
+    rough_thickness_in: 2.0
+    surfaced_thickness_in: 1.75
+    typical_width_in: 6
+    lengths_ft: [8, 10]
+    qty_board_feet: 0
+    price_per_bf: 15.00
+
+  - species: cherry
+    thickness_quarter: "5/4"
+    rough_thickness_in: 1.25
+    surfaced_thickness_in: 1.0
+    typical_width_in: 7
+    lengths_ft: [8, 10]
+    qty_board_feet: 0
+    price_per_bf: 13.50
+
 sheet_goods:
   - material: plywood_birch
     nominal_thickness: "3/4"
@@ -42,3 +73,33 @@ sheet_goods:
     sheet_width_in: 48
     sheet_height_in: 96
     qty: 1
+
+  # Domestic cherry-veneered plywood: standard 4x8, face grain along the 96" side.
+  - material: plywood_cherry
+    nominal_thickness: "3/4"
+    actual_thickness_in: 0.703125  # 45/64" — veneer-core cherry ply runs thin
+    sheet_width_in: 48
+    sheet_height_in: 96
+    qty: 0
+    grain: length
+    price_per_sheet: 185.00
+
+  # Baltic birch is 60" x 60", NOT 48" x 96", and 3/4" is really 18 mm.
+  # Both facts change what parts can be cut from it — see checks.sheet_fit.
+  - material: plywood_baltic_birch
+    nominal_thickness: "3/4"
+    actual_thickness_in: 0.7087    # 18 mm
+    sheet_width_in: 60
+    sheet_height_in: 60
+    qty: 0
+    grain: none
+    price_per_sheet: 145.00
+
+  - material: plywood_baltic_birch
+    nominal_thickness: "1/2"
+    actual_thickness_in: 0.4724    # 12 mm
+    sheet_width_in: 60
+    sheet_height_in: 60
+    qty: 0
+    grain: none
+    price_per_sheet: 105.00
