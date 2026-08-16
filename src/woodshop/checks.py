@@ -237,8 +237,15 @@ def check_sheet_fit(parts: list[CutPart], inventory: "Inventory") -> list[Findin
     for p in parts:
         if p.material not in sheet_materials:
             continue
-        candidates = [s for s in inventory.sheet_goods if s.material == p.material]
-        sheet = min(candidates, key=lambda s: abs(s.thickness_mm - p.thickness_mm))
+        # Where a material comes in several sizes, ask for the smallest that
+        # actually yields this part rather than guessing from thickness.
+        sheet = inventory.best_sheet_for(
+            p.material,
+            length_mm=p.length_mm,
+            width_mm=p.width_mm,
+            part_grain=p.grain_direction,
+            thickness_mm=p.thickness_mm,
+        )
         rotatable = sheet.grain == "none" or p.grain_direction == "none"
         if sheet.fits(p.length_mm, p.width_mm, p.grain_direction):
             findings.append(
@@ -247,7 +254,7 @@ def check_sheet_fit(parts: list[CutPart], inventory: "Inventory") -> list[Findin
                     "sheet_fit",
                     f"{p.label} ({mm_to_fractional_inch(p.length_mm)} x "
                     f"{mm_to_fractional_inch(p.width_mm)}) fits "
-                    f"{p.material} {sheet.sheet_width_in:g}x{sheet.sheet_height_in:g}",
+                    f"{p.material} {sheet.size_label}",
                 )
             )
         else:
@@ -260,8 +267,8 @@ def check_sheet_fit(parts: list[CutPart], inventory: "Inventory") -> list[Findin
                     Severity.ERROR,
                     "sheet_fit",
                     f"{p.label} is {mm_to_fractional_inch(p.length_mm)} x "
-                    f"{mm_to_fractional_inch(p.width_mm)} but {p.material} comes in "
-                    f"{sheet.sheet_width_in:g}\" x {sheet.sheet_height_in:g}\" sheets"
+                    f"{mm_to_fractional_inch(p.width_mm)} but the largest "
+                    f"{p.material} sheet stocked is {sheet.size_label}"
                     f"{grain_note} — it cannot be cut from one piece",
                 )
             )

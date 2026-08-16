@@ -13,6 +13,7 @@ from mysa_bed import IN, SIZES, MysaBed  # noqa: E402
 
 from woodshop.checks import Severity  # noqa: E402
 from woodshop.cutlist.extract import extract  # noqa: E402
+from woodshop.inventory import Inventory  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -108,7 +109,7 @@ def test_faithful_bed_passes_every_check(queen):
 def test_plywood_variant_substitutes_only_panel_and_slats(queen_plywood):
     parts = {p.label: p for p in extract(queen_plywood.build())}
     assert parts["headboard_panel"].material == "plywood_cherry"
-    assert parts["half_slat"].material == "plywood_baltic_birch"
+    assert parts["slat"].material == "plywood_baltic_birch"
     assert parts["side_rail"].material == "cherry"
     assert parts["head_post"].material == "cherry"
 
@@ -119,19 +120,52 @@ def test_plywood_thicknesses_are_measured_not_nominal(queen_plywood):
     assert queen_plywood.slat_thickness_mm == pytest.approx(18.0, abs=0.05)
 
 
-def test_queen_slats_are_split_because_baltic_birch_is_sixty_inches(queen_plywood):
-    assert queen_plywood.split_slats is True
+def test_queen_slats_are_whole_because_baltic_birch_comes_in_4x8(queen_plywood):
+    """O'Brien stocks Baltic birch as 4x8 as well as 5x5, so 62-1/2" fits."""
+    assert queen_plywood.split_slats is False
     parts = {p.label: p for p in extract(queen_plywood.build())}
+    assert parts["slat"].qty == 16
+    assert parts["slat"].length_mm == pytest.approx(62.5 * IN, abs=0.1)
+    assert "centre_rail_cap" not in parts
+
+
+def test_split_slats_meet_over_the_centre_cap():
+    """The split machinery still works when a shop only has 5x5 sheets."""
+    bed = MysaBed(size=SIZES["queen"], variant="plywood", split_slats=True)
+    assert bed.half_slat_length * 2 == pytest.approx(bed.slat_length)
+    parts = {p.label: p for p in extract(bed.build())}
     assert parts["half_slat"].qty == 32
     assert parts["half_slat"].length_mm == pytest.approx(31.25 * IN, abs=0.1)
-
-
-def test_split_slats_meet_over_the_centre_cap(queen_plywood):
-    assert queen_plywood.half_slat_length * 2 == pytest.approx(
-        queen_plywood.slat_length
-    )
-    parts = {p.label: p for p in extract(queen_plywood.build())}
     assert parts["centre_rail_cap"].qty == 1
+
+
+def test_split_is_chosen_when_only_five_by_five_is_stocked():
+    """Regression: the decision must follow the inventory, not a constant."""
+    inv = Inventory.from_dict(
+        {
+            "hardwood": [
+                {
+                    "species": "cherry", "thickness_quarter": "4/4",
+                    "rough_thickness_in": 1.0, "surfaced_thickness_in": 0.75,
+                    "typical_width_in": 7, "lengths_ft": [8],
+                }
+            ],
+            "sheet_goods": [
+                {
+                    "material": "plywood_cherry", "nominal_thickness": "3/4",
+                    "actual_thickness_in": 0.703125,
+                    "sheet_width_in": 48, "sheet_height_in": 96, "grain": "length",
+                },
+                {
+                    "material": "plywood_baltic_birch", "nominal_thickness": "3/4",
+                    "actual_thickness_in": 0.7087,
+                    "sheet_width_in": 60, "sheet_height_in": 60, "grain": "none",
+                },
+            ],
+        }
+    )
+    bed = MysaBed(size=SIZES["queen"], variant="plywood", inventory=inv)
+    assert bed.split_slats is True
 
 
 def test_spacers_follow_the_slat_thickness(queen_plywood):
@@ -161,25 +195,24 @@ def test_narrow_beds_do_not_need_split_slats():
     "size_name, expect_split",
     [
         ("twin", False),     # 42-1/2" slat
-        ("full", False),     # 57-1/2" slat — just inside a 60" sheet
-        ("queen", True),     # 62-1/2"
-        ("king", True),      # 81-1/2"
-        ("calking", True),   # 77-1/2"
+        ("full", False),     # 57-1/2"
+        ("queen", False),    # 62-1/2" — fits the 96" side of a 4x8
+        ("king", False),     # 81-1/2"
+        ("calking", False),  # 77-1/2"
     ],
 )
-def test_split_is_decided_by_sheet_size_per_bed_size(size_name, expect_split):
+def test_no_size_needs_split_slats_with_4x8_stocked(size_name, expect_split):
     bed = MysaBed(size=SIZES[size_name], variant="plywood")
     assert bed.split_slats is expect_split
-    if not expect_split:
-        assert bed.slat_length <= 60 * IN
+    assert bed.slat_length <= 96 * IN
 
 
-def test_split_can_be_forced_off():
-    bed = MysaBed(size=SIZES["queen"], variant="plywood", split_slats=False)
+def test_king_slat_exceeds_even_a_4x8_sheet():
+    """An 81-1/2" slat still clears 96", but check the guard is live."""
+    bed = MysaBed(size=SIZES["king"], variant="plywood")
     assembly = bed.build()
     report = bed.check(assembly, extract(assembly))
-    assert not report.ok
-    assert any(f.code == "sheet_fit" for f in report.errors)
+    assert report.ok, report.to_text()
 
 
 def test_invalid_variant_rejected():

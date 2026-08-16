@@ -35,11 +35,19 @@ def test_envelope_deviation_is_warned_with_the_delta():
     assert "+1.000 in." in warn[0].message
 
 
-def test_oversize_baltic_birch_slat_is_an_error(inv):
+def test_queen_slat_fits_the_4x8_baltic_birch_sheet(inv):
+    """Regression: 62-1/2" clears a 4x8, though not the 5x5."""
     slat = CutPart("slat", "plywood_baltic_birch", "none", 62.5 * _IN, 2.5 * _IN, 18.0)
     findings = check_sheet_fit([slat], inv)
+    assert [f.severity for f in findings] == [Severity.INFO]
+    assert '48" x 96"' in findings[0].message
+
+
+def test_part_longer_than_every_stocked_sheet_is_an_error(inv):
+    slat = CutPart("slat", "plywood_baltic_birch", "none", 120 * _IN, 2.5 * _IN, 18.0)
+    findings = check_sheet_fit([slat], inv)
     assert [f.severity for f in findings] == [Severity.ERROR]
-    assert "60" in findings[0].message
+    assert "largest" in findings[0].message
 
 
 def test_half_slat_fits(inv):

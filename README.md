@@ -74,13 +74,22 @@ assessed as a whole:
 ```
 INFO  [envelope]  overall width 64" matches published
 WARN  [clearance] mattress side clearance is 1" — loose, mattress will slide
-ERROR [sheet_fit] slat is 62-1/2" x 2-1/2" but plywood_baltic_birch comes in
-                  60" x 60" sheets — it cannot be cut from one piece
+INFO  [sheet_fit] slat (62-1/2" x 2-1/2") fits plywood_baltic_birch 48" x 96"
 WARN  [thickness] plywood_cherry sold as 3/4" measures 45/64" — a groove cut to
                   3/4" would be 1.19 mm loose
+WARN  [deflection] plywood_baltic_birch slat, 30-1/2" span: 4.6 mm midspan
+                  deflection (span/168; limit span/240) — 23 slats, or 13/16"
+                  stock, would meet it
 ```
 
 `CheckReport.ok` is `True` when nothing is an `ERROR`.
+
+A material can be stocked in more than one sheet size — Baltic birch is both
+5'×5' and 4'×8' — so use `Inventory.best_sheet_for`, which picks the smallest
+sheet a part actually fits on rather than guessing from thickness.
+
+**Prices in `stock.yaml` are unverified placeholders.** Quantities, board feet,
+and yields are real; dollar totals are not.
 
 See [NOTES.md](NOTES.md) for what these checks caught on the first real project,
 and for the list of things still worth building.

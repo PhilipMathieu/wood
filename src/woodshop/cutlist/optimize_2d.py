@@ -423,24 +423,37 @@ def pack_by_material(
 
     results: dict[str, Cut2DResult] = {}
     for (material, thickness_mm), group in groups.items():
-        sheet = _match_sheet(inventory, material, thickness_mm)
-        results[f"{material} {sheet.nominal_thickness}"] = optimize_2d(
-            group,
-            sheet_w_mm=sheet.width_mm,
-            sheet_h_mm=sheet.height_mm,
-            kerf_mm=kerf_mm,
-            sheet_grain=sheet.grain,
-            **kwargs,  # type: ignore[arg-type]
+        sheet = _match_sheet(inventory, material, thickness_mm, group)
+        results[f"{material} {sheet.nominal_thickness} ({sheet.size_label})"] = (
+            optimize_2d(
+                group,
+                sheet_w_mm=sheet.width_mm,
+                sheet_h_mm=sheet.height_mm,
+                kerf_mm=kerf_mm,
+                sheet_grain=sheet.grain,
+                **kwargs,  # type: ignore[arg-type]
+            )
         )
     return results
 
 
-def _match_sheet(inventory: "Inventory", material: str, thickness_mm: float):
-    """Return the inventory sheet entry closest in thickness to *thickness_mm*."""
-    candidates = [s for s in inventory.sheet_goods if s.material == material]
-    if not candidates:
-        raise KeyError(
-            f"no sheet stock for material {material!r}; stock.yaml has: "
-            f"{sorted({s.material for s in inventory.sheet_goods})}"
-        )
-    return min(candidates, key=lambda s: abs(s.thickness_mm - thickness_mm))
+def _match_sheet(
+    inventory: "Inventory",
+    material: str,
+    thickness_mm: float,
+    parts: list[CutPart],
+):
+    """Return the smallest stocked sheet that yields every part in *parts*.
+
+    A material may be stocked in several sizes — Baltic birch is both 5'x5'
+    and 4'x8' — so the sheet is chosen by what the parts need, falling back to
+    the largest available when nothing fits everything.
+    """
+    biggest = max(parts, key=lambda p: max(p.length_mm, p.width_mm))
+    return inventory.best_sheet_for(
+        material,
+        length_mm=biggest.length_mm,
+        width_mm=biggest.width_mm,
+        part_grain=biggest.grain_direction,
+        thickness_mm=thickness_mm,
+    )

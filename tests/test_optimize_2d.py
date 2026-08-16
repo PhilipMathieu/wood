@@ -115,5 +115,19 @@ def test_pack_by_material_uses_each_material_own_sheet_size():
                 qty=32),
     ]
     results = pack_by_material(parts, inv)
-    assert results["plywood_cherry 3/4"].sheet_h_mm == pytest.approx(96 * _IN)
-    assert results["plywood_baltic_birch 3/4"].sheet_h_mm == pytest.approx(60 * _IN)
+    keys = {k.split(" (")[0]: v for k, v in results.items()}
+    assert keys["plywood_cherry 3/4"].sheet_h_mm == pytest.approx(96 * _IN)
+    # Short half-slats fit the smaller 5x5 sheet, so that is what gets bought.
+    assert keys["plywood_baltic_birch 3/4"].sheet_h_mm == pytest.approx(60 * _IN)
+
+
+def test_pack_by_material_upgrades_to_the_larger_sheet_when_needed():
+    """A 62-1/2" slat forces the 4x8 Baltic birch rather than the 5x5."""
+    inv = Inventory.load()
+    parts = [
+        CutPart("slat", "plywood_baltic_birch", "none", 62.5 * _IN, 2.5 * _IN, 18.0,
+                qty=16),
+    ]
+    result = next(iter(pack_by_material(parts, inv).values()))
+    assert result.sheet_h_mm == pytest.approx(96 * _IN)
+    assert result.unpacked == []

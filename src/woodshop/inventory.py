@@ -152,6 +152,16 @@ class SheetStock:
         materials with no meaningful face-grain direction.
     price_per_sheet : float or None, optional
         Cost per sheet, if known.
+    notes : str, optional
+        Free text — grade, glue type, anything that distinguishes two sheets
+        of the same material and thickness.
+
+    Notes
+    -----
+    A material and nominal thickness do **not** identify a sheet uniquely.
+    Baltic birch 3/4" is stocked both as 5'x5' with interior glue and as 4'x8'
+    with exterior glue, and only the 4x8 will yield a part longer than 60".
+    Use :meth:`Inventory.best_sheet_for` to pick between them.
     """
 
     material: str
@@ -162,6 +172,17 @@ class SheetStock:
     qty: int = 0
     grain: str = "length"
     price_per_sheet: float | None = None
+    notes: str = ""
+
+    @property
+    def area_mm2(self) -> float:
+        """Sheet face area in mm²."""
+        return self.width_mm * self.height_mm
+
+    @property
+    def size_label(self) -> str:
+        """Short size description, e.g. ``'48" x 96"'``."""
+        return f'{self.sheet_width_in:g}" x {self.sheet_height_in:g}"'
 
     @property
     def thickness_mm(self) -> float:
@@ -285,8 +306,39 @@ class Inventory:
     # Lookups
     # ------------------------------------------------------------------
 
+    def sheets_for(
+        self, material: str, nominal_thickness: str | None = None
+    ) -> list[SheetStock]:
+        """Return every sheet entry matching a material and optional thickness.
+
+        Parameters
+        ----------
+        material : str
+            Material key, e.g. ``"plywood_baltic_birch"``.
+        nominal_thickness : str, optional
+            Nominal thickness label to filter on, e.g. ``"3/4"``.
+
+        Returns
+        -------
+        list[SheetStock]
+            Matching entries, smallest sheet first.  Empty if none match.
+        """
+        return sorted(
+            (
+                s
+                for s in self.sheet_goods
+                if s.material == material
+                and (nominal_thickness is None or s.nominal_thickness == nominal_thickness)
+            ),
+            key=lambda s: s.area_mm2,
+        )
+
     def sheet_for(self, material: str, nominal_thickness: str) -> SheetStock:
-        """Return the sheet stock entry for a material and nominal thickness.
+        """Return the smallest sheet stocked in a material and nominal thickness.
+
+        Where a material is stocked in more than one size, the smallest is
+        returned — it is normally the cheapest and easiest to handle.  When the
+        part size should decide, use :meth:`best_sheet_for` instead.
 
         Parameters
         ----------
@@ -298,16 +350,16 @@ class Inventory:
         Returns
         -------
         SheetStock
-            The matching entry.
+            The smallest matching entry.
 
         Raises
         ------
         KeyError
             If no entry matches.
         """
-        for s in self.sheet_goods:
-            if s.material == material and s.nominal_thickness == nominal_thickness:
-                return s
+        matches = self.sheets_for(material, nominal_thickness)
+        if matches:
+            return matches[0]
         available = sorted(
             f"{s.material} {s.nominal_thickness}" for s in self.sheet_goods
         )
@@ -315,6 +367,66 @@ class Inventory:
             f"no sheet stock for {material!r} {nominal_thickness!r}; "
             f"stock.yaml has: {available}"
         )
+
+    def best_sheet_for(
+        self,
+        material: str,
+        length_mm: float,
+        width_mm: float,
+        part_grain: str = "none",
+        nominal_thickness: str | None = None,
+        thickness_mm: float | None = None,
+    ) -> SheetStock:
+        """Return the smallest stocked sheet that will yield a given part.
+
+        This is the lookup to use when a material comes in more than one size.
+        Baltic birch 3/4" is stocked as both 5'x5' and 4'x8'; a 62-1/2" slat
+        fits only the latter, and picking by thickness alone would silently
+        choose wrong.
+
+        Parameters
+        ----------
+        material : str
+            Material key.
+        length_mm, width_mm : float
+            Part dimensions.
+        part_grain : str, optional
+            The part's grain direction, default ``"none"``.
+        nominal_thickness : str, optional
+            Restrict to this nominal thickness label.
+        thickness_mm : float, optional
+            Restrict to the closest actual thickness to this value.  Applied
+            after *nominal_thickness* if both are given.
+
+        Returns
+        -------
+        SheetStock
+            The smallest sheet the part fits on.  If the part fits none, the
+            largest candidate is returned so callers can report against the
+            biggest sheet actually available.
+
+        Raises
+        ------
+        KeyError
+            If the material is not stocked at all.
+        """
+        candidates = self.sheets_for(material, nominal_thickness)
+        if not candidates:
+            raise KeyError(
+                f"no sheet stock for material {material!r}; stock.yaml has: "
+                f"{sorted({s.material for s in self.sheet_goods})}"
+            )
+        if thickness_mm is not None:
+            closest = min(abs(s.thickness_mm - thickness_mm) for s in candidates)
+            candidates = [
+                s
+                for s in candidates
+                if abs(abs(s.thickness_mm - thickness_mm) - closest) < 1e-9
+            ]
+
+        fitting = [s for s in candidates if s.fits(length_mm, width_mm, part_grain)]
+        # sheets_for sorts by area, so the first fitting sheet is the smallest.
+        return fitting[0] if fitting else candidates[-1]
 
     def hardwood_for(self, species: str, thickness_quarter: str) -> HardwoodStock:
         """Return the hardwood entry for a species and quarter thickness.

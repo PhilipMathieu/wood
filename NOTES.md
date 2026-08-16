@@ -47,8 +47,9 @@ Nothing loaded it. Worse, it could only describe softwood dimensional lumber and
   by the board foot. Width is an outcome of milling, not a property of the
   stock, so entries carry a typical width for yield estimates.
 - **`sheet_goods`** gained real sheet sizes and a face-grain flag, because
-  **Baltic birch is 60" × 60", not 48" × 96"**, and that single fact decides
-  whether this bed's slats can be cut at all.
+  **not every sheet is 48" × 96"** — Baltic birch is stocked as 60" × 60" *and*
+  4' × 8', and which one you can get decides whether this bed's slats can be
+  cut in one piece. See the addendum at the end.
 
 ### 5. `optimize_1d` binned different cross-sections onto the same board — **fixed**
 
@@ -163,12 +164,14 @@ tops at 14", headboard gap at 9-3/4"). Two standing warnings:
 
 **The plywood variant** turned up three things worth knowing before ordering:
 
-1. **The slats do not fit.** A queen slat is 62-1/2"; Baltic birch comes in
-   60" × 60" sheets. This is a hard blocker for queen, king, and California
-   king — twin and full are fine. Resolved by splitting each slat in two over
-   the centre rail and adding a 3" cap so each half gets 1-1/2" of bearing.
-   The check also points out that ordinary 3/4" birch ply in 48" × 96" would
-   take full-length slats whole, which may be the better trade.
+1. **The slats do not fit — on the sheet I assumed.** A queen slat is 62-1/2",
+   and I had Baltic birch down as 60" × 60" only. That is a hard blocker for
+   queen and larger. Resolved by splitting each slat in two over the centre
+   rail with a 3" cap giving each half 1-1/2" of bearing.
+
+   **Then the supplier data arrived and dissolved it** — see the addendum
+   below. The split machinery is still there and still correct; it just is not
+   needed if you can buy the 4' × 8' sheet.
 2. **Neither "3/4" plywood" is 3/4".** Cherry ply measures 45/64" (17.86 mm)
    and Baltic birch is a metric 18 mm. The headboard panel groove has to be cut
    to fit the sheet, not to the nominal number — a 3/4" groove would be over a
@@ -221,3 +224,73 @@ Deliberately left undone, in rough order of how much they would have helped:
   geometry has never been looked at, only measured.
 - **Cut-order sheets.** The layouts are guillotine-cuttable by construction, but
   nothing emits the actual sequence of crosscuts and rips to make at the saw.
+
+## Addendum: what the supplier actually stocks
+
+Everything above was built against a `stock.yaml` I wrote from general
+knowledge. Checking [O'Brien Hardwoods](https://obrienhardwoods.com/) in
+Portland — the obvious supplier for a Maine cherry bed — changed two
+conclusions and exposed one more gap in the toolkit.
+
+### Baltic birch comes in 4' × 8' too, and that dissolves the blocker
+
+I had Baltic birch down as 60" × 60", full stop. O'Brien stocks **both**:
+
+> We stock the sheets in 5'x5' & 4x8, in a B/BB grade. […] The 5' × 5' sheet
+> uses an interior glue that works well if you are using a laser to cut the
+> material. The 4x8 use an exterior grade glue which can make the laser burn
+> and char the plywood surface.
+
+A 62-1/2" queen slat clears the 96" dimension of a 4x8 easily. So the split is
+not required after all — the plywood queen now cuts **16 whole slats from one
+4x8 sheet at 54% yield**, and `split_slats` decides that by itself.
+
+The choice is not purely about size, either: the 5x5 is interior glue and the
+4x8 exterior. For a bed, either is fine; for anything damp or laser-cut, the
+distinction matters, so it is recorded in each entry's `notes`.
+
+### The inventory could not express two sizes of the same material — **fixed**
+
+This was the gap the real data exposed. `sheet_for(material, thickness)`
+returned the *first* match, and both `check_sheet_fit` and `optimize_2d` picked
+a sheet by closest thickness. With two 3/4" Baltic birch entries that is a coin
+flip — and picking the 5x5 would have silently re-imposed a blocker that does
+not exist.
+
+Added `Inventory.sheets_for` and `Inventory.best_sheet_for`, which choose the
+**smallest sheet the part actually fits on** and fall back to the largest
+available so error messages name the biggest real option. `sheet_for` now
+documents that it returns the smallest size. Regression tests:
+`test_best_sheet_upgrades_when_the_part_is_too_long`,
+`test_pack_by_material_upgrades_to_the_larger_sheet_when_needed`.
+
+This generalises past plywood — it is the same problem as 8-ft versus 10-ft
+boards, one dimension up.
+
+### Cherry is stocked in 4/4 through 12/4, so the 1-3/4" post is a guess
+
+O'Brien lists cherry in **4/4, 5/4, 6/4, 8/4, 10/4 and 12/4** (16/4 to order),
+kiln dried to 6–10%, sold RWL — *random widths and lengths*, which is exactly
+the premise `nest_hardwood` was built on.
+
+That undercuts my stated reason for a 1-3/4" post. I had argued a true 2" post
+would need a lamination; with 10/4 on the shelf it simply does not. 1-3/4" is
+still a reasonable guess at what Chilton did, but it is now a guess rather than
+a constraint, and the docstring says so. `post_in=2.0` builds it the other way.
+
+`stock.yaml` gained 6/4 and 10/4 to match.
+
+### The prices are still invented
+
+O'Brien publishes no prices, so **every `price_per_bf` and `price_per_sheet` in
+`stock.yaml` is a placeholder**, now labelled as such with a provenance header.
+The board-foot quantities and yields are real; the dollar totals are not, and
+the ~$1,100 cherry figure should not be quoted at anyone until someone phones
+(207) 536-7860.
+
+### Lumbery is the wrong yard for this
+
+[Lumbery](https://lumbery-me.com/) in Cape Elizabeth curates Maine-grown wood
+from small family sawmills — white cedar, premium pine, reclaimed stock. A
+genuinely interesting supplier, but softwood-focused: no cherry, no hardwood
+plywood. Worth remembering for a different project; nothing here to model.

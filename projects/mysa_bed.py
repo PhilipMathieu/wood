@@ -29,6 +29,11 @@ Two variants are modelled:
     :func:`woodshop.checks.check_thickness_substitution` and
     :func:`woodshop.checks.check_sheet_fit`, which this script runs.
 
+    Which Baltic birch sheet you can buy decides the slat design.  A queen
+    slat is 62-1/2": too long for a 5'x5' sheet, comfortable on a 4'x8'.  With
+    both stocked, slats are cut whole; with only the 5'x5', ``split_slats``
+    turns on by itself and the slats butt over a capped centre rail.
+
 What is inferred rather than published
 --------------------------------------
 The listing gives an envelope and a handful of section sizes, not a cutting
@@ -36,8 +41,10 @@ list.  Everything below is derived from those numbers, and every derived
 number is stated here so it can be argued with:
 
 * **Posts are 1-3/4" square.** The envelope is measured across the posts.
-  8/4 cherry surfaces to 1-3/4", so a true 2" post would need 10/4 stock or a
-  lamination; 1-3/4" is the size that falls out of normal stock.
+  8/4 cherry surfaces to 1-3/4", which is the size that falls out of the
+  commonest stock.  Note that a true 2" post is also buyable — O'Brien stocks
+  cherry up to 12/4 — so this is a guess about what Chilton did, not a
+  constraint.  Pass ``post_in=2.0`` to build it the other way.
 * **Side rails sit flush with the outside faces of the posts**, which makes
   the mattress opening ``overall_width - 2 x rail_thickness``.
 * **Rail tops are level with the footboard at 15"**, so the 4-1/2" rail
@@ -240,15 +247,30 @@ class MysaBed:
         if self.split_slats is None:
             self.split_slats = not self._slat_fits_stock()
 
+    def _slat_sheet(self):
+        """Return the Baltic birch sheet a full-width slat would come from.
+
+        Baltic birch is stocked in two sizes and only one of them is long
+        enough for a queen slat, so the sheet is chosen by the part rather
+        than by thickness.
+        """
+        return self.inventory.best_sheet_for(
+            "plywood_baltic_birch",
+            length_mm=self.slat_length,
+            width_mm=inches(self.slat_width_in),
+            part_grain="none",
+            nominal_thickness="3/4",
+        )
+
     def _slat_fits_stock(self) -> bool:
         """Return whether a full-width slat can be got out of the slat stock.
 
-        Solid stock is long enough by definition.  Sheet goods are not: Baltic
-        birch comes in 60" x 60" sheets, and a queen slat is 62-1/2".
+        Solid stock is long enough by definition.  Sheet goods are not: a
+        queen slat is 62-1/2", which clears a 4x8 sheet but not a 5x5 one.
         """
         if self.variant != "plywood":
             return True
-        sheet = self.inventory.sheet_for("plywood_baltic_birch", "3/4")
+        sheet = self._slat_sheet()
         return sheet.fits(self.slat_length, inches(self.slat_width_in), "none")
 
     # ------------------------------------------------------------------
@@ -276,7 +298,7 @@ class MysaBed:
     def slat_thickness_mm(self) -> float:
         """Slat thickness, measured for sheet goods."""
         if self.variant == "plywood":
-            return self.inventory.sheet_for("plywood_baltic_birch", "3/4").thickness_mm
+            return self._slat_sheet().thickness_mm
         return inches(self.slat_thickness_in)
 
     # ------------------------------------------------------------------
@@ -720,7 +742,7 @@ class MysaBed:
         )
 
         if self.split_slats:
-            sheet = self.inventory.sheet_for("plywood_baltic_birch", "3/4")
+            sheet = self._slat_sheet()
             report.findings.append(
                 Finding(
                     Severity.WARN,
