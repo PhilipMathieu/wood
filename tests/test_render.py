@@ -24,6 +24,7 @@ from woodshop.render import (  # noqa: E402
     render_assembly,
     render_board_diagram,
     render_sheet_diagram,
+    save_figures,
 )
 from woodshop.render.sheets import cut_sequence  # noqa: E402
 
@@ -221,3 +222,115 @@ def test_centre_rail_sits_below_the_slats(bed):
         for p in _iter_leaf_parts(bed.build())
     }
     assert tops["centre_rail"] <= tops["slat"] - 19.0
+
+
+# ---------------------------------------------------------------------------
+# Per-figure images, for anything that cannot embed a PDF
+# ---------------------------------------------------------------------------
+
+
+def test_save_figures_writes_one_image_per_sheet(tmp_path):
+    result = optimize_2d(_panels(60), sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    figs = render_sheet_diagram(result, close=False)
+    written = save_figures(figs, tmp_path, "sheets")
+    assert len(written) == result.sheets_used > 1
+    assert [p.name for p in written][:2] == ["sheets-1.png", "sheets-2.png"]
+    assert all(p.stat().st_size > 0 for p in written)
+    assert not plt.get_fignums(), "save_figures closes what it writes"
+
+
+def test_save_figures_can_write_svg(tmp_path):
+    result = optimize_2d(_panels(), sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    written = save_figures(
+        render_sheet_diagram(result, close=False), tmp_path, "s", ext="svg"
+    )
+    assert written[0].read_text(encoding="utf-8").lstrip().startswith("<?xml")
+
+
+def test_save_figures_creates_the_directory(tmp_path):
+    result = optimize_2d(_panels(), sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    out = tmp_path / "deep" / "nested"
+    assert save_figures(render_sheet_diagram(result, close=False), out, "s")[0].is_file()
+
+
+# ---------------------------------------------------------------------------
+# Orientation
+# ---------------------------------------------------------------------------
+
+
+def test_a_long_thin_board_is_drawn_lying_down():
+    """A 6" x 10 ft board standing up is a ribbon four pages tall."""
+    parts = [CutPart("rail", "cherry", "length", 600.0, 85.0, 19.05, qty=8)]
+    plan = nest_hardwood(parts, Inventory.load(), "cherry")
+    figs = render_board_diagram(plan, close=False)
+    ax = figs[0].axes[0]
+    assert ax.get_xlim()[1] > ax.get_ylim()[1]
+    assert "length" in ax.get_xlabel()
+    for fig in figs:
+        plt.close(fig)
+
+
+def test_a_sheet_is_left_standing_up():
+    result = optimize_2d(_panels(), sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    ax = render_sheet_diagram(result, close=False)[0].axes[0]
+    assert ax.get_xlim() == (0, SHEET_W)
+    assert "width" in ax.get_xlabel()
+    plt.close(ax.figure)
+
+
+# ---------------------------------------------------------------------------
+# Shaped parts in the layout
+# ---------------------------------------------------------------------------
+
+
+def _disc(diameter_mm=400.0):
+    import math
+
+    blank = diameter_mm + 6.35
+    return CutPart(
+        "top", "plywood_birch", "none", blank, blank, 18.25,
+        shape="round", finished_area_each_mm2=math.pi * diameter_mm**2 / 4,
+    )
+
+
+def test_a_round_part_is_drawn_as_a_circle_inside_its_blank():
+    import matplotlib.patches as mpatches
+
+    result = optimize_2d([_disc()], sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    ax = render_sheet_diagram(result, close=False)[0].axes[0]
+    circles = [p for p in ax.patches if isinstance(p, mpatches.Circle)]
+    assert len(circles) == 1
+    assert circles[0].get_radius() == pytest.approx(200.0, abs=0.1)
+    plt.close(ax.figure)
+
+
+def test_a_rectangular_part_gets_no_outline():
+    import matplotlib.patches as mpatches
+
+    result = optimize_2d(_panels(1), sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    ax = render_sheet_diagram(result, close=False)[0].axes[0]
+    assert not [p for p in ax.patches if isinstance(p, mpatches.Circle)]
+    plt.close(ax.figure)
+
+
+def test_the_subtitle_admits_the_shavings():
+    result = optimize_2d([_disc()], sheet_w_mm=SHEET_W, sheet_h_mm=SHEET_H)
+    title = render_sheet_diagram(result, close=False)[0].axes[0].get_title()
+    assert "finished" in title
+    plt.close(plt.gcf())
+
+
+# ---------------------------------------------------------------------------
+# The cut-list table
+# ---------------------------------------------------------------------------
+
+
+def test_the_shape_column_appears_only_when_something_is_not_a_rectangle():
+    from woodshop.render import render_cut_list
+
+    rectangles = render_cut_list(_panels(2))
+    assert "shape" not in rectangles.columns
+
+    shaped = render_cut_list([_disc()])
+    assert "shape" in shaped.columns
+    assert "round" in shaped["shape"].iloc[0]

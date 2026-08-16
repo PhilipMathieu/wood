@@ -88,6 +88,32 @@ class BoardGroup:
         return self.board_feet * self.stock.price_per_bf
 
     @property
+    def purchased_area_mm2(self) -> float:
+        """Face area of the boards bought for this group, in mm².
+
+        Billed at the width you pay for, not the narrower width that survives
+        jointing — otherwise the yield quietly excludes the waste it is
+        supposed to be measuring.
+        """
+        return (
+            self.boards_needed
+            * self.stock.typical_width_in * _MM_PER_IN
+            * self.board_length_mm
+        )
+
+    @property
+    def yield_fraction(self) -> float:
+        """Fraction of the boards bought that the nested blanks claim (0-1)."""
+        total = self.purchased_area_mm2
+        return 0.0 if total == 0 else self.nesting.used_area_mm2 / total
+
+    @property
+    def finished_yield_fraction(self) -> float:
+        """Fraction of the boards bought that ends up in finished parts."""
+        total = self.purchased_area_mm2
+        return 0.0 if total == 0 else self.nesting.finished_area_mm2 / total
+
+    @property
     def label(self) -> str:
         """Human-readable group name, e.g. ``'cherry 4/4'``."""
         return f"{self.stock.species} {self.stock.thickness_quarter}"
@@ -129,14 +155,36 @@ class HardwoodPlan:
         return None if any(c is None for c in costs) else sum(c for c in costs)  # type: ignore[misc]
 
     @property
-    def yield_fraction(self) -> float:
-        """Fraction of purchased board area that ends up in parts (0-1)."""
-        used = sum(g.nesting.used_area_mm2 for g in self.groups)
-        total = sum(
+    def purchased_area_mm2(self) -> float:
+        """Face area of every board bought, in mm²."""
+        return sum(
             g.boards_needed * g.stock.typical_width_in * _MM_PER_IN * g.board_length_mm
             for g in self.groups
         )
+
+    @property
+    def yield_fraction(self) -> float:
+        """Fraction of purchased board area taken up by blanks (0-1).
+
+        This measures the nesting: how much of each board the layout claims.
+        It says nothing about what happens to a blank afterwards.
+        """
+        used = sum(g.nesting.used_area_mm2 for g in self.groups)
+        total = self.purchased_area_mm2
         return 0.0 if total == 0 else used / total
+
+    @property
+    def finished_yield_fraction(self) -> float:
+        """Fraction of purchased board area that ends up in finished parts.
+
+        The same number as :attr:`yield_fraction` for a project made entirely
+        of rectangles.  Lower as soon as anything is turned: a round top is
+        bought as a square, and about a fifth of that square leaves the shop
+        as shavings.
+        """
+        finished = sum(g.nesting.finished_area_mm2 for g in self.groups)
+        total = self.purchased_area_mm2
+        return 0.0 if total == 0 else finished / total
 
     def to_text(self) -> str:
         """Render the plan as a few lines of plain text."""
@@ -166,10 +214,18 @@ class HardwoodPlan:
                 f"{mm_to_fractional_inch(p.thickness_mm)}"
             )
         total_cost = "" if self.cost is None else f", ${self.cost:,.0f}"
+        # Two yields, and they differ only when something is not a rectangle.
+        # Printing both then is the honest thing; printing both always is
+        # noise.
+        yields = f"{self.yield_fraction * 100:.0f}% yield"
+        if abs(self.finished_yield_fraction - self.yield_fraction) > 0.005:
+            yields += (
+                f" nested, {self.finished_yield_fraction * 100:.0f}% after "
+                "the lathe"
+            )
         lines.append(
             f"  {'total':<12s} {self.boards_needed:>3d} boards, "
-            f"{self.board_feet:.1f} bd ft{total_cost}, "
-            f"{self.yield_fraction * 100:.0f}% yield"
+            f"{self.board_feet:.1f} bd ft{total_cost}, {yields}"
         )
         return "\n".join(lines)
 
@@ -207,6 +263,13 @@ def stave_wide_parts(
         n = int(-(-p.width_mm // max_width_mm))  # ceil
         stave_w = p.width_mm / n
         glue_ups.append((p.label, n, stave_w))
+        # A stave is a rectangular board however round the finished part is —
+        # the shape only appears after the glue-up comes off the clamps — so
+        # the stave is nested as a rectangle.  Its share of the finished area
+        # rides along so that yield still tells the truth about the shavings.
+        profile = p.profile or ""
+        if p.shape != "rectangular" and profile:
+            profile = f"1 of {n} staves for a {profile}"
         out.append(
             CutPart(
                 label=f"{p.label}_stave",
@@ -216,6 +279,8 @@ def stave_wide_parts(
                 width_mm=stave_w,
                 thickness_mm=p.thickness_mm,
                 qty=p.qty * n,
+                finished_area_each_mm2=p.finished_area_mm2 / (p.qty * n),
+                profile=profile,
             )
         )
     return out, glue_ups

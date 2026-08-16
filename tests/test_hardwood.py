@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from woodshop.cutlist.extract import CutPart
@@ -140,3 +142,54 @@ def test_stock_with_no_lengths_names_the_offending_row():
     with pytest.raises(ValueError, match="cherry 4/4: no lengths_ft"):
         nest_hardwood([CutPart("x", "cherry", "length", 600.0, 50.0, 19.05)],
                       inv, "cherry")
+
+
+# ---------------------------------------------------------------------------
+# Round and turned parts
+# ---------------------------------------------------------------------------
+
+
+def test_a_round_part_nests_as_its_square_blank(inv):
+    """Correct for buying. The circle only shows up in the yield."""
+    top = CutPart(
+        "top", "cherry", "length", 4.5 * _IN, 4.5 * _IN, 38.1,
+        shape="round", finished_area_each_mm2=math.pi * (4.5 * _IN) ** 2 / 4,
+    )
+    plan = nest_hardwood([top], inv, "cherry")
+    assert plan.boards_needed == 1
+    assert plan.finished_yield_fraction < plan.yield_fraction
+    assert plan.finished_yield_fraction / plan.yield_fraction == pytest.approx(
+        math.pi / 4, abs=0.001
+    )
+
+
+def test_all_rectangles_means_the_two_yields_agree(inv):
+    parts = [CutPart("rail", "cherry", "length", 600.0, 85.0, 19.05, qty=8)]
+    plan = nest_hardwood(parts, inv, "cherry")
+    assert plan.finished_yield_fraction == pytest.approx(plan.yield_fraction)
+
+
+def test_a_staved_round_top_keeps_its_share_of_the_shavings(inv):
+    """Regression: staving a disc turned it into rectangles and hid the waste."""
+    finished = math.pi * (18 * _IN) ** 2 / 4
+    top = CutPart(
+        "top", "cherry", "length", 18.25 * _IN, 18.25 * _IN, 38.1,
+        shape="round", finished_area_each_mm2=finished,
+    )
+    plan = nest_hardwood([top], inv, "cherry")
+    assert plan.glue_ups and plan.glue_ups[0][0] == "top"
+    total_finished = sum(g.nesting.finished_area_mm2 for g in plan.groups)
+    assert total_finished == pytest.approx(finished, rel=1e-6)
+
+
+def test_group_yields_are_billed_against_the_width_you_buy(inv):
+    """Regression: two different yields for one board on one page.
+
+    The nesting runs on the post-jointing width, so its own yield_fraction
+    divides by a narrower board than the one you paid for.
+    """
+    parts = [CutPart("rail", "cherry", "length", 600.0, 85.0, 19.05, qty=8)]
+    plan = nest_hardwood(parts, inv, "cherry")
+    group = plan.groups[0]
+    assert group.yield_fraction == pytest.approx(plan.yield_fraction)
+    assert group.yield_fraction < group.nesting.yield_fraction

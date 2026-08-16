@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated gallery — rebuild with scripts/build_gallery.py
+gallery/

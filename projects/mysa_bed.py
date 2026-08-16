@@ -94,6 +94,7 @@ from woodshop.cutlist.hardwood import nest_hardwood
 from woodshop.cutlist.optimize_2d import pack_by_material
 from woodshop.inventory import Inventory
 from woodshop.parts import Board, Panel
+from woodshop.project import ProjectSpec
 from woodshop.render import (
     export_assembly,
     render_assembly,
@@ -917,6 +918,43 @@ def run(size_name: str, variant: str, outdir: Path) -> CheckReport:
 
     print(f"\nWrote cut list, diagrams, views and CAD export to {outdir}/")
     return report
+
+
+def _spec(size_name: str, variant: str) -> ProjectSpec:
+    """Return the gallery entry for one size and variant.
+
+    Only the queen is registered.  Five sizes times two variants is ten pages
+    that differ in nothing but their numbers, and a gallery of near-identical
+    cards teaches less than two that differ in something real.
+    """
+    bed = MysaBed(size=SIZES[size_name], variant=variant)
+    material = (
+        "Solid cherry throughout, as sold."
+        if variant == "faithful"
+        else "Cherry-plywood headboard panel and Baltic birch slats."
+    )
+    return ProjectSpec(
+        slug=f"mysa-bed-{size_name}-{variant}",
+        name=f"Mysa sleigh bed — {size_name}, {variant}",
+        summary=(
+            f"{bed.size.overall_l_in:g}\"L x {bed.size.overall_w_in:g}\"W x "
+            f"{bed.size.overall_h_in:g}\"H platform bed on a slat deck. "
+            f"{material}"
+        ),
+        species=bed.species,
+        source_url="https://www.chiltons.com/products/mysa-sleigh-bed-cherry",
+        build=bed.build,
+        check=bed.check,
+        inventory=bed.inventory,
+        tags=["bed", variant],
+    )
+
+
+#: Projects this module contributes to the gallery.
+PROJECTS: list[ProjectSpec] = [
+    _spec("queen", "faithful"),
+    _spec("queen", "plywood"),
+]
 
 
 def main() -> None:

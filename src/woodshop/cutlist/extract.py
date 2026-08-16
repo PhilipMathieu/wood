@@ -33,6 +33,18 @@ class CutPart:
         Actual thickness in mm.
     qty : int
         Number of identical parts.
+    shape : str
+        ``"rectangular"``, ``"round"``, or ``"turned"``.  A non-rectangular
+        part's dimensions above describe its **blank** — the square you buy —
+        not the finished shape.
+    finished_area_each_mm2 : float or None
+        Face area of one finished part.  ``None`` means "the whole blank",
+        which is the right answer for a rectangle.  A round part uses this to
+        report honest yield: nesting an 18" disc as an 18-1/4" square is
+        correct for buying and wrong for yield by about a fifth.
+    profile : str
+        Human-readable description of the finished shape, e.g.
+        ``'18" dia. round'``.  Empty for rectangular parts.
     """
 
     label: str
@@ -42,6 +54,9 @@ class CutPart:
     width_mm: float
     thickness_mm: float
     qty: int = 1
+    shape: str = "rectangular"
+    finished_area_each_mm2: float | None = None
+    profile: str = ""
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 
     # ------------------------------------------------------------------
@@ -62,6 +77,18 @@ class CutPart:
     def thickness_in(self) -> str:
         """Thickness as a fractional-inch string."""
         return mm_to_fractional_inch(self.thickness_mm)
+
+    @property
+    def blank_area_mm2(self) -> float:
+        """Face area of the blanks for all ``qty`` copies."""
+        return self.length_mm * self.width_mm * self.qty
+
+    @property
+    def finished_area_mm2(self) -> float:
+        """Face area of the finished parts for all ``qty`` copies."""
+        if self.finished_area_each_mm2 is None:
+            return self.blank_area_mm2
+        return self.finished_area_each_mm2 * self.qty
 
 
 def extract(assembly: Any, consolidate_parts: bool = True) -> list[CutPart]:
@@ -92,9 +119,9 @@ def extract(assembly: Any, consolidate_parts: bool = True) -> list[CutPart]:
 def consolidate(parts: list[CutPart]) -> list[CutPart]:
     """Merge parts that are identical in every respect but quantity.
 
-    Parts are grouped on label, material, grain direction, and all three
-    dimensions rounded to 0.01 mm.  Input order of the first occurrence is
-    preserved.
+    Parts are grouped on label, material, grain direction, shape, and all
+    three dimensions rounded to 0.01 mm.  Input order of the first occurrence
+    is preserved.
 
     Parameters
     ----------
@@ -112,6 +139,7 @@ def consolidate(parts: list[CutPart]) -> list[CutPart]:
             p.label,
             p.material,
             p.grain_direction,
+            p.shape,
             round(p.length_mm, 2),
             round(p.width_mm, 2),
             round(p.thickness_mm, 2),
@@ -127,6 +155,9 @@ def consolidate(parts: list[CutPart]) -> list[CutPart]:
                 width_mm=p.width_mm,
                 thickness_mm=p.thickness_mm,
                 qty=p.qty,
+                shape=p.shape,
+                finished_area_each_mm2=p.finished_area_each_mm2,
+                profile=p.profile,
                 _extra=dict(p._extra),
             )
     return list(merged.values())
@@ -136,14 +167,17 @@ def _walk(node: Any, acc: list[CutPart]) -> None:
     """Recursively walk *node* collecting parts into *acc*."""
     # If the node itself has material metadata it is a leaf part.
     if hasattr(node, "material") and hasattr(node, "stock_length_mm"):
-        # Prefer the cut dimensions recorded on the part.  Measuring them off
-        # the bounding box only works while the part still sits in its local
-        # frame — once it is rotated into the assembly, Y and Z no longer mean
-        # width and thickness.  Fall back to the bounding box for plain
-        # build123d solids that were tagged by hand.
+        # Prefer the *blank* dimensions recorded on the part.  Two reasons:
+        # measuring off the bounding box only works while the part still sits
+        # in its local frame — once it is rotated into the assembly, Y and Z no
+        # longer mean width and thickness — and for a round or turned part the
+        # bounding box is the finished shape, which is not what you buy.  Fall
+        # back to the bounding box for plain build123d solids tagged by hand.
         bb = node.bounding_box()
-        width_mm = getattr(node, "width_mm", None)
-        thickness_mm = getattr(node, "thickness_mm", None)
+        width_mm = getattr(node, "stock_width_mm", getattr(node, "width_mm", None))
+        thickness_mm = getattr(
+            node, "stock_thickness_mm", getattr(node, "thickness_mm", None)
+        )
         extra: dict[str, Any] = {}
         if getattr(node, "notes", ""):
             extra["notes"] = node.notes
@@ -156,6 +190,9 @@ def _walk(node: Any, acc: list[CutPart]) -> None:
                 width_mm=bb.size.Y if width_mm is None else width_mm,
                 thickness_mm=bb.size.Z if thickness_mm is None else thickness_mm,
                 qty=getattr(node, "qty", 1),
+                shape=getattr(node, "shape", "rectangular"),
+                finished_area_each_mm2=getattr(node, "finished_area_mm2", None),
+                profile=getattr(node, "profile", ""),
                 _extra=extra,
             )
         )

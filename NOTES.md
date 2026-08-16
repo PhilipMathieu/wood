@@ -224,6 +224,10 @@ Deliberately left undone, in rough order of how much they would have helped:
 - ~~**3-D export.**~~ Done — see the addendum on drawing the model.
 - ~~**Cut-order sheets.**~~ Done — `cut_sequence` reads the strips back out.
 
+The joinery gap turns out to be worse than it reads. Every joinery cut is a
+boolean, and a boolean returns anonymous geometry that drops straight out of the
+cut list — see the nightstand addendum and `retag`.
+
 ## Addendum: what the supplier actually stocks
 
 Everything above was built against a `stock.yaml` I wrote from general
@@ -404,3 +408,200 @@ very sheet that would take the slats whole.
 The pattern worth remembering: none of these were in the original code. They
 all arrived with a fix, and four of the six were only visible on inputs the bed
 itself never produces — which is exactly why they survived a green test suite.
+
+## Addendum: the nightstand, which is not made of rectangles
+
+The bed validated a lot of machinery and exercised none of it on anything
+curved. Every part in it is a box. Adding Chilton's
+[Mysa nightstand](https://www.chiltons.com/products/mysa-nightstand-cherry) —
+18" round, 1-1/2" top, three turned legs tapering 1-1/2" to 1" — broke four
+assumptions at once, and each break is worth writing down because each one was
+invisible while the only project was rectilinear.
+
+### 1. A blank is not a part — **built**
+
+`Board` and `Panel` are `Box` subclasses; `CutPart` carries length, width and
+thickness and nothing about shape. A round top could not be represented at all.
+
+The fix is not "add a circle". It is the observation that **the cut list should
+describe what you buy**, which is the same principle the hardwood nester was
+built on, generalised from one dimension to two. So every part now carries
+both:
+
+- `length_mm` / `width_mm` / `thickness_mm` — the finished part
+- `stock_length_mm` / `stock_width_mm` / `stock_thickness_mm` — the blank
+
+For a rectangle these coincide apart from a trim allowance, so nothing about the
+bed changed. For an 18" disc the blank is an 18-1/4" square, and for a tapered
+leg it is a 1-3/4" square 1" longer than the spindle. `Disc` and `Turning` are
+the two new part classes; both are surfaces of revolution about +Z.
+
+A small trap on the way: Open Cascade refuses to build a cone from two identical
+radii, so a *parallel* turning has to be a cylinder. `ShapedPart` picks the
+primitive rather than making the caller think about it.
+
+### 2. Yield was quietly lying — **fixed**
+
+Nesting an 18" disc as an 18-1/4" square is correct for purchasing and wrong for
+yield: 21% of that square leaves as shavings, and the old `yield_fraction`
+counted every square millimetre of it as used. There are genuinely two numbers
+here and they answer different questions, so there are now two:
+
+- `yield_fraction` — how well did I nest? (blanks against boards bought)
+- `finished_yield_fraction` — how much of the board ends up in the furniture?
+
+They are identical for anything rectangular, and both are printed only when they
+differ. The nightstand nests at 63% and finishes at 47%.
+
+A related bug fell out of this. `BoardGroup.nesting` runs on the *usable* width
+— typical width less the jointing allowance — so the nesting's own yield divides
+by a narrower board than the one you paid for. The board diagram was quoting
+that number while the plan summary quoted the billed one: 65% and 63% for the
+same board on the same page. Both now bill against the width you buy.
+
+### 3. A boolean cut silently drops a part from the cut list — **built**
+
+A leg turned between centres ends square to its own axis. Lean it 6° and that
+end is no longer level: the model came out 22-1/16" tall with its lowest point
+1/16" underground, and the real leg would rock. Every splayed-leg piece is
+levelled after glue-up, so the model should show the leg that leaves the shop,
+not the one that leaves the lathe.
+
+Cutting the foot flat is one boolean — and the result is anonymous geometry.
+`extract` keys on the `material` attribute, so the three legs vanished from the
+cut list without a word. This is not specific to feet: **every mortise, rabbet,
+and dado has the same problem**, which is why the joinery gap listed above is
+worse than it looks.
+
+`woodshop.parts.retag(solid, like=part)` is the two-line fix at the call site.
+It does not merge or recompute anything, because a mortise does not change the
+blank you buy — which is exactly why the metadata should survive the cut.
+`test_a_boolean_cut_loses_the_cut_list_without_retag` pins the failure mode so
+the reason for the function does not get lost.
+
+### 4. A check that compares a material against an operation — **built**
+
+Every check up to now compared a number against a number. This piece needed a
+different kind: a 3/4" Baltic birch slat and a 3/4" Baltic birch turned leg have
+*identical rows on a cut list*, and only one of them is possible.
+
+`check_material_suitability` is the first check keyed on shape rather than size:
+
+```
+ERROR [material] leg is turned but specified in plywood_baltic_birch: sheet
+                 goods have no long grain running the length of a spindle, so
+                 the alternating plies tear out at the skew and the piece snaps
+                 at the first catch — turn it from solid stock
+WARN  [material] top is round and specified in plywood_cherry: the cut exposes
+                 edge plies round the whole circumference
+INFO  [material] top (18" dia. round …) in solid cherry: it will move across
+                 the grain and not along it, so it goes out of round
+```
+
+There is a deliberately unbuildable `--variant plywood` for the nightstand whose
+only purpose is to make that ERROR fire. It is not in the gallery.
+
+Writing it exposed a related hole: `check_sheet_fit` only ever asked about
+length and width, so a 1-3/4" turning blank "fitted" a 3/4" sheet. It now also
+checks thickness, and distinguishes a lamination from a mistake — two layers of
+45/64" cherry ply is an INFO with the layer count, 1-3/4" of 45/64" Baltic birch
+is an ERROR.
+
+### The finding I did not expect
+
+The tipping check was written to make the tripod geometry concrete, on the
+assumption it would report something reassuring. It does not:
+
+```
+WARN [stability] 4.8 kg on 3 legs: a load of 3.6 kg (8 lb) on the rim between
+                 two legs tips it (rim 9", tipping edge 3-7/8" from centre)
+```
+
+Three legs stand on a triangle, and the nearest edge of that triangle is at
+`foot_radius × cos(π/3)` — exactly **half** the foot radius. Four legs get
+`cos(π/4)`, or 71%. That factor is the whole difference between three legs and
+four, and it is why a tripod with the same footprint is so much tippier.
+
+The interesting part is that this is not a consequence of my inferred splay
+angle. It is forced by the published envelope: the feet plus their own radius
+have to stay inside the quoted 18", which caps the foot radius at about 8-1/2",
+which caps the tipping edge at 4-1/4" under a 9" rim. **Any** 18"-round tripod
+of this height tips under about 8 kg on the rim. The design is not wrong — it is
+a nightstand, not a step stool — but the toolkit found a real property of the
+piece from two published numbers and a bit of trigonometry, which is the best
+argument for having checks at all.
+
+### What reused cleanly, as hoped
+
+- `stave_wide_parts` split the 18-1/4" top into 4 staves of 4-9/16" with no
+  changes, keyed only on width. The staves nest as rectangles — the shape only
+  appears after the glue-up comes off the clamps — but they carry their share of
+  the finished area so the yield stays honest.
+- 8/4 cherry surfaces to 1-3/4", which is both enough for a 1-1/2" top and
+  exactly a leg blank. Both parts land in one thickness group; the whole
+  nightstand is one 6" × 10 ft board.
+- `check_envelope` against the published 18" × 22" needed nothing new.
+
+## Addendum: the gallery
+
+Everything above produced files in a gitignored `build/` that lived about as
+long as the terminal scrollback. `scripts/build_gallery.py` writes a static site
+instead: an index of cards, a page per project with the four views, the cut
+list, the nesting layouts, the check report styled by severity, and the
+STEP/STL/CSV.
+
+### Projects had to become discoverable first
+
+`projects/*.py` were scripts with bespoke `main()` and argparse — fine for a
+human running one at a time, hopeless for anything that wants to run all of
+them. `woodshop/project.py` is a registry: a module publishes a module-level
+`PROJECTS` list of `ProjectSpec`, and `discover_projects()` finds it.
+
+A `ProjectSpec` is deliberately thin — a slug, a name, and the two callables
+that matter, `build` and `check`. Everything else is derived from those two by
+machinery that already existed. Modules with no `PROJECTS` are skipped rather
+than treated as an error, because `workbench.py` legitimately has no geometry to
+show.
+
+Only the queen bed is registered, in both variants. Five sizes × two variants is
+ten pages differing in nothing but their numbers, and a gallery of
+near-identical cards teaches less than two that differ in something real.
+
+### What the pages would not do
+
+**Publish the prices.** A dollar figure on a web page reads as researched
+however loudly the source file labels it, and every price in `stock.yaml` is
+invented (#3). Costs are omitted by default; `--with-costs` puts them back
+inside a warning block. `test_no_dollar_figure_appears_by_default` asserts no
+`$` reaches any page.
+
+**Pretend the renders are perfect.** The plan view still draws the centre rail
+over the slats it sits beneath. That is documented in a terminal workflow and
+would read as a mistake on a gallery page, so every render carries the
+painter's-algorithm caveat as a caption.
+
+**Truncate silently.** The faithful queen takes sixteen boards, and sixteen
+near-identical diagrams down a page is not information. Four are shown, the
+count of what was dropped is stated, and the full set is linked as the PDF —
+because a silent cut would read as "this is all of it" when the number of boards
+*is* the cost of the project.
+
+### Two things the gallery fixed in the renderers
+
+- `render_sheet_diagram` and `render_board_diagram` only ever wrote multi-page
+  PDFs, which no web page can embed. `save_figures` writes one PNG or SVG per
+  figure. The PDF is still written first, because it is the one you carry to the
+  saw.
+- A 6" × 10 ft board drawn with length up the page is a ribbon twenty times
+  taller than it is wide — legible in no medium at all. Long stock is now drawn
+  lying down, chosen from the aspect ratio, with the grain arrow and the hatching
+  turned to match. Sheets are unaffected: a 4×8 at 2:1 stands up fine.
+
+### Still not built
+
+- **No CI.** "Regenerate the gallery on push" needs a workflow this repository
+  does not have. The generated site is gitignored; publishing it to Pages is a
+  deliberate decision left to a human, not a side effect of a build.
+- **A size selector.** One page per design covering all five bed sizes would be
+  better than registering one size, and needs client-side state the pages
+  currently have none of.
