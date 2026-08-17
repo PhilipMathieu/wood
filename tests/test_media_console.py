@@ -75,13 +75,49 @@ def test_the_openings_measure_what_the_brief_asked_for(console, assembly):
     assert top_underside - shelves[1].max.Z == pytest.approx(8.0 * IN, abs=0.05)
 
 
-def test_the_bays_come_out_wider_than_fifteen_because_the_plywood_is_thin(console):
-    """45/64" stock leaves 5/32" more opening than a true 3/4" would."""
+def test_the_bays_are_what_the_panels_and_the_ears_leave(console):
+    """Two things eat the published width: six panels, and the two overruns."""
     assert console.panel_t == pytest.approx(45 / 64 * IN)
     assert console.bay_clear_w == pytest.approx(
-        (console.overall_w - 6 * console.panel_t) / 5
+        (console.upright_span - 6 * console.panel_t) / 5
     )
-    assert 15 * IN < console.bay_clear_w < 15.25 * IN
+    assert console.upright_span == pytest.approx(
+        console.case_w - 2 * console.end_overhang
+    )
+    # Flush ends would give the 15-5/32" the design had before the overrun.
+    flush = MediaConsole(end_overhang_in=0.0)
+    assert 15 * IN < flush.bay_clear_w < 15.25 * IN
+    assert console.bay_clear_w < flush.bay_clear_w
+
+
+def test_the_overrun_is_the_makers_own_proportion(console):
+    """~4" on an 11-1/2" panel, measured off their parts drawings."""
+    assert console.end_overhang == pytest.approx(0.35 * console.panel_depth)
+    assert MediaConsole(end_overhang_in=2.0).end_overhang == pytest.approx(2 * IN)
+
+
+def test_the_overrun_makes_every_crossing_interior(console, assembly):
+    """The point of it: no joint at the end of a member, on either part."""
+    placed = _placed(assembly)
+    shelf = min(placed["shelf"], key=lambda p: p.bounding_box().min.Z)
+    end_upright = placed["upright"][0].bounding_box()
+
+    # The shelf carries on past the outermost upright, at both ends.
+    shelf_bb = shelf.bounding_box()
+    assert end_upright.min.X - shelf_bb.min.X == pytest.approx(
+        console.end_overhang, abs=0.5
+    )
+    assert shelf_bb.max.X - placed["upright"][-1].bounding_box().max.X == (
+        pytest.approx(console.end_overhang, abs=0.5)
+    )
+    # ...so there is stock on both sides of the slot: probe just outside it.
+    z = console.shelf_z(0) + console.panel_t / 2
+    outboard = Pos(
+        end_upright.min.X - console.panel_t,
+        console.panel_back_y - console.lap_depth / 2,
+        z,
+    ) * Box(console.panel_t * 0.6, console.lap_depth * 0.5, console.panel_t * 0.5)
+    assert (shelf & outboard).volume > 0
 
 
 def test_the_leftover_height_becomes_a_toe_reveal(console, assembly):
@@ -258,7 +294,12 @@ def test_the_case_comes_off_two_sheets(console, parts):
 
 def test_the_front_edges_come_off_four_quarter_cherry(console, parts):
     solid = [p for p in parts if p.material == "cherry"]
-    assert {p.label for p in solid} == {"top_edge", "shelf_edge", "upright_edge"}
+    assert {p.label for p in solid} == {
+        "top_edge",
+        "shelf_edge",
+        "shelf_ear_edge",
+        "upright_edge",
+    }
     for strip in solid:
         assert strip.thickness_mm == pytest.approx(console.edge_t)
     plan = nest_hardwood(solid, console.inventory, "cherry")
@@ -382,14 +423,17 @@ def test_paint_grade_birch_is_thicker_than_cherry_ply_and_the_kit_follows(
     assert painted.upright_h != console.upright_h
 
 
-def test_the_overhang_hands_the_bays_back_what_the_thicker_sheet_took(
+def test_the_solid_tops_overhang_comes_out_of_the_case_not_the_room(
     console, painted
 ):
-    """The console is 80" either way; the case underneath is 79"."""
+    """The console is 80" either way; the horizontals under the top run 79"."""
     assert painted.case_w == pytest.approx(79 * IN)
     assert painted.overall_w == console.overall_w
-    assert abs(painted.bay_clear_w - 15 * IN) < abs(console.bay_clear_w - 15 * IN)
-    assert abs(painted.bay_clear_w - 15 * IN) < IN / 16
+    # Flush-ended, the thicker birch would cost about an eighth of bay; the
+    # top's own overhang hands most of it back.
+    flush_cherry = MediaConsole(end_overhang_in=0.0)
+    flush_painted = MediaConsole(variant="painted", end_overhang_in=0.0)
+    assert abs(flush_painted.bay_clear_w - flush_cherry.bay_clear_w) < IN / 4
 
 
 def test_the_painted_build_is_eight_pieces_of_plywood_and_one_board(painted_parts):

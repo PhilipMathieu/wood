@@ -20,6 +20,13 @@ dimensioned tearsheets and product photographs settled two questions:
   front edge runs through unbroken and the *shelf's* stops against it — so the
   uprights are slotted from the back and the shelves from the front, which is
   the opposite of what this model did until the photographs were read.
+* **The overrun: about 0.35 of the panel's width, in both directions.**  The
+  slot positions give it exactly — 4.03" and 4.06" from the ends of the
+  23-1/2" parts, 4.03" and 4.4" on the 47-1/2" ones.  Every member runs past
+  its outermost crossing, so *every joint in that system is a full-width lap
+  with stock on both sides of it*, and nothing terminates at a joint.  That,
+  more than the corners, is why it reads as a grid and not as a box — and it
+  is the thing this model was missing longest.
 * **The corner radius: about 0.07 of the panel's width.**  Measured off three
   self-calibrating tearsheets (whose parts scale exactly to their published
   11-1/2" x 23-1/2" and 11-1/2" x 47-1/2"), the radius is 13-14 px against
@@ -67,6 +74,13 @@ verticals running floor to top with shelf edges between them.  That is not a
 styling choice: it follows from which member is notched where, and the
 photographs are unambiguous about it.
 
+The horizontals then run 4-7/16" past the outermost uprights at each end, which
+is what makes every crossing a full-width lap rather than a notch in the corner
+of a part.  It costs an inch and three quarters off every bay and it is the
+whole difference between a grid and a box.  The uprights would overrun top and
+bottom in the same way if there were room; there is not — see *What the
+arithmetic decides*.
+
 The top is the one part that does not slide.  Its housings are 1/4" deep and
 stopped by its own front edging, so no slot reaches the surface the turntable
 stands on; it drops straight down onto the uprights, squares the grid, and
@@ -84,10 +98,12 @@ what decides which one gives.  ``3/4"`` cherry plywood measures **45/64"**, so
 six uprights take 4-7/32" of the 80" rather than 4-1/2", and three horizontals
 take 2-3/32" of the 24" rather than 2-1/4":
 
-* **Bay width comes out 15-5/32", not 15"** — the width is fixed at 80" and the
-  five openings share what the six uprights leave.  Holding a true 15" would
-  mean a case 79-1/32" wide, which is a worse trade than an eighth of an inch
-  nobody can see across a bay.
+* **Bay width comes out 13-3/8"** — the width is fixed at 80" and three things
+  share it: six uprights of 45/64", and the 4-7/16" the horizontals run past
+  the end uprights at each end.  The overrun is the expensive one, and it buys
+  the joinery: with flush ends the bays go back to 15-5/32" and the four
+  crossings at the ends become corner notches.  ``end_overhang_in=0`` is that
+  trade, and the report prints both numbers so it is made on purpose.
 * **The openings still hit 13-1/2" and 8" exactly**, and the 3/8" the thin
   plywood gives back becomes the **toe reveal**: the bottom shelf crosses the
   uprights 25/64" off the floor, and the piece stands on six panel feet.  A
@@ -386,6 +402,17 @@ def inches(value: float) -> float:
 #: this console's panels are not 11-1/2" wide.
 REFERENCE_RADIUS_RATIO: float = 0.07
 
+#: How far a member runs past its outermost crossing, as a fraction of the
+#: panel's width.
+#:
+#: Measured off the maker's parts drawings, where the slot positions give it
+#: directly: on the 23-1/2" parts the two slots sit 4.03" from one end and
+#: 4.06" from the other, and on the 47-1/2" parts the outer slots sit 4.03" and
+#: 4.4" in.  A constant ~4" on an 11-1/2" panel, the same in both directions —
+#: which is what makes every joint in that system a full-width crossing with
+#: material on both sides of it, and nothing terminating at a joint.
+REFERENCE_OVERHANG_RATIO: float = 0.35
+
 #: Segments per quarter-circle when a radius is sampled into a polyline.
 #:
 #: :class:`woodshop.parts.ShapedBoard` takes a polygon, so a curve is however
@@ -491,6 +518,12 @@ class MediaConsole:
     corner_radius_in : float, optional
         Radius on the panels' outer corners — every corner of the top in plan,
         every corner of an upright in its own plane — default ``0`` for square.
+    end_overhang_in : float, optional
+        How far the horizontals run past the outermost upright.  ``None``, the
+        default, takes the maker's own proportion
+        (:data:`REFERENCE_OVERHANG_RATIO` of the panel's width); ``0`` puts the
+        end uprights flush with the ends and turns those crossings back into
+        corner notches.
     inventory : Inventory, optional
         Stock inventory.  Loaded from ``stock.yaml`` if not given.
 
@@ -517,6 +550,7 @@ class MediaConsole:
     panel_nominal_thickness: str = "3/4"
     dado_depth_in: float = 0.25
     corner_radius_in: float = 0.0
+    end_overhang_in: float | None = None
 
     inventory: Inventory = field(default_factory=Inventory.load)
 
@@ -631,6 +665,20 @@ class MediaConsole:
         return inches(self.corner_radius_in)
 
     @property
+    def end_overhang(self) -> float:
+        """How far the horizontals run past the outermost upright, mm.
+
+        The reason the reference reads as a grid rather than as a box: every
+        crossing has material on both sides of it, so no joint is a corner
+        notch and no member stops at a joint.  It is bought out of the bays —
+        the envelope is published, so an inch of ear is an inch the openings
+        do not get.
+        """
+        if self.end_overhang_in is None:
+            return REFERENCE_OVERHANG_RATIO * self.panel_depth
+        return inches(self.end_overhang_in)
+
+    @property
     def reference_corner_radius(self) -> float:
         """The radius this piece would have at the measured proportion, mm.
 
@@ -695,12 +743,21 @@ class MediaConsole:
 
     @property
     def case_w(self) -> float:
-        """Width of the grid itself, mm — the envelope less any top overhang.
+        """Width the horizontals run, mm — the envelope less any top overhang.
 
         A solid top that projects past the ends takes its overhang out of the
         case rather than out of the room: the piece is 80" wide either way.
         """
         return self.overall_w - 2 * self.top_overhang
+
+    @property
+    def upright_span(self) -> float:
+        """Across the outer faces of the two end uprights, mm.
+
+        The horizontals overrun this at both ends, which is what makes every
+        crossing a full-width lap.
+        """
+        return self.case_w - 2 * self.end_overhang
 
     @property
     def panel_depth(self) -> float:
@@ -721,12 +778,13 @@ class MediaConsole:
     def bay_clear_w(self) -> float:
         """Clear width of one bay in mm.
 
-        The width is published and the uprights take what they take, so this is
-        an outcome rather than a choice: 15-5/32" for the cherry grid, an
-        eighth over the 15" the brief names, because the plywood is thin.  The
-        painted build's overhang hands most of that eighth back.
+        The width is published and the uprights and the ears take what they
+        take, so this is an outcome rather than a choice.  Two things eat it:
+        six panels of 45/64", and the overrun at each end that the joinery
+        wants.  Set ``end_overhang_in=0`` and the bays go back over 15" —
+        along with the corner notches at the ends.
         """
-        return (self.case_w - self.n_uprights * self.panel_t) / self.n_bays
+        return (self.upright_span - self.n_uprights * self.panel_t) / self.n_bays
 
     @property
     def toe_reveal(self) -> float:
@@ -769,7 +827,7 @@ class MediaConsole:
     @property
     def clear_run(self) -> float:
         """Width the bays share between the two end uprights, mm."""
-        return self.case_w - 2 * self.panel_t
+        return self.upright_span - 2 * self.panel_t
 
     def shelf_z(self, row: int) -> float:
         """Return the underside of the shelf below *row*, mm off the floor.
@@ -804,7 +862,7 @@ class MediaConsole:
             Distance from the console's centre line, negative to the left.
         """
         pitch = self.bay_clear_w + self.panel_t
-        return -self.case_w / 2 + self.panel_t / 2 + i * pitch
+        return -self.upright_span / 2 + self.panel_t / 2 + i * pitch
 
     @property
     def panel_y(self) -> float:
@@ -1037,8 +1095,9 @@ class MediaConsole:
                 f"runs the full width; {self.n_uprights} slots "
                 f"{mm_to_fractional_inch(self.panel_t, 64)} wide x "
                 f"{mm_to_fractional_inch(self.lap_depth, 32)} deep, cut from "
-                "the FRONT edge, the outer two at the corners. Bottom shelf "
-                "and CD shelf are one part"
+                "the FRONT edge — every one of them interior, because the "
+                f"shelf runs {mm_to_fractional_inch(self.end_overhang, 16)} "
+                "past the end uprights. Bottom shelf and CD shelf are one part"
             ),
         )
 
@@ -1144,10 +1203,11 @@ class MediaConsole:
             )
 
         for row in range(self.n_shelves):
+            z = self.shelf_z(row) + self.panel_t / 2
             for bay in range(self.n_bays):
                 x = (self.upright_x(bay) + self.upright_x(bay + 1)) / 2
                 out.append(
-                    Pos(x, self.edge_y, self.shelf_z(row) + self.panel_t / 2)
+                    Pos(x, self.edge_y, z)
                     * Rotation(90, 0, 0)
                     * self._edge_strip(
                         "shelf_edge",
@@ -1159,6 +1219,23 @@ class MediaConsole:
                         ),
                     )
                 )
+            if self.end_overhang > 0:
+                for sign in (-1, 1):
+                    x = sign * (self.upright_span / 2 + self.end_overhang / 2)
+                    out.append(
+                        Pos(x, self.edge_y, z)
+                        * Rotation(90, 0, 0)
+                        * self._edge_strip(
+                            "shelf_ear_edge",
+                            length_mm=self.end_overhang,
+                            height_mm=self.panel_t,
+                            notes=(
+                                "the ear outside the end upright; it returns "
+                                "round the rounded end, so mitre or wrap it "
+                                "rather than butting a short grain end"
+                            ),
+                        )
+                    )
         return out
 
     def _edge_strip(
@@ -1173,7 +1250,8 @@ class MediaConsole:
         Parameters
         ----------
         label : str
-            Part name: ``"top_edge"``, ``"upright_edge"``, ``"shelf_edge"``.
+            Part name: ``"top_edge"``, ``"upright_edge"``, ``"shelf_edge"``,
+            ``"shelf_ear_edge"``.
         length_mm : float
             Finished length.  Cut long — every one of these is fitted.
         height_mm : float
@@ -1289,24 +1367,88 @@ class MediaConsole:
                 "shelves and top; adding a row costs one shelf and taller "
                 "uprights. Nothing else in the kit changes",
             ),
+            *self._overhang_findings(),
+        ]
+
+    def _overhang_findings(self) -> list[Finding]:
+        """Report the overrun, what it buys, and what it costs."""
+        if self.end_overhang <= 0:
+            return [
+                Finding(
+                    Severity.WARN,
+                    "kit",
+                    "no overrun: the end uprights sit flush with the ends, so "
+                    f"the {2 * self.n_shelves} crossings there are corner "
+                    "notches rather than full-width laps, and the top's outer "
+                    "housings are rabbets. It holds together and it reads as "
+                    "a box rather than as a grid",
+                )
+            ]
+
+        flush_bay = (self.case_w - self.n_uprights * self.panel_t) / self.n_bays
+        return [
+            Finding(
+                Severity.INFO,
+                "kit",
+                f"the horizontals run "
+                f"{mm_to_fractional_inch(self.end_overhang, 16)} past the end "
+                f"uprights, so all {self.n_uprights * self.n_shelves} "
+                "crossings are full-width laps with stock on both sides and "
+                "nothing stopping at a joint — which is what makes the "
+                "reference read as a grid rather than as a case",
+            ),
+            Finding(
+                Severity.INFO,
+                "bay",
+                "the ears are bought out of the openings: "
+                f"{mm_to_fractional_inch(2 * self.end_overhang, 16)} of "
+                f"overrun inside a published {self.overall_w_in:g}\" takes "
+                f"{mm_to_fractional_inch((flush_bay - self.bay_clear_w), 32)} "
+                f"off every bay, which is why they come out "
+                f"{mm_to_fractional_inch(self.bay_clear_w, 32)} and not "
+                f"{mm_to_fractional_inch(flush_bay, 32)}",
+            ),
+            Finding(
+                Severity.WARN,
+                "capacity",
+                f"an ear is a ledge, not a bay: there is no upright beyond it, "
+                f"so records in the outer "
+                f"{mm_to_fractional_inch(self.end_overhang, 16)} have nothing "
+                "to lean on and will slide off the end. Keep the run inboard "
+                "of the last upright and treat the ears as somewhere to put a "
+                "record down while the other side plays",
+            ),
+            Finding(
+                Severity.INFO,
+                "kit",
+                "the uprights cannot overrun the same way: the reference "
+                f"stands them about {REFERENCE_OVERHANG_RATIO:.2f} of a panel "
+                "width proud top and bottom, and a "
+                f"{self.overall_h_in:g}\" envelope with "
+                f"{self.record_bay_h_in:g}\" and {self.cd_row_h_in:g}\" "
+                f"openings has {mm_to_fractional_inch(self.toe_reveal, 64)} "
+                "left over. The toe reveal is what survives of that idea; "
+                "matching it properly would mean a "
+                f"{(self.overall_h + 2 * self.end_overhang) / IN:.0f}\" "
+                "console or shorter rows",
+            ),
         ]
 
     def _fit_findings(self) -> list[Finding]:
         """Compare the openings against the things they are sized for."""
         findings: list[Finding] = []
 
-        nominal_bay = round(self.bay_clear_w / IN)
         findings.append(
             Finding(
                 Severity.INFO,
                 "bay",
                 f"{self.n_bays} bays come out "
-                f"{mm_to_fractional_inch(self.bay_clear_w, 32)} clear, not "
-                f"{nominal_bay:g}\": {self.n_uprights} uprights of "
+                f"{mm_to_fractional_inch(self.bay_clear_w, 32)} clear across a "
+                f"{mm_to_fractional_inch(self.upright_span, 32)} span: "
+                f"{self.n_uprights} uprights of "
                 f"{mm_to_fractional_inch(self.panel_t, 64)} take "
                 f"{mm_to_fractional_inch(self.n_uprights * self.panel_t, 32)} "
-                f"of the {mm_to_fractional_inch(self.case_w, 32)} of case, "
-                f"where {self.n_uprights} of a true 3/4\" would take "
+                f"of it, where {self.n_uprights} of a true 3/4\" would take "
                 f"{mm_to_fractional_inch(self.n_uprights * inches(0.75), 32)}",
             )
         )
@@ -1325,6 +1467,16 @@ class MediaConsole:
             )
 
         sleeve = inches(LP_SLEEVE_IN)
+        findings.extend(
+            check_clearance(
+                "room beside a record sleeve",
+                self.bay_clear_w - sleeve,
+                min_mm=inches(0.75),
+                max_mm=inches(4.0),
+                tight_note="fingers cannot get either side of the stack",
+                loose_note="the stack leans before the bay is full",
+            )
+        )
         findings.extend(
             check_clearance(
                 "room above a record sleeve",

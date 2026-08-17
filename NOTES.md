@@ -1219,3 +1219,53 @@ Both facts are recorded in the module docstring under *Where the joinery came
 from*, along with which two things are measured and which are borrowed. The
 distinction is the whole point: this piece is not a reproduction, and the file
 should never be able to be mistaken for one.
+
+### Correction 3: everything overruns, and that is the whole look
+
+The two corrections above were about *where* material sits at a joint. This one
+is about whether the joint is a joint at all.
+
+In the reference, **every member runs past its outermost crossing** — the
+horizontals past the end uprights, the uprights above the top shelf and below
+the bottom one, which is also what they stand on. So every joint is a
+full-width lap with stock on both sides of it, and nothing terminates at a
+joint. The console had the end uprights flush with the ends, which turns the
+four crossings there into corner notches and the top's outer housings into
+rabbets. That is why it kept reading as a box with a grid drawn on it.
+
+The parts drawings give the number without any perspective to argue with,
+because the slots are dimensioned by their own positions:
+
+```
+23-1/2" parts (4 slots)   0.44"*  4.03"          19.44"  23.06"*
+47-1/2" parts (6 slots)   0.38"*  4.03"  15.00"  31.87"  42.85"  46.44"*
+                          * = the corner radius, not a slot
+```
+
+So the outer slots sit **4.03" from one end and 4.06"/4.4" from the other** —
+a constant ~4" overrun on an 11-1/2" panel, **0.35 of the panel's width**, the
+same in both directions. `REFERENCE_OVERHANG_RATIO` holds it and
+`end_overhang` multiplies it out: **4-7/16"** on this console's 12-3/4" panels.
+
+**It is bought out of the bays, and the report says so.** The envelope is
+published at 80", so 8-7/8" of overrun takes 1-25/32" off every opening: bays
+of **13-3/8"** instead of 15-5/32", which leaves 1" beside a 12-3/8" sleeve
+rather than 2-3/4". `end_overhang_in=0` takes the old bays back along with the
+corner notches, and both numbers are printed either way.
+
+Two consequences worth stating rather than discovering later:
+
+- **An ear is a ledge, not a bay.** There is no upright beyond it, so records
+  in the outer 4-7/16" have nothing to lean against. It is somewhere to put a
+  record down while the other side plays, and the check says so as a `WARN`
+  rather than leaving it to be found out.
+- **The uprights cannot overrun.** The reference stands them ~4" proud top and
+  bottom; a 24" envelope with 13-1/2" and 8" openings has 25/64" left over
+  once three panels have had theirs. The toe reveal is what survives of that
+  idea. Matching it would mean a 33" console or shorter rows, and the brief
+  says 24".
+
+That last one is the honest limit of borrowing a system for a piece it was not
+drawn for. The horizontal half of the language fits inside the brief; the
+vertical half does not, and pretending otherwise would mean quietly changing
+what the piece is for.
