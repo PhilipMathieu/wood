@@ -218,9 +218,9 @@ Deliberately left undone, in rough order of how much they would have helped:
   in a note — but nothing computes the number or checks that the groove is deep
   enough to stay housed. The plywood variant sidesteps this entirely, which is
   arguably its best argument.
-- **Cost of sheet goods in the summary.** `stock.yaml` carries
-  `price_per_sheet` and the hardwood plan reports cost, but the sheet-goods
-  summary does not total it.
+- ~~**Cost of sheet goods in the summary.**~~ Done — `sheet_cost_summary`
+  totals it, with the same provenance rules as the board plan. See the
+  addendum on prices.
 - ~~**3-D export.**~~ Done — see the addendum on drawing the model.
 - ~~**Cut-order sheets.**~~ Done — `cut_sequence` reads the strips back out.
 
@@ -289,7 +289,9 @@ O'Brien publishes no prices, so **every `price_per_bf` and `price_per_sheet` in
 `stock.yaml` is a placeholder**, now labelled as such with a provenance header.
 The board-foot quantities and yields are real; the dollar totals are not, and
 the ~$1,100 cherry figure should not be quoted at anyone until someone phones
-(207) 536-7860.
+(207) 536-7860. (Since #3 the file says so in a way the code can read — see the
+addendum on prices below; the numbers themselves are unchanged, and still need
+that phone call.)
 
 ### Lumbery is the wrong yard for this
 
@@ -297,6 +299,10 @@ the ~$1,100 cherry figure should not be quoted at anyone until someone phones
 from small family sawmills — white cedar, premium pine, reclaimed stock. A
 genuinely interesting supplier, but softwood-focused: no cherry, no hardwood
 plywood. Worth remembering for a different project; nothing here to model.
+
+(That last sentence aged badly, in the best way. Lumbery publishes a complete
+white cedar price list, and a fence is exactly the different project. See the
+addendum on the first real prices.)
 
 ## Addendum: drawing the model
 
@@ -573,7 +579,9 @@ near-identical cards teaches less than two that differ in something real.
 however loudly the source file labels it, and every price in `stock.yaml` is
 invented (#3). Costs are omitted by default; `--with-costs` puts them back
 inside a warning block. `test_no_dollar_figure_appears_by_default` asserts no
-`$` reaches any page.
+`$` reaches any page. (Since #3 the pages publish the *provenance* either way —
+which material, from where, dated when — because that part is useful and not
+embarrassing.)
 
 **Pretend the renders are perfect.** The plan view still draws the centre rail
 over the slats it sits beneath. That is documented in a terminal workflow and
@@ -700,3 +708,227 @@ The elevations give outlines, not sections. The panel and rail *thicknesses*
 centre rail and spacers are ordinary practice rather than observation. Those
 are listed in the module docstring under "What is still inferred", which is now
 a much shorter list than it was.
+
+## Addendum: prices, and the date a price stops being true
+
+Issue #3. Every price in `stock.yaml` was invented — written so the cost
+machinery had something to multiply — and the file said so in a comment, which
+is to say it said so to humans and to nobody else. `nest_hardwood` happily
+turned those numbers into `$1,097` in the same font as the board feet, and the
+board feet are real.
+
+### Two different problems, and only one of them is about honesty
+
+The first is provenance: nothing in the schema could record where a price came
+from. The second is that **lumber prices move**, so even a real quote is only
+true on the day it was given, and nothing could record that either. A schema
+that can hold a supplier's name but not a date solves half the problem and
+produces a confident-looking number the following spring.
+
+So `price_as_of` is the load-bearing field, not `price_source`. A price with a
+date can go stale and be flagged; a price without one cannot be trusted at all.
+
+### Undated means unverified, not deleted
+
+The tempting move was to strip the fabricated numbers out. That would have left
+the cost machinery with nothing to exercise and no way to tell "we have not
+priced this yet" from "this is free". Instead, a price with no `price_as_of` is
+*unverified*: it still multiplies, and every total built from it carries
+`UNVERIFIED — placeholder prices`. The placeholders stay in the file precisely
+because they now read as placeholders to the code as well as to the reader, and
+they can be replaced one at a time — number, date and source together — as
+somebody actually collects them.
+
+### Severities, which took a minute to settle
+
+- **`ERROR`** — a price with no date. It makes a total *wrong* while looking
+  complete, and the total cannot say so on its own.
+- **`WARN`** — a price older than 180 days, and a material with no price at
+  all. Absence makes a total incomplete, which the total now says out loud.
+
+Six months is a starting point, not a considered figure. Hardwood moves faster
+than sheet goods and the threshold probably wants to be per material — there is
+no price history here to judge it against yet.
+
+The price findings are deliberately **not** folded into a project's design
+report. `CheckReport.ok` answers "can this be built as drawn", and an undated
+quote has no opinion about joinery. They are a separate report, printed under
+its own heading by the project scripts and rendered in its own section on every
+gallery page.
+
+### The fix that makes it stick is a type, not a check
+
+A check runs where someone remembers to call it. What stops a bare figure
+reaching a page is that there is no longer an easy way to obtain one:
+
+- `PriceLine` is a quantity, a rate, and the rate's provenance. `to_text()`
+  renders `$467 (unverified)` or `$584 (as of 2026-08-16)` — there is no
+  format that omits the qualifier.
+- `CostSummary` collects lines and *names* what it had to leave out. Its
+  `to_text()` is the only rendering of a total, and it always ends in either a
+  date or the unverified marker.
+
+`HardwoodPlan.cost` used to return `None` if *any* group was unpriced, so one
+missing price silently deleted the cost line rather than flagging it. It now
+totals what it can, and `cost_summary` reports which entries are missing from
+that total and that they are missing rather than free. The sheet-goods summary
+gained the same treatment, which closes an older backlog item as a side effect.
+
+### A price per piece means nothing without a length
+
+`DimensionalStock` had no price field at all. Adding one exposed a small trap:
+softwood is sold by the stick, and a 2x4 is stocked in 8, 10 and 12 ft, so
+`price_per_piece: 6.48` is three different prices depending on which stick you
+mean. It therefore comes with `price_length_ft`, defaulting to the shortest
+length stocked, and `price_unit` renders as `8 ft piece` so the ambiguity
+cannot survive as far as a printed line.
+
+### What this does not do — the phone call
+
+**No real prices were collected.** O'Brien Hardwoods publishes none online, so
+every acceptance criterion in #3 that depends on a quote is still open, and the
+issue's shopping list is now repeated in the header of `stock.yaml`: cherry per
+board foot in 4/4 through 10/4, whether the quote is rough, S2S or S4S, and
+whether it is by grade; cherry ply 3/4" 4x8; Baltic birch 3/4" in *both* 5x5
+and 4x8, which are different products and should not be assumed to track; birch
+ply 3/4" and 1/2"; and any sheet minimums or cut charges. (207) 536-7860.
+
+Grade is the interesting omission. FAS and #1 Common differ by a large fraction
+of the price in the same species and thickness, and they yield differently —
+`typical_width_in` is really a grade assumption with no grade attached. A single
+`price_per_bf` on an entry is a price *and* an unstated grade, which is worth
+modelling once there is a real quote to hang it on.
+
+## Addendum: the first real prices, which are cedar
+
+Three sources went looking for real numbers. One of them had them.
+
+**Lumbery** publishes a complete [White Cedar Lumber Pricing
+Guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/) —
+28 board profiles and grades, priced per lineal foot. Read on 2026-08-17 and
+recorded, every entry dated and linked to the page it came from. These are the
+first prices in `stock.yaml` that anybody could stand behind, and they arrive
+just in time for a fence.
+
+**O'Brien Hardwoods** still publishes none. Their `/specials` page does post a
+few each month — as a PNG, which this session's egress policy would not fetch,
+and which nothing here could read if it had. Their product pages give sizes and
+thicknesses only; the cherry page confirms 4/4 through 12/4 with 16/4 to order,
+which is what `stock.yaml` already claimed. A photograph of the price board is
+still the thing that settles it.
+
+**Atlantic Hardwoods** is blocked outright by the egress policy
+(`www.atlantichardwoods.com`, 403 at the proxy). Not retried, not routed
+around; recorded here and in `stock.yaml` so the next person knows the page
+exists and this session simply could not open it.
+
+### What real data asked of the schema
+
+Recording an actual price list, rather than imagining one, immediately broke
+three assumptions:
+
+- **A price per piece is not the only unit.** Lumbery quotes per lineal foot;
+  O'Brien quotes hardwood per board foot; a big-box shelf tag quotes per stick.
+  `DimensionalStock` now carries `price_per_piece` *or* `price_per_lineal_ft`,
+  never both — converting one into the other would have meant storing a number
+  the supplier never printed, which is the whole failure this work exists to
+  stop. The one per-piece entry in the file is the 2 ft dressed cutoff at
+  $1.00 each, which really is sold that way.
+- **Nominal size does not identify stock.** A rough sawn 1x6 in STK grade is
+  $2.30/LF and the same board in low grade is $1.30 — a 77% difference under
+  one label. `grade` and `profile` are now fields, and they appear in
+  `stock_label`, so the provenance report names `white_cedar 1x6 rough sawn
+  (STK)` rather than a `white_cedar 1x6` that could be either. The same gap is
+  still open on hardwood, where FAS versus #1 Common is the equivalent split.
+- **A published price does not imply a published length.** The guide prices
+  every profile and lists no lengths at all, so those entries carry
+  `lengths_ft: []`. That is enough to estimate a fence by the foot and not
+  enough to lay out a cut list, and saying so in the data beats inventing an
+  8 ft default that would quietly become a cut list nobody could buy.
+
+`lumber.NOMINAL_TO_ACTUAL` gained 5/4x3, 5/4x4, 5/4x6 and 6x6 to match what
+cedar is actually sold in. Worth writing down: that table holds *dressed*
+sizes, and rough sawn stock is close to full dimension — a rough 1x6 is about
+a full 1" x 6". Half the cedar list is rough sawn, so the table does not
+describe it. Nothing depends on that yet; it will the first time a rough-sawn
+fence wants a cut list.
+
+### What did not need to change
+
+Nothing in `pricing.py`, and nothing in the checks. A dated price flows through
+the machinery built for the placeholders and comes out the other end as
+`$166 (as of 2026-08-17)` instead of `$166 (unverified)`; the gallery's warning
+block drops itself when a page's rates are all dated. That was the point of
+making provenance a type rather than a lint rule, and it is pleasant to have it
+demonstrated by real data on the first try.
+
+The volume discounts on the guide — 5% over $5,000, 10% over $7,500, 15% over
+$10,000 — are recorded in the file's header and not modelled. So are the cedar
+shakes ($155/bundle clear, $85 wall, $20 low) and the 4x8 lattice sheets ($250
+each, thickness unpublished): a bundle is not a unit this schema has, and a
+sheet whose thickness nobody states is not a `SheetStock`.
+
+## Addendum: a sale price is a third kind of number
+
+Two domains came off the blocklist, and both suppliers turned out to have real
+prices after all — which promptly broke the model again, in a way worth
+recording.
+
+**O'Brien's specials do exist**, as a PNG on their CDN. August 2026:
+
+```
+4/4 Red Oak          $2.99 BF        6/4 Cherry           $5.25 BF
+5/4 White Oak        $8.90 BF        8/4 White Oak        $9.79 BF
+6mm Baltic 4x8 B/BB  $61.00 ea
+```
+
+**Atlantic Hardwoods** lists one lumber special — 4/4 walnut, 4-6 ft shorts, at
+$8.50/bf — alongside red oak stair treads by the piece and prefinished flooring
+by the square foot, neither of which is stock this schema can hold.
+
+The cherry number is the one that stings. The placeholder sitting in that slot
+was **$14.00/bf**. The real August price is **$5.25**. Nobody would have caught
+that by reading the file; it took a picture of a sign.
+
+### The problem with a real price
+
+A special is real, dated, sourced — and temporary. That is a third state, and
+until now the file had two: dated (believe it) and undated (do not). Recording
+$5.25 as *the* price for 6/4 cherry would be true for two weeks and then
+quietly wrong, and wrong in the most convincing possible way, because every
+qualifier the machinery prints would say it was verified.
+
+So `price_valid_until` now exists, and the check reads it:
+
+- inside the window → `INFO`, *"a sale price good to 2026-08-31 … not the shelf
+  price"*
+- past it → `WARN`, *"the shelf price is not recorded, so this total is a total
+  at last month's discount"*
+
+`CostSummary.earliest_valid_until` propagates it, because a total built partly
+from specials is only good until the first of them runs out. The expiry finding
+deliberately supersedes the staleness one: both apply to an old special, and
+"the sale ended" explains the number where "this is 200 days old" only
+describes it.
+
+The assumption worth flagging: the sheet says "AUGUST SPECIALS" and prints no
+end date, so 2026-08-31 is inferred. That is recorded in the comment beside the
+entries rather than presented as quoted.
+
+### What the specials did not settle
+
+The shelf prices. Four cherry thicknesses are still placeholders, and the bed
+uses all of them — its total still prints `UNVERIFIED`, correctly, because one
+real sale price among four invented ones does not make a verified total. The
+specials also brought in two species (red and white oak) whose widths, lengths
+and grades the sheet does not give: those fields follow the cherry convention
+and are commented as assumptions, because a yield estimate built on an assumed
+7" board is a different kind of claim from a price read off a sign.
+
+And there is a maintenance problem the file cannot solve: **the specials change
+every month**. A price list that has to be re-photographed to stay true will
+not stay true. Hence #9 on scheduled refreshes — the machinery for noticing
+staleness is now in place, and something has to actually go and look. The
+first version proposed there does not even parse the sign: it notices the
+image changed and shows it to a human, because a scraper that launders a bad
+parse into a dated price would undo everything #3 built.

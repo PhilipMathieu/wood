@@ -24,6 +24,13 @@ different ways:
     60" × 60" (nominally 1525 mm square), and that difference decides whether a
     long part fits at all.
 
+All three can carry a price, and a price is not just a number.  Lumber moves,
+hardwood moves a lot, and even a real quote is only true on the day it was
+given — so every price travels with ``price_as_of`` and ``price_source``.  A
+price with no ``price_as_of`` is *unverified* rather than trusted, which is how
+a placeholder invented to give the cost machinery something to multiply stays
+visibly a placeholder instead of quietly becoming a quote.
+
 Example
 -------
 >>> inv = Inventory.load()
@@ -35,12 +42,16 @@ Example
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
 import yaml
 
+from woodshop.pricing import PriceLine
+
 __all__ = [
+    "PricedStock",
     "DimensionalStock",
     "HardwoodStock",
     "SheetStock",
@@ -55,8 +66,103 @@ _MM_PER_IN = 25.4
 _MM_PER_FT = 304.8
 
 
+class PricedStock:
+    """Price provenance shared by every kind of stock.
+
+    Subclasses supply three things: the money (:attr:`price`), the unit it is
+    quoted in (:attr:`price_unit`), and a name for the entry
+    (:attr:`stock_label`).  Everything about *believing* the money lives here,
+    so the rule is written once and cannot differ between a board and a sheet.
+
+    This is a plain mixin, not a dataclass: the three provenance fields are
+    declared on each stock class so that they keep their place at the end of
+    the field order and ``Stock(**entry)`` keeps working.
+    """
+
+    price: float | None
+    price_unit: str
+    stock_label: str
+    price_as_of: date | None
+    price_valid_until: date | None
+    price_source: str
+    price_url: str
+
+    @property
+    def price_is_verified(self) -> bool:
+        """``True`` only if there is a price *and* a date it was true on."""
+        return self.price is not None and self.price_as_of is not None
+
+    @property
+    def price_is_a_special(self) -> bool:
+        """``True`` if this rate is a sale price with an end date on it."""
+        return self.price_valid_until is not None
+
+    def price_age_days(self, today: date | None = None) -> int | None:
+        """Days since the price was quoted, or ``None`` if it carries no date."""
+        if self.price_as_of is None:
+            return None
+        return ((today or date.today()) - self.price_as_of).days
+
+    def price_has_expired(self, today: date | None = None) -> bool:
+        """Return ``True`` if this is a sale price whose end date has passed."""
+        if self.price_valid_until is None:
+            return False
+        return (today or date.today()) > self.price_valid_until
+
+    def price_note(self) -> str:
+        """Describe where the price came from and when, for a report or a page.
+
+        Returns
+        -------
+        str
+            e.g. ``"O'Brien Hardwoods, phone quote, 2026-08-16"``, or a plain
+            statement that the number is unverified.
+        """
+        if self.price is None:
+            return "no price recorded"
+        source = self.price_source or "source not recorded"
+        if self.price_as_of is None:
+            return f"{source}, undated — unverified placeholder"
+        note = f"{source}, {self.price_as_of.isoformat()}"
+        if self.price_valid_until is not None:
+            note += f", sale price through {self.price_valid_until.isoformat()}"
+        return note
+
+    def price_line(self, quantity: float) -> PriceLine:
+        """Return a :class:`~woodshop.pricing.PriceLine` for *quantity* units.
+
+        Parameters
+        ----------
+        quantity : float
+            How much stock, in :attr:`price_unit`.
+
+        Returns
+        -------
+        PriceLine
+            The quantity, the rate, and the rate's provenance.
+
+        Raises
+        ------
+        ValueError
+            If the entry has no price — an unpriced material must be *named*
+            as unpriced, never multiplied by a guess.
+        """
+        if self.price is None:
+            raise ValueError(f"{self.stock_label} has no price in stock.yaml")
+        return PriceLine(
+            label=self.stock_label,
+            quantity=quantity,
+            unit=self.price_unit,
+            unit_price=self.price,
+            as_of=self.price_as_of,
+            valid_until=self.price_valid_until,
+            source=self.price_source,
+            source_url=self.price_url,
+        )
+
+
 @dataclass(frozen=True)
-class DimensionalStock:
+class DimensionalStock(PricedStock):
     """Softwood sold by nominal size and length.
 
     Parameters
@@ -66,24 +172,108 @@ class DimensionalStock:
     nominal : str
         Nominal size string, e.g. ``"2x4"``.
     lengths_ft : list[float]
-        Available lengths in feet.
+        Available lengths in feet.  Empty when the supplier publishes a price
+        but not a length list — the rate is still usable, the cut plan is not.
     qty : int
         Pieces on hand (per length, as stocked).
+    grade : str, optional
+        Grade as the supplier names it, e.g. ``"STK"``, ``"low"``.  Free text,
+        because every yard grades softwood by its own vocabulary.
+    profile : str, optional
+        How the stock is worked — ``"rough sawn"``, ``"dressed"``,
+        ``"tongue & groove"``, ``"shiplap"``.  With *grade*, this is what
+        separates two entries of the same nominal size and very different
+        prices.
+    price_per_piece : float or None, optional
+        Cost of one piece, if that is how it is sold — of the length in
+        *price_length_ft*.
+    price_length_ft : float or None, optional
+        Which stocked length *price_per_piece* refers to.  Defaults to the
+        shortest length stocked, because a price per piece means nothing
+        without the length attached to it.
+    price_per_lineal_ft : float or None, optional
+        Cost per lineal foot, if that is how it is sold.  Softwood is quoted
+        both ways and the unit is not interchangeable, so recording the one
+        the supplier printed beats converting to a house unit.
+    price_as_of : datetime.date or None, optional
+        The day the price was true.  ``None`` marks the price unverified.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
+    price_source : str, optional
+        Where the price came from.
+    price_url : str, optional
+        A link to that source, where one exists.
+
+    Raises
+    ------
+    ValueError
+        If both *price_per_piece* and *price_per_lineal_ft* are set.  One
+        entry, one rate: two would silently disagree the moment a supplier
+        changed either.
     """
 
     species: str
     nominal: str
     lengths_ft: list[float]
     qty: int = 0
+    grade: str = ""
+    profile: str = ""
+    price_per_piece: float | None = None
+    price_length_ft: float | None = None
+    price_per_lineal_ft: float | None = None
+    price_as_of: date | None = None
+    price_valid_until: date | None = None
+    price_source: str = ""
+    price_url: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject an entry priced two ways at once."""
+        if self.price_per_piece is not None and self.price_per_lineal_ft is not None:
+            raise ValueError(
+                f"{self.species} {self.nominal}: set price_per_piece or "
+                "price_per_lineal_ft, not both"
+            )
 
     @property
     def lengths_mm(self) -> list[float]:
         """Available lengths converted to mm."""
         return [ft * _MM_PER_FT for ft in self.lengths_ft]
 
+    @property
+    def price(self) -> float | None:
+        """Cost of one :attr:`price_unit`, if known."""
+        if self.price_per_piece is not None:
+            return self.price_per_piece
+        return self.price_per_lineal_ft
+
+    @property
+    def priced_length_ft(self) -> float | None:
+        """The length :attr:`price_per_piece` refers to."""
+        if self.price_length_ft is not None:
+            return self.price_length_ft
+        return min(self.lengths_ft) if self.lengths_ft else None
+
+    @property
+    def price_unit(self) -> str:
+        """Unit the price is quoted in, e.g. ``'8 ft piece'`` or ``'lineal ft'``."""
+        if self.price_per_piece is None and self.price_per_lineal_ft is not None:
+            return "lineal ft"
+        length = self.priced_length_ft
+        return "piece" if length is None else f"{length:g} ft piece"
+
+    @property
+    def stock_label(self) -> str:
+        """Human-readable entry name, e.g. ``'cedar 1x6 rough sawn (STK)'``."""
+        label = f"{self.species} {self.nominal}"
+        if self.profile:
+            label = f"{label} {self.profile}"
+        if self.grade:
+            label = f"{label} ({self.grade})"
+        return label
+
 
 @dataclass(frozen=True)
-class HardwoodStock:
+class HardwoodStock(PricedStock):
     """Hardwood sold rough, in random widths, priced by the board foot.
 
     Parameters
@@ -105,6 +295,22 @@ class HardwoodStock:
         Board feet on hand.  ``0`` means "buy to suit".
     price_per_bf : float or None, optional
         Cost per board foot, if known.
+    price_as_of : datetime.date or None, optional
+        The day the price was true.  ``None`` marks the price unverified — see
+        :class:`PricedStock`.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
+    price_source : str, optional
+        Where the price came from, e.g. ``"O'Brien Hardwoods, phone quote"``.
+    price_url : str, optional
+        A link to that source, where one exists.
+
+    Notes
+    -----
+    Grade is not modelled, and it should be: FAS and #1 Common are a large
+    price difference in the same species and thickness, and they yield
+    differently, so a single ``price_per_bf`` on an entry is really a price
+    *and* an unstated grade.
     """
 
     species: str
@@ -115,6 +321,10 @@ class HardwoodStock:
     lengths_ft: list[float]
     qty_board_feet: float = 0.0
     price_per_bf: float | None = None
+    price_as_of: date | None = None
+    price_valid_until: date | None = None
+    price_source: str = ""
+    price_url: str = ""
 
     @property
     def lengths_mm(self) -> list[float]:
@@ -126,9 +336,24 @@ class HardwoodStock:
         """Post-milling thickness in mm."""
         return self.surfaced_thickness_in * _MM_PER_IN
 
+    @property
+    def price(self) -> float | None:
+        """Cost per board foot, if known."""
+        return self.price_per_bf
+
+    @property
+    def price_unit(self) -> str:
+        """Unit the price is quoted in."""
+        return "bd ft"
+
+    @property
+    def stock_label(self) -> str:
+        """Human-readable entry name, e.g. ``'cherry 4/4'``."""
+        return f"{self.species} {self.thickness_quarter}"
+
 
 @dataclass(frozen=True)
-class SheetStock:
+class SheetStock(PricedStock):
     """A sheet good.
 
     Parameters
@@ -152,6 +377,15 @@ class SheetStock:
         materials with no meaningful face-grain direction.
     price_per_sheet : float or None, optional
         Cost per sheet, if known.
+    price_as_of : datetime.date or None, optional
+        The day the price was true.  ``None`` marks the price unverified — see
+        :class:`PricedStock`.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
+    price_source : str, optional
+        Where the price came from.
+    price_url : str, optional
+        A link to that source, where one exists.
     notes : str, optional
         Free text — grade, glue type, anything that distinguishes two sheets
         of the same material and thickness.
@@ -172,7 +406,26 @@ class SheetStock:
     qty: int = 0
     grain: str = "length"
     price_per_sheet: float | None = None
+    price_as_of: date | None = None
+    price_valid_until: date | None = None
+    price_source: str = ""
+    price_url: str = ""
     notes: str = ""
+
+    @property
+    def price(self) -> float | None:
+        """Cost per sheet, if known."""
+        return self.price_per_sheet
+
+    @property
+    def price_unit(self) -> str:
+        """Unit the price is quoted in."""
+        return "sheet"
+
+    @property
+    def stock_label(self) -> str:
+        """Human-readable entry name, e.g. ``'plywood_cherry 3/4 (48" x 96")'``."""
+        return f"{self.material} {self.nominal_thickness} ({self.size_label})"
 
     @property
     def area_mm2(self) -> float:
@@ -236,6 +489,36 @@ class SheetStock:
         return any(dx <= self.width_mm and dy <= self.height_mm for dx, dy in options)
 
 
+def _with_dates(entry: dict[str, Any]) -> dict[str, Any]:
+    """Return *entry* with ``price_as_of`` coerced to a :class:`datetime.date`.
+
+    PyYAML already parses a bare ``2026-08-16`` as a date, but a quoted one is
+    a string and a hand-edited file will contain both.  Anything that is
+    neither is rejected rather than carried: an unparseable date would satisfy
+    "has a ``price_as_of``" while telling nobody when the price was true.
+    """
+    out = entry
+    for field_name in ("price_as_of", "price_valid_until"):
+        raw = out.get(field_name)
+        if raw is None or (isinstance(raw, date) and not isinstance(raw, datetime)):
+            continue
+        if isinstance(raw, datetime):
+            out = {**out, field_name: raw.date()}
+            continue
+        if isinstance(raw, str):
+            try:
+                out = {**out, field_name: date.fromisoformat(raw.strip())}
+                continue
+            except ValueError as exc:
+                raise ValueError(
+                    f"{field_name} must be an ISO date (YYYY-MM-DD), got {raw!r}"
+                ) from exc
+        raise ValueError(
+            f"{field_name} must be an ISO date (YYYY-MM-DD), got {raw!r}"
+        )
+    return out
+
+
 @dataclass
 class Inventory:
     """The shop's stock on hand.
@@ -295,16 +578,37 @@ class Inventory:
         -------
         Inventory
             The parsed inventory.
+
+        Raises
+        ------
+        ValueError
+            If a ``price_as_of`` is not a date — a price dated ``"soon"`` is
+            worse than a price with no date, because the check that looks for
+            provenance would accept it.
         """
         return cls(
-            dimensional=[DimensionalStock(**e) for e in data.get("dimensional") or []],
-            hardwood=[HardwoodStock(**e) for e in data.get("hardwood") or []],
-            sheet_goods=[SheetStock(**e) for e in data.get("sheet_goods") or []],
+            dimensional=[
+                DimensionalStock(**_with_dates(e)) for e in data.get("dimensional") or []
+            ],
+            hardwood=[
+                HardwoodStock(**_with_dates(e)) for e in data.get("hardwood") or []
+            ],
+            sheet_goods=[
+                SheetStock(**_with_dates(e)) for e in data.get("sheet_goods") or []
+            ],
         )
 
     # ------------------------------------------------------------------
     # Lookups
     # ------------------------------------------------------------------
+
+    def all_stock(self) -> list[PricedStock]:
+        """Return every entry of every kind, in a stable order.
+
+        Useful to anything that asks a question of the whole inventory rather
+        than of one material — auditing price provenance, for instance.
+        """
+        return [*self.dimensional, *self.hardwood, *self.sheet_goods]
 
     def sheets_for(
         self, material: str, nominal_thickness: str | None = None

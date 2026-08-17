@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 from typing import TYPE_CHECKING, Iterable
 
@@ -25,7 +26,7 @@ from woodshop.cutlist.extract import CutPart
 from woodshop.lumber import mm_to_fractional_inch
 
 if TYPE_CHECKING:
-    from woodshop.inventory import Inventory
+    from woodshop.inventory import Inventory, PricedStock
 
 __all__ = [
     "Severity",
@@ -33,11 +34,13 @@ __all__ = [
     "CheckReport",
     "ELASTIC_MODULUS_MPA",
     "DENSITY_KG_M3",
+    "STALE_AFTER_DAYS",
     "check_envelope",
     "check_sheet_fit",
     "check_thickness_substitution",
     "check_slat_deflection",
     "check_material_suitability",
+    "check_price_provenance",
     "check_tip_resistance",
     "estimate_mass_kg",
 ]
@@ -615,6 +618,202 @@ def check_material_suitability(
                 )
             )
     return findings
+
+
+#: How long a price is treated as current, in days.
+#:
+#: Six months is a starting point rather than a considered figure.  Hardwood
+#: moves faster than sheet goods, and the threshold probably wants to be
+#: per-material once there is any real price history to judge it against.
+STALE_AFTER_DAYS = 180
+
+
+def check_price_provenance(
+    inventory: "Inventory",
+    parts: Iterable[CutPart] | None = None,
+    today: date | None = None,
+    stale_after_days: int = STALE_AFTER_DAYS,
+) -> list[Finding]:
+    """Report where each price used by a design came from, and when.
+
+    Every other check in this module asks whether a design can be built.  This
+    one asks whether its *cost* can be believed, which is a different question
+    with the same failure mode: a number that is nearly right, printed in the
+    same font as numbers that are exactly right.  Board feet are measured;
+    dollars are quoted, and a quote has a date.
+
+    Parameters
+    ----------
+    inventory : Inventory
+        Stock inventory holding the prices and their provenance.
+    parts : iterable of CutPart, optional
+        The cut list, used to work out which stock the design actually buys.
+        When omitted, every entry in the inventory is audited.
+    today : datetime.date, optional
+        The date to measure staleness against, default today.
+    stale_after_days : int, optional
+        How old a price may be before it is flagged, default
+        :data:`STALE_AFTER_DAYS`.
+
+    Returns
+    -------
+    list[Finding]
+        ``ERROR`` for a price with no ``price_as_of`` — an unverified number
+        that will otherwise be multiplied into a total that reads like a quote.
+        ``WARN`` for a price older than *stale_after_days*, for a sale price
+        whose ``price_valid_until`` has passed, and for a material the design
+        uses that carries no price at all.  ``INFO`` for a price that is
+        current, quoting its date, its source, and its sale end date if it has
+        one.
+
+    Notes
+    -----
+    Absence is reported as a ``WARN`` rather than an ``ERROR`` because an
+    unpriced material makes a total incomplete, which the total says out loud;
+    an undated price makes a total *wrong* while looking complete, which it
+    cannot say on its own.
+    """
+    when = today or date.today()
+    findings: list[Finding] = []
+
+    for stock in _stock_used_by(inventory, parts):
+        label = stock.stock_label
+        if stock.price is None:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "price",
+                    f"{label} has no price in stock.yaml — any total that "
+                    "includes it is a total with a hole in it",
+                )
+            )
+            continue
+
+        source = stock.price_source or "no source recorded"
+        if stock.price_as_of is None:
+            findings.append(
+                Finding(
+                    Severity.ERROR,
+                    "price",
+                    f"{label} is priced per {stock.price_unit} but carries no "
+                    f"price_as_of ({source}): treat it as invented until it is "
+                    "replaced by a quote with a date on it",
+                )
+            )
+            continue
+
+        age = stock.price_age_days(when)
+        quoted = f"quoted {stock.price_as_of.isoformat()}"
+        if stock.price_has_expired(when):
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "price",
+                    f"{label} was a sale price that ended "
+                    f"{stock.price_valid_until.isoformat()} ({source}): the "
+                    "shelf price is not recorded, so this total is a total at "
+                    "last month's discount",
+                )
+            )
+        elif stock.price_is_a_special:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "price",
+                    f"{label} priced per {stock.price_unit}, {quoted} — a sale "
+                    f"price good to {stock.price_valid_until.isoformat()} "
+                    f"({source}), not the shelf price",
+                )
+            )
+        elif age is not None and age > stale_after_days:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "price",
+                    f"{label} was {quoted} — {age} days ago, past the "
+                    f"{stale_after_days}-day mark ({source}); lumber moves, so "
+                    "re-quote before ordering",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "price",
+                    f"{label} priced per {stock.price_unit}, {quoted} "
+                    f"({source})",
+                )
+            )
+    return findings
+
+
+def _stock_used_by(
+    inventory: "Inventory",
+    parts: Iterable[CutPart] | None,
+) -> list["PricedStock"]:
+    """Return the inventory entries a cut list buys from, without duplicates.
+
+    Pricing a design means pricing the stock it *lands on*, which is not the
+    same as every entry of that material: a 3/4" part comes off 4/4 boards and
+    a 62-1/2" slat comes off the 4x8 sheet, and the entries it does not touch
+    have nothing to say about its cost.
+
+    Entries come back in label order rather than cut-list order, so the report
+    reads as a list of materials rather than as a trace of the parts loop.
+    """
+    if parts is None:
+        return list(inventory.all_stock())
+
+    sheet_materials = {s.material for s in inventory.sheet_goods}
+    hardwood_species = {h.species for h in inventory.hardwood}
+    seen: list["PricedStock"] = []
+
+    def remember(entry: "PricedStock") -> None:
+        if not any(entry is other for other in seen):
+            seen.append(entry)
+
+    for p in parts:
+        if p.material in sheet_materials:
+            remember(
+                inventory.best_sheet_for(
+                    p.material,
+                    length_mm=p.length_mm,
+                    width_mm=p.width_mm,
+                    part_grain=p.grain_direction,
+                    thickness_mm=p.thickness_mm,
+                )
+            )
+            continue
+        if p.material in hardwood_species:
+            board = _hardwood_for_part(inventory, p)
+            if board is not None:
+                remember(board)
+            continue
+        # Dimensional stock is not thickness-matched: a pine part could be cut
+        # from any nominal size the shop stocks, so every entry in the species
+        # is in scope.
+        for d in inventory.dimensional:
+            if d.species == p.material:
+                remember(d)
+    return sorted(seen, key=lambda entry: entry.stock_label)
+
+
+def _hardwood_for_part(inventory: "Inventory", part: CutPart) -> "PricedStock | None":
+    """Return the thinnest stocked quarter that surfaces to *part*'s thickness.
+
+    Mirrors the rule :func:`woodshop.cutlist.hardwood.nest_hardwood` buys by,
+    so the price checked is the price charged.  ``None`` when the part is
+    thicker than anything stocked — the cut list reports that on its own.
+    """
+    usable = [
+        h
+        for h in inventory.hardwood
+        if h.species == part.material
+        and h.surfaced_thickness_mm >= part.thickness_mm - 0.1
+    ]
+    if not usable:
+        return None
+    return min(usable, key=lambda h: h.surfaced_thickness_mm)
 
 
 def check_tip_resistance(

@@ -101,6 +101,7 @@ from woodshop.checks import (
     check_clearance,
     check_envelope,
     check_material_suitability,
+    check_price_provenance,
     check_sheet_fit,
     check_slat_deflection,
     check_thickness_substitution,
@@ -110,6 +111,7 @@ from woodshop.cutlist.hardwood import nest_hardwood
 from woodshop.cutlist.optimize_2d import pack_by_material
 from woodshop.inventory import Inventory
 from woodshop.parts import Board, Panel, ShapedBoard
+from woodshop.pricing import sheet_cost_summary
 from woodshop.project import ProjectSpec
 from woodshop.render import (
     export_assembly,
@@ -1049,6 +1051,12 @@ def run(size_name: str, variant: str, outdir: Path) -> CheckReport:
     print(f"\n-- design checks {'-' * 61}")
     print(report.to_text())
 
+    # Kept out of the design report on purpose: an undated price is a problem
+    # with the quote, not with the joinery, and it should not make a buildable
+    # bed report an error.
+    print(f"\n-- prices {'-' * 68}")
+    print(CheckReport().extend(check_price_provenance(bed.inventory, parts)).to_text())
+
     sheet_materials = {s.material for s in bed.inventory.sheet_goods}
     solid = [p for p in parts if p.material not in sheet_materials]
     sheet = [p for p in parts if p.material in sheet_materials]
@@ -1078,6 +1086,8 @@ def run(size_name: str, variant: str, outdir: Path) -> CheckReport:
                 (outdir / f"{stem}_{slug}_cutorder.txt").write_text(
                     "\n".join(cut_sequence(res)) + "\n", encoding="utf-8"
                 )
+        summary = sheet_cost_summary(packed, bed.inventory)
+        print(f"  {'total':<28s} {summary.to_text()}")
 
     render_assembly(
         assembly,

@@ -8,10 +8,60 @@
 # Baltic birch are from O'Brien Hardwoods, 142 Presumpscot St, Portland ME
 # (obrienhardwoods.com), read 2026-08-16.
 #
-# EVERY PRICE BELOW IS AN UNVERIFIED PLACEHOLDER. O'Brien does not publish
-# prices; none of these came from a quote. They exist so the cost machinery
-# has something to multiply. Quantities and yields are real; dollar totals
-# are not. Replace them after a phone call before trusting any cost figure.
+# Prices carry their own provenance, per entry, in three optional fields:
+#
+#   price_as_of:  ISO date the price was true. REQUIRED whenever a price is
+#                 set. A price without one is treated as unverified by
+#                 `woodshop.checks.check_price_provenance`, which reports it
+#                 as an ERROR, and every total built from it prints the
+#                 marker "UNVERIFIED — placeholder prices".
+#   price_valid_until:
+#                 last day a SALE price holds. A special is real, dated and
+#                 sourced — and temporary, which is a different kind of wrong
+#                 from an invented number and a more convincing one. Past
+#                 that date the check warns and any total says it includes a
+#                 discount that has ended.
+#   price_source: where the number came from — a quote, a price list, a shelf
+#                 tag. Shown alongside the figure wherever it is published.
+#   price_url:    a link to that source, when one exists.
+#
+# Which prices are real, as of 2026-08-17:
+#
+#   white cedar     REAL, and a shelf price. Lumbery's published pricing
+#                   guide, per lineal foot. See the block above those entries.
+#   cherry 6/4      REAL, but a SALE price ending 2026-08-31 (O'Brien's
+#   red oak 4/4     August specials). Good numbers with a fuse on them: the
+#   white oak 5/4   check warns the day they lapse, and the shelf price
+#   white oak 8/4   underneath them is still unknown.
+#   6 mm Baltic
+#   walnut 4/4      REAL, a standing special on shorts (Atlantic Hardwoods),
+#                   with no end date published.
+#   cherry 4/4, 5/4, 8/4, 10/4
+#                   PLACEHOLDER. Undated, therefore unverified.
+#   plywood         PLACEHOLDER (cherry, Baltic birch 3/4 and 1/2); birch has
+#                   no price at all.
+#   pine, poplar    no price.
+#
+# EVERY PLACEHOLDER IS DELIBERATELY LEFT UNDATED so that it reads as one.
+# Neither yard publishes a full price list: O'Brien posts a handful of
+# specials each month and their product pages give sizes and thicknesses
+# only. The remaining cherry and plywood numbers came from nobody; they
+# exist so the cost machinery has something to multiply. Quantities and
+# yields are real; those dollar totals are not.
+#
+# Prices still to collect (see issue #3): cherry $/bd ft in 4/4, 5/4, 8/4 and
+# 10/4 at the SHELF price, and whether cherry is quoted rough, S2S or S4S and
+# by grade; cherry ply 3/4" 4x8; Baltic birch 3/4" in both 5x5 and 4x8, which
+# are different products and should not be assumed to track; birch ply 3/4"
+# and 1/2"; and any sheet minimums or cut charges. O'Brien Hardwoods,
+# (207) 536-7860 — a photograph of the price board would settle all of it.
+#
+# The specials change monthly, which is a maintenance problem this file
+# cannot solve on its own. See issue #9 on scheduled price refreshes.
+#
+# Softwood carries either `price_per_piece` (with `price_length_ft` saying
+# which length that buys) or `price_per_lineal_ft`, whichever the supplier
+# printed — never both.
 
 dimensional:
   - species: pine
@@ -39,6 +89,364 @@ dimensional:
     lengths_ft: [8]
     qty: 2
 
+  # ---------------------------------------------------------------------
+  # Northern white cedar — Lumbery, 287 Ocean House Rd, Cape Elizabeth ME
+  # (207) 835-7023. Prices read from their published White Cedar Lumber
+  # Pricing Guide on 2026-08-17; the page prints no effective date of its
+  # own, so price_as_of is the day it was read.
+  #
+  # These are the first real prices in this file. They are quoted per
+  # LINEAL FOOT, not per piece and not per board foot — the guide's own
+  # unit, kept as published rather than converted into a house unit.
+  #
+  # `lengths_ft` is empty on every entry: the guide prices the stock but
+  # does not say what lengths are carried. That is enough to estimate a
+  # fence and not enough to lay out a cut list; ask when ordering.
+  #
+  # Nominal sizes for rough sawn stock are close to full dimension — a
+  # rough 1x6 is about a full 1" x 6" — so `lumber.NOMINAL_TO_ACTUAL`,
+  # which holds dressed sizes, does not describe those entries.
+  #
+  # Not recorded here, for want of a unit the schema can express: cedar
+  # shakes 3/8" at $155.00/bundle (clear), $85.00 (wall), $20.00 (low),
+  # and 4x8 lattice sheets at $250 each, whose thickness the guide does
+  # not give. Volume discounts are not modelled either: 5% over $5,000,
+  # 10% over $7,500, 15% over $10,000.
+  # ---------------------------------------------------------------------
+  - species: white_cedar
+    nominal: "1x3"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 1.10
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 1.95
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.35
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 2.35
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # Sold by the piece rather than by the foot — a 2 ft dressed cutoff.
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: [2]
+    qty: 0
+    grade: STK
+    profile: dressed cutoff
+    price_per_piece: 1.00
+    price_length_ft: 2
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: dressed
+    price_per_lineal_ft: 1.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # The fence board: rough sawn 1x6 in two grades, and the gap between
+  # them is most of what a fence costs.
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 2.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: rough sawn
+    price_per_lineal_ft: 1.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    profile: clapboard
+    price_per_lineal_ft: 2.15
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: mid
+    profile: drop siding, tongue & groove
+    price_per_lineal_ft: 1.80
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: nickel gap shiplap, dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: shiplap (standard), dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 3.60
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 1.45
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: dressed
+    price_per_lineal_ft: 2.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 3.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x3"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.85
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: eased edge decking
+    price_per_lineal_ft: 2.25
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: eased edge decking
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: eased edge decking
+    price_per_lineal_ft: 2.50
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 3.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 2.55
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.90
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 4.10
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # Fence posts, in both faces.
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.22
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 4.40
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "6x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 9.45
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
 # Hardwood is sold rough, in random widths, and priced by the board foot, so
 # width is an outcome of milling rather than a property of the stock.
 # `surfaced_thickness_in` is the number to design to.
@@ -53,7 +461,8 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0        # buy to suit
-    price_per_bf: 12.50      # PLACEHOLDER — not a quote
+    price_per_bf: 12.50
+    price_source: "PLACEHOLDER — invented, never quoted"   # no price_as_of: unverified
 
   - species: cherry
     thickness_quarter: "5/4"
@@ -62,8 +471,16 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 13.50      # PLACEHOLDER — not a quote
+    price_per_bf: 13.50
+    price_source: "PLACEHOLDER — invented, never quoted"
 
+  # The one cherry price that is real, and it is a SALE price: O'Brien's
+  # August 2026 specials sheet. The sheet is headed "AUGUST SPECIALS" with
+  # no explicit end date, so price_valid_until is end of month, inferred.
+  # After that the check flags it and the shelf price is still unknown —
+  # which is the point of recording the end date rather than the number
+  # alone. $5.25 against the $14.00 placeholder that sat here is a fair
+  # measure of how much an invented number is worth.
   - species: cherry
     thickness_quarter: "6/4"
     rough_thickness_in: 1.5
@@ -71,7 +488,11 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 14.00      # PLACEHOLDER — not a quote
+    price_per_bf: 5.25
+    price_as_of: 2026-08-17
+    price_valid_until: 2026-08-31
+    price_source: "O'Brien Hardwoods, August 2026 specials sheet"
+    price_url: "https://obrienhardwoods.com/specials"
 
   - species: cherry
     thickness_quarter: "8/4"
@@ -80,7 +501,8 @@ hardwood:
     typical_width_in: 6
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 15.00      # PLACEHOLDER — not a quote
+    price_per_bf: 15.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   # 10/4 is stocked, so a true 2" post is buyable — it does not need a
   # lamination. See NOTES.md on the post-size inference.
@@ -91,7 +513,82 @@ hardwood:
     typical_width_in: 6
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 17.00      # PLACEHOLDER — not a quote
+    price_per_bf: 17.00
+    price_source: "PLACEHOLDER — invented, never quoted"
+
+  # ---------------------------------------------------------------------
+  # The rest of O'Brien's August 2026 specials, read from the sheet on
+  # 2026-08-17. Real prices, real species, all of them SALE prices ending
+  # with the month. The sheet's own small print: "ALL SPECIALS ARE SUBJECT
+  # TO AVAILABILITY AND PRIOR SALE."
+  #
+  # What the specials sheet gives is species, quarter thickness and price.
+  # It says nothing about width, length, grade or surfacing, so
+  # `typical_width_in` and `lengths_ft` below follow the same convention as
+  # the cherry entries — 7" for 4/4-6/4, 6" for 8/4 and up, 8 and 10 ft —
+  # and are ASSUMPTIONS for yield estimation, not quoted facts.
+  # ---------------------------------------------------------------------
+  - species: red_oak
+    thickness_quarter: "4/4"
+    rough_thickness_in: 1.0
+    surfaced_thickness_in: 0.75
+    typical_width_in: 7        # assumed
+    lengths_ft: [8, 10]        # assumed
+    qty_board_feet: 0
+    price_per_bf: 2.99
+    price_as_of: 2026-08-17
+    price_valid_until: 2026-08-31
+    price_source: "O'Brien Hardwoods, August 2026 specials sheet"
+    price_url: "https://obrienhardwoods.com/specials"
+
+  - species: white_oak
+    thickness_quarter: "5/4"
+    rough_thickness_in: 1.25
+    surfaced_thickness_in: 1.0
+    typical_width_in: 7        # assumed
+    lengths_ft: [8, 10]        # assumed
+    qty_board_feet: 0
+    price_per_bf: 8.90
+    price_as_of: 2026-08-17
+    price_valid_until: 2026-08-31
+    price_source: "O'Brien Hardwoods, August 2026 specials sheet"
+    price_url: "https://obrienhardwoods.com/specials"
+
+  - species: white_oak
+    thickness_quarter: "8/4"
+    rough_thickness_in: 2.0
+    surfaced_thickness_in: 1.75
+    typical_width_in: 6        # assumed
+    lengths_ft: [8, 10]        # assumed
+    qty_board_feet: 0
+    price_per_bf: 9.79
+    price_as_of: 2026-08-17
+    price_valid_until: 2026-08-31
+    price_source: "O'Brien Hardwoods, August 2026 specials sheet"
+    price_url: "https://obrienhardwoods.com/specials"
+
+  # Atlantic Hardwoods, 151 Saint John St, Portland ME, (207) 773-9663.
+  # Their specials page lists one lumber item, read 2026-08-17. "4/4 Walnut
+  # 4'-6' Shorts $8.50/bf" — the page gives no end date, so none is
+  # recorded; it is a standing special until it is not. Lengths are the
+  # quoted 4-6 ft range read as 4, 5 and 6; the width is assumed.
+  #
+  # Also on that page and NOT recorded, for want of a unit the schema has:
+  # red oak stair treads 3/4 x 11-1/2 at $25.00 (36"), $34.00 (42"),
+  # $36.00 (48") and $62.00 (60") each, and prefinished 2-1/4" red oak
+  # flooring at $4.69/SF. A tread is a finished component, not stock, and
+  # nothing here is priced by the square foot.
+  - species: walnut
+    thickness_quarter: "4/4"
+    rough_thickness_in: 1.0
+    surfaced_thickness_in: 0.75
+    typical_width_in: 6        # assumed
+    lengths_ft: [4, 5, 6]      # "4'-6' Shorts"
+    qty_board_feet: 0
+    price_per_bf: 8.50
+    price_as_of: 2026-08-17
+    price_source: "Atlantic Hardwoods, specials page (4/4 walnut shorts)"
+    price_url: "https://www.atlantichardwoods.com/specials"
 
 sheet_goods:
   - material: plywood_birch
@@ -117,7 +614,8 @@ sheet_goods:
     sheet_height_in: 96
     qty: 0
     grain: length
-    price_per_sheet: 185.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 185.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   # Baltic birch, B/BB grade, comes in TWO sizes and the choice is not just
   # about area:
@@ -131,7 +629,8 @@ sheet_goods:
     sheet_height_in: 60
     qty: 0
     grain: none
-    price_per_sheet: 145.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 145.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, interior glue, laser-friendly"
 
   - material: plywood_baltic_birch
@@ -141,7 +640,8 @@ sheet_goods:
     sheet_height_in: 96
     qty: 0
     grain: none
-    price_per_sheet: 175.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 175.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, exterior glue, chars under a laser"
 
   - material: plywood_baltic_birch
@@ -151,5 +651,23 @@ sheet_goods:
     sheet_height_in: 60
     qty: 0
     grain: none
-    price_per_sheet: 105.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 105.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, interior glue"
+
+  # From O'Brien's August 2026 specials: "6mm Baltic 4x8 B/BB — $61.00ea".
+  # A real price for a sheet this file did not know existed; 6 mm is the
+  # drawer-bottom and back-panel thickness. Sale price, ends with the month.
+  - material: plywood_baltic_birch
+    nominal_thickness: "1/4"
+    actual_thickness_in: 0.2362    # 6 mm
+    sheet_width_in: 48
+    sheet_height_in: 96
+    qty: 0
+    grain: none
+    price_per_sheet: 61.00
+    price_as_of: 2026-08-17
+    price_valid_until: 2026-08-31
+    price_source: "O'Brien Hardwoods, August 2026 specials sheet"
+    price_url: "https://obrienhardwoods.com/specials"
+    notes: "B/BB, 6 mm — sold as a 1/4\" nominal here, and it is not 1/4\""

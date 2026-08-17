@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import datetime
+
 import pytest
 
-from woodshop.inventory import Inventory, SheetStock
+from woodshop.inventory import DimensionalStock, Inventory, SheetStock
 
 
 @pytest.fixture(scope="module")
@@ -116,3 +118,141 @@ def test_oversize_part_fits_no_orientation():
     """A queen slat is 62-1/2"; Baltic birch sheets are 60"."""
     assert not _UNGRAINED.fits(62.5 * _IN, 2.5 * _IN, "none")
     assert _UNGRAINED.fits(31.25 * _IN, 2.5 * _IN, "none")
+
+
+# ---------------------------------------------------------------------------
+# Price provenance — issue #3
+# ---------------------------------------------------------------------------
+
+
+def test_a_price_in_stock_yaml_is_either_dated_or_labelled_a_placeholder(inv):
+    """No third state: a number with neither a date nor a warning is the bug."""
+    priced = [s for s in inv.all_stock() if s.price is not None]
+    assert priced
+    for stock in priced:
+        if stock.price_is_verified:
+            assert stock.price_source and "PLACEHOLDER" not in stock.price_source
+        else:
+            assert "PLACEHOLDER" in stock.price_source
+
+
+def test_the_cherry_and_plywood_prices_are_still_undated_placeholders(inv):
+    """O'Brien publishes no prices; these stay visibly invented until they do."""
+    undated = [s for s in inv.all_stock() if s.price is not None
+               and not s.price_is_verified]
+    assert {s.stock_label.split()[0] for s in undated} == {
+        "cherry", "plywood_cherry", "plywood_baltic_birch"
+    }
+
+
+def test_the_cedar_prices_are_real_dated_and_sourced(inv):
+    """Lumbery publishes a full guide, so this is the one supplier we can cite."""
+    cedar = [d for d in inv.dimensional if d.species == "white_cedar"]
+    assert len(cedar) > 20
+    for entry in cedar:
+        assert entry.price_is_verified
+        assert entry.price_as_of == datetime.date(2026, 8, 17)
+        assert entry.price_source.startswith("Lumbery")
+        assert entry.price_url.startswith("https://lumbery-me.com/")
+
+
+def test_cedar_is_priced_by_the_lineal_foot_as_the_guide_quotes_it(inv):
+    """The guide's unit, kept as published rather than converted."""
+    board = next(
+        d for d in inv.dimensional
+        if d.species == "white_cedar" and d.nominal == "1x6"
+        and d.profile == "rough sawn" and d.grade == "STK"
+    )
+    assert board.price_unit == "lineal ft"
+    assert board.price == pytest.approx(2.30)
+    # 12 boards of 6 ft: the rate multiplies feet, not sticks.
+    assert board.price_line(72).amount == pytest.approx(165.60)
+
+
+def test_grade_and_profile_separate_two_prices_for_the_same_size(inv):
+    """A rough 1x6 in STK and in low grade are different products."""
+    ones = [
+        d for d in inv.dimensional
+        if d.species == "white_cedar" and d.nominal == "1x6"
+        and d.profile == "rough sawn"
+    ]
+    assert {d.grade for d in ones} == {"STK", "low"}
+    assert len({d.stock_label for d in ones}) == 2
+    assert "white_cedar 1x6 rough sawn (STK)" in {d.stock_label for d in ones}
+
+
+def test_an_entry_cannot_be_priced_two_ways_at_once():
+    with pytest.raises(ValueError, match="not both"):
+        DimensionalStock(
+            species="white_cedar", nominal="1x6", lengths_ft=[8],
+            price_per_piece=18.40, price_per_lineal_ft=2.30,
+        )
+
+
+def test_an_iso_date_string_loads_as_a_date():
+    inv = Inventory.from_dict(
+        {
+            "sheet_goods": [
+                dict(
+                    material="plywood_birch", nominal_thickness="3/4",
+                    actual_thickness_in=0.71875, sheet_width_in=48,
+                    sheet_height_in=96, price_per_sheet=90.0,
+                    price_as_of="2026-08-16", price_source="Home Depot shelf tag",
+                )
+            ]
+        }
+    )
+    sheet = inv.sheet_goods[0]
+    assert sheet.price_as_of == datetime.date(2026, 8, 16)
+    assert sheet.price_is_verified
+    assert sheet.price_age_days(datetime.date(2026, 8, 26)) == 10
+    assert sheet.price_note() == "Home Depot shelf tag, 2026-08-16"
+
+
+def test_a_price_date_that_is_not_a_date_is_rejected():
+    """A price dated "soon" would satisfy the check that looks for a date."""
+    with pytest.raises(ValueError, match="ISO date"):
+        Inventory.from_dict(
+            {
+                "hardwood": [
+                    dict(
+                        species="cherry", thickness_quarter="4/4",
+                        rough_thickness_in=1.0, surfaced_thickness_in=0.75,
+                        typical_width_in=7, lengths_ft=[8], price_per_bf=12.5,
+                        price_as_of="soon",
+                    )
+                ]
+            }
+        )
+
+
+def test_dimensional_stock_can_carry_a_price(inv):
+    """It had no price field at all, so a softwood plan could never be costed."""
+    stock = Inventory.from_dict(
+        {
+            "dimensional": [
+                dict(
+                    species="pine", nominal="2x4", lengths_ft=[8, 10, 12], qty=6,
+                    price_per_piece=6.48, price_as_of=datetime.date(2026, 8, 16),
+                    price_source="Hammond Lumber, shelf price",
+                )
+            ]
+        }
+    ).dimensional[0]
+    assert stock.price == pytest.approx(6.48)
+    # A price per piece means nothing without the length it buys.
+    assert stock.price_unit == "8 ft piece"
+    assert stock.price_line(3).amount == pytest.approx(19.44)
+
+
+def test_an_unpriced_entry_refuses_to_be_multiplied(inv):
+    with pytest.raises(ValueError, match="no price"):
+        inv.sheet_for("plywood_birch", "3/4").price_line(2)
+
+
+def test_stock_labels_distinguish_the_two_baltic_birch_sizes(inv):
+    labels = {s.stock_label for s in inv.sheets_for("plywood_baltic_birch", "3/4")}
+    assert labels == {
+        'plywood_baltic_birch 3/4 (60" x 60")',
+        'plywood_baltic_birch 3/4 (48" x 96")',
+    }
