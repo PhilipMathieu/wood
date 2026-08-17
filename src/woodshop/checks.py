@@ -591,6 +591,17 @@ def check_material_suitability(
                     "or accept a striped edge",
                 )
             )
+        elif p.shape == "shaped" and not is_sheet(p.material):
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    f"{p.label} is sawn to a curve in solid {p.material}: "
+                    "wherever the curve runs across the grain the part is left "
+                    "on short grain, which is where a leg breaks — lay the "
+                    "blank out so the grain follows the sweep",
+                )
+            )
         elif p.shape == "round":
             findings.append(
                 Finding(

@@ -605,3 +605,98 @@ because a silent cut would read as "this is all of it" when the number of boards
 - **A size selector.** One page per design covering all five bed sizes would be
   better than registering one size, and needs client-side state the pages
   currently have none of.
+
+## Addendum: the bed was wrong, and the 360 viewer said so
+
+The owner's review of the nightstand PR: *"a lot of the details of the Mysa bed
+are inaccurate — missing the slant to the headboard, the foot shapes, etc. Some
+of these should be visible in scrapes, particularly if you pull the 360 degree
+views."*
+
+They were right, and it was worse than the slant.
+
+### What the source material actually had
+
+The product page carries a **Cylindo 360 viewer** — customer 6989, product code
+`MYSABED`, one frame every 11.25° with `SIZE`, `MATTRESS` and `WOOD` as
+features. Frames 1, 9 and 17 are the foot, side and head elevations, and they
+are close enough to orthographic to measure. Scaled against the published
+87" × 64" × 40" envelope, they give the geometry directly.
+
+That material was there the whole time. The first model was built from the
+listing's prose, and prose does not describe a curve.
+
+### What the model had wrong
+
+| Modelled from prose | Measured from the 360 |
+|---|---|
+| 1-3/4" square posts, vertical | 2"-thick **shaped stiles**: back edge straight, front edge a curve — 3-3/8" deep at the floor, 6" at rail height, 3-1/4" at a rounded top |
+| Frame-and-panel headboard, two rails and grooves | **One slab**, raked back 10° |
+| A 15" footboard rail | **No footboard.** The foot is the rail |
+| Rectangular legs | **Bandsawn**: outer edge vertical, inner edge sweeping 5-5/8" to 2-3/4" |
+| Slats in a rail rabbet | Slats on an **inner ledger**, rail standing proud |
+
+The published numbers survived: the 9-3/4" gap, the 14" slat height, the slat
+count and spacing, the envelope. Everything the prose *did* say was right;
+everything it did not say was invented, and all of it was wrong.
+
+### The measurement that confirmed itself
+
+The stile's measured depth of 6" looked large. It is: with a 1" foot rail it
+leaves `87 − 6 − 1 = 80"` of mattress length, which is **exactly** a queen
+mattress. That is not a coincidence, and it is the strongest evidence that the
+reading is right — the design is dimensioned from the mattress out.
+`test_the_measured_stile_depth_leaves_exactly_a_queen_mattress` pins it.
+
+### The gap it exposed: flat parts that are not rectangles
+
+Rectangles were `Board`/`Panel`. Surfaces of revolution were `Disc`/`Turning`.
+A bandsawn leg is neither: it is a **flat part with a shaped outline**, and
+there was nowhere to put one.
+
+`ShapedBoard` takes a closed 2-D profile and extrudes it. It slots into the
+blank-versus-finished machinery built for the nightstand without changing it:
+
+* the **blank** is the profile's bounding rectangle plus a margin — which is
+  what you buy and what you clamp to the saw;
+* the **finished area** is the polygon's own area, by the shoelace formula, so
+  the waste between the curve and the rectangle lands in
+  `finished_yield_fraction` instead of vanishing.
+
+That is the third shape family, and the second time the same distinction has
+paid for itself.
+
+A convention worth writing down: `ShapedBoard` takes profile-X as the part's
+*length*, so a stile's profile is drawn with **height along X**. That looks
+odd until the cut list prints `head_stile 40-1/4" x 6-1/4" x 2"` instead of the
+transpose. The grain runs up a leg, and length means along the grain.
+
+### What the rebuild also fixed
+
+- **Interpenetration went from eight pairs to one.** The old bed had tenons in
+  posts and slats in rabbets, and the clash test enumerated eight legitimate
+  overlaps. This bed has exactly one — the panel housed in the stiles.
+  Everything else *meets*: the slats sit on the ledgers, the rails sit on the
+  legs, the rails butt the stiles where the brackets go. A simpler joint list
+  is a better-understood model.
+- **The rails are not centred on the bed.** The head stile eats 6" out of one
+  end and nothing out of the other, so the deck's centre line is 2-1/2" off the
+  bed's. Getting that wrong is invisible in a render and puts every slat in the
+  wrong place; `deck_centre_y` now exists to say so once.
+- **A short-grain note.** `check_material_suitability` gained a case for shaped
+  solid parts: wherever the curve crosses the grain the part is left on short
+  grain, which is where a leg breaks.
+
+### The cost of being right
+
+84 bd ft became 111. The real bed has 5-1/2" rails, 6"-deep stiles out of 10/4,
+and bandsawn legs whose blanks are much bigger than the parts. The earlier
+figure was cheaper because the earlier bed was lighter — and imaginary.
+
+### What still is not measured
+
+The elevations give outlines, not sections. The panel and rail *thicknesses*
+(1") come from the listing, the panel's housing is a guess, and the ledger,
+centre rail and spacers are ordinary practice rather than observation. Those
+are listed in the module docstring under "What is still inferred", which is now
+a much shorter list than it was.

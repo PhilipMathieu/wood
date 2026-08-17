@@ -6,7 +6,7 @@ information a cut list needs and that geometry alone cannot recover: the
 species, the grain direction, and the *stock* size before the saw and the
 lathe take material away.
 
-Four kinds of part, because they are bought and cut in genuinely different
+Five kinds of part, because they are bought and cut in genuinely different
 ways:
 
 ``Board``
@@ -23,6 +23,10 @@ ways:
 ``Turning``
     A spindle turned between centres out of a square blank — a leg, a stretcher,
     a knob.  Optionally tapered.
+
+``ShapedBoard``
+    A flat part sawn to a profile rather than to a rectangle — a bandsawn leg,
+    a curved rail, a crested headboard.
 
 Stock size versus finished size
 -------------------------------
@@ -49,6 +53,8 @@ A rectangular part is created with
 A round part is created about the **lathe axis, which runs along +Z**.  A
 :class:`Disc` therefore lies flat, thickness along +Z, exactly as a Board does;
 a :class:`Turning` stands upright on its axis, which is what a leg does anyway.
+A :class:`ShapedBoard` carries its profile in the X-Y plane and its thickness
+along +Z, so it lies flat like a Board too.
 
 Once a part is rotated into place in an assembly its bounding box no longer
 reports those numbers in that order, which is why the cut dimensions are stored
@@ -72,7 +78,7 @@ Example
 from __future__ import annotations
 
 import math
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from build123d import (
     Align,
@@ -80,8 +86,11 @@ from build123d import (
     Box,
     BuildPart,
     Mode,
+    Polyline,
     RotationLike,
     Solid,
+    extrude,
+    make_face,
     tuplify,
     validate_inputs,
 )
@@ -99,6 +108,7 @@ __all__ = [
     "Turning",
     "StockPart",
     "ShapedPart",
+    "ShapedBoard",
     "retag",
     "total_board_feet",
 ]
@@ -107,7 +117,7 @@ __all__ = [
 GRAIN_DIRECTIONS: frozenset[str] = frozenset({"length", "width", "none"})
 
 #: Shapes a part may take.  Drives blank sizing, yield, and material checks.
-SHAPES: frozenset[str] = frozenset({"rectangular", "round", "turned"})
+SHAPES: frozenset[str] = frozenset({"rectangular", "round", "turned", "shaped"})
 
 #: Extra width and length left round a round blank, in mm (1/4" total).
 #:
@@ -735,6 +745,134 @@ class Turning(ShapedPart):
         self.diameter_mm = float(diameter_mm)
         self.end_diameter_mm = float(end)
         self.max_diameter_mm = largest
+
+
+class ShapedBoard(_StockMeta, BasePartObject):
+    """A flat part sawn to a shaped outline, rather than to a rectangle.
+
+    A bandsawn leg, a curved rail, a crested headboard — anything whose face
+    is a profile rather than four square corners.  The profile lies in the
+    X-Y plane and is extruded along +Z, so the local frame matches
+    :class:`Board`: the face is X-Y, the thickness is Z.
+
+    The blank on the cut list is the **bounding rectangle** of that profile
+    plus a margin, because that is what you buy and what you clamp to the saw.
+    The finished area is the polygon's own area, so the waste between the two
+    lands in ``finished_yield_fraction`` rather than disappearing.
+
+    Parameters
+    ----------
+    profile : sequence of (float, float)
+        Closed outline in mm, in order, as ``(x, y)`` pairs.  The closing
+        segment is implied — do not repeat the first point.  Curves are
+        polylines: sample them as finely as the shape deserves.
+    thickness_mm : float
+        Finished thickness, along +Z.
+    material : str
+        Species or sheet-goods material key.
+    label : str
+        Part name.
+    blank_margin_mm : float, optional
+        Added to each side of the bounding rectangle, default
+        :data:`ROUND_BLANK_MARGIN_MM`.
+    grain_direction : str, optional
+        Default ``"length"``, meaning along the profile's longer axis.
+    qty, notes, rotation, align, mode
+        As :class:`StockPart`.
+
+    Raises
+    ------
+    ValueError
+        If fewer than three points are given, the thickness is non-positive,
+        or the profile encloses no area.
+
+    Examples
+    --------
+    >>> leg = ShapedBoard(
+    ...     profile=[(0, 0), (140, 0), (140, 500), (60, 500)],
+    ...     thickness_mm=44.45, material="cherry", label="foot_leg",
+    ... )
+    >>> round(leg.stock_length_mm, 2), round(leg.stock_width_mm, 2)
+    (146.35, 506.35)
+    >>> round(leg.shape_yield, 3)          # a trapezium in its bounding box
+    0.742
+    """
+
+    shape = "shaped"
+
+    _applies_to = [BuildPart._tag]
+
+    def __init__(
+        self,
+        profile: Sequence[tuple[float, float]],
+        thickness_mm: float,
+        *,
+        material: str,
+        label: str,
+        blank_margin_mm: float = ROUND_BLANK_MARGIN_MM,
+        grain_direction: str = "length",
+        qty: int = 1,
+        notes: str = "",
+        rotation: RotationLike = (0, 0, 0),
+        align: Align | tuple[Align, Align, Align] = (
+            Align.CENTER,
+            Align.CENTER,
+            Align.CENTER,
+        ),
+        mode: Mode = Mode.ADD,
+    ) -> None:
+        pts = [(float(x), float(y)) for x, y in profile]
+        if len(pts) < 3:
+            raise ValueError(
+                f"{label!r}: a profile needs at least 3 points, got {len(pts)}"
+            )
+        if thickness_mm <= 0:
+            raise ValueError(
+                f"{label!r}: thickness_mm must be positive, got {thickness_mm!r}"
+            )
+        area = abs(_polygon_area(pts))
+        if area <= 0:
+            raise ValueError(f"{label!r}: the profile encloses no area")
+
+        context = BuildPart._get_context(self)
+        validate_inputs(context, self)
+        solid = extrude(make_face(Polyline(*pts, close=True)), amount=thickness_mm)
+        super().__init__(
+            part=solid, rotation=rotation, align=tuplify(align, 3), mode=mode
+        )
+
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        length = max(xs) - min(xs)
+        width = max(ys) - min(ys)
+        self._record(
+            label=label,
+            material=material,
+            grain_direction=grain_direction,
+            qty=qty,
+            notes=notes,
+            length_mm=length,
+            width_mm=width,
+            thickness_mm=thickness_mm,
+            stock_length_mm=length + blank_margin_mm,
+            stock_width_mm=width + blank_margin_mm,
+            stock_thickness_mm=thickness_mm,
+            finished_area_mm2=area,
+            profile=(
+                f"sawn to a profile, {mm_to_fractional_inch(length)} x "
+                f"{mm_to_fractional_inch(width)} blank"
+            ),
+        )
+        self.profile_points = pts
+
+
+def _polygon_area(points: Sequence[tuple[float, float]]) -> float:
+    """Return the signed area of a closed polygon by the shoelace formula."""
+    total = 0.0
+    for i, (x0, y0) in enumerate(points):
+        x1, y1 = points[(i + 1) % len(points)]
+        total += x0 * y1 - x1 * y0
+    return total / 2.0
 
 
 #: Attributes that make a solid recognisable to the cut list.

@@ -181,9 +181,11 @@ def test_only_joinery_parts_interpenetrate(bed):
     """Parts may overlap only where a joint says they should.
 
     Rendering the bed raised the question of whether anything was buried
-    inside anything else.  It is not — and these are the only overlaps that
-    should ever exist: tenons in posts, the panel tongue in its grooves, and
-    slat ends in the rail rabbet.
+    inside anything else.  It is not, and in this bed there is exactly one
+    overlap that should exist: the headboard panel housed into the stiles.
+    Everything else *meets* rather than interpenetrates — the slats sit on the
+    ledgers, the rails sit on the foot legs, and the rails butt the stiles
+    where the metal brackets go.
     """
     from woodshop.render.model3d import _iter_leaf_parts
 
@@ -201,16 +203,7 @@ def test_only_joinery_parts_interpenetrate(bed):
             ):
                 clashes.add(tuple(sorted((label_a, label_b))))
 
-    assert clashes == {
-        ("foot_post", "footboard_rail"),
-        ("head_post", "headboard_bottom_rail"),
-        ("head_post", "headboard_panel"),
-        ("head_post", "headboard_top_rail"),
-        ("headboard_bottom_rail", "headboard_panel"),
-        ("headboard_panel", "headboard_top_rail"),
-        ("side_rail", "slat"),
-        ("side_rail", "slat_spacer"),
-    }
+    assert clashes == {("head_stile", "headboard_panel")}
 
 
 def test_centre_rail_sits_below_the_slats(bed):

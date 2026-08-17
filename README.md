@@ -8,7 +8,8 @@ optimisation, and design checks that run before anything gets cut.
 
 ```
 src/woodshop/
-  parts.py            Board, Panel, Disc, Turning — solids that carry cut-list metadata
+  parts.py            Board, Panel, Disc, Turning, ShapedBoard — solids that
+                      carry cut-list metadata
   lumber.py           nominal -> actual dimension tables, kerf, fraction formatting
   inventory.py        loads stock.yaml: dimensional, hardwood, and sheet stock
   checks.py           design checks (envelope, fit, thickness, deflection, material, tipping)
@@ -27,7 +28,8 @@ src/woodshop/
   joinery/            dado, rabbet, tenon, mortise, pocket hole
   hardware/           stocked fasteners
 projects/
-  mysa_bed.py         Chilton Mysa sleigh bed, faithful and plywood variants
+  mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
+                      manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
   workbench.py        minimal example
 scripts/
@@ -95,7 +97,9 @@ cut list and no geometry — are skipped rather than treated as an error.
 Parts are built in a local frame with **length along +X, width along +Y,
 thickness along +Z**, then rotated and positioned into the assembly. Round
 parts (`Disc`, `Turning`) are built about the **lathe axis, which runs along
-+Z**. Cut dimensions are stored on the part rather than measured back off its
++Z**. A `ShapedBoard` carries a closed 2-D profile in X–Y and extrudes it along
++Z — and takes profile-X as the part's *length*, so a leg's profile is drawn
+with its **height** along X, because that is the way the grain runs. Cut dimensions are stored on the part rather than measured back off its
 bounding box, so they survive being placed.
 
 ### Stock size versus finished size

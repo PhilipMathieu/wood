@@ -246,3 +246,23 @@ def test_two_legs_is_not_a_thing_that_stands_up():
         check_tip_resistance(
             mass_kg=5.0, n_legs=2, foot_radius_mm=200.0, overhang_radius_mm=230.0
         )
+
+
+def test_a_bandsawn_solid_part_gets_a_short_grain_note(inv):
+    """Where the curve crosses the grain is where a leg breaks."""
+    leg = CutPart(
+        "foot_leg", "cherry", "length", 241.3, 142.9, 44.45, qty=2,
+        shape="shaped", finished_area_each_mm2=25_000.0,
+    )
+    findings = check_material_suitability([leg], inv)
+    assert [f.severity for f in findings] == [Severity.INFO]
+    assert "short grain" in findings[0].message
+
+
+def test_a_bandsawn_sheet_part_gets_no_grain_lecture(inv):
+    """Plywood has no grain to run short; cutting a curve in it is routine."""
+    part = CutPart(
+        "bracket", "plywood_birch", "none", 300.0, 200.0, 18.0,
+        shape="shaped", finished_area_each_mm2=40_000.0,
+    )
+    assert check_material_suitability([part], inv) == []
