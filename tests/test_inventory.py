@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+
 import pytest
 
 from woodshop.inventory import Inventory, SheetStock
@@ -116,3 +118,85 @@ def test_oversize_part_fits_no_orientation():
     """A queen slat is 62-1/2"; Baltic birch sheets are 60"."""
     assert not _UNGRAINED.fits(62.5 * _IN, 2.5 * _IN, "none")
     assert _UNGRAINED.fits(31.25 * _IN, 2.5 * _IN, "none")
+
+
+# ---------------------------------------------------------------------------
+# Price provenance — issue #3
+# ---------------------------------------------------------------------------
+
+
+def test_every_price_in_stock_yaml_is_still_undated(inv):
+    """The placeholders stay visible as placeholders until somebody calls."""
+    priced = [s for s in inv.all_stock() if s.price is not None]
+    assert priced
+    assert not any(s.price_is_verified for s in priced)
+    assert all("PLACEHOLDER" in s.price_source for s in priced)
+
+
+def test_an_iso_date_string_loads_as_a_date():
+    inv = Inventory.from_dict(
+        {
+            "sheet_goods": [
+                dict(
+                    material="plywood_birch", nominal_thickness="3/4",
+                    actual_thickness_in=0.71875, sheet_width_in=48,
+                    sheet_height_in=96, price_per_sheet=90.0,
+                    price_as_of="2026-08-16", price_source="Home Depot shelf tag",
+                )
+            ]
+        }
+    )
+    sheet = inv.sheet_goods[0]
+    assert sheet.price_as_of == datetime.date(2026, 8, 16)
+    assert sheet.price_is_verified
+    assert sheet.price_age_days(datetime.date(2026, 8, 26)) == 10
+    assert sheet.price_note() == "Home Depot shelf tag, 2026-08-16"
+
+
+def test_a_price_date_that_is_not_a_date_is_rejected():
+    """A price dated "soon" would satisfy the check that looks for a date."""
+    with pytest.raises(ValueError, match="ISO date"):
+        Inventory.from_dict(
+            {
+                "hardwood": [
+                    dict(
+                        species="cherry", thickness_quarter="4/4",
+                        rough_thickness_in=1.0, surfaced_thickness_in=0.75,
+                        typical_width_in=7, lengths_ft=[8], price_per_bf=12.5,
+                        price_as_of="soon",
+                    )
+                ]
+            }
+        )
+
+
+def test_dimensional_stock_can_carry_a_price(inv):
+    """It had no price field at all, so a softwood plan could never be costed."""
+    stock = Inventory.from_dict(
+        {
+            "dimensional": [
+                dict(
+                    species="pine", nominal="2x4", lengths_ft=[8, 10, 12], qty=6,
+                    price_per_piece=6.48, price_as_of=datetime.date(2026, 8, 16),
+                    price_source="Hammond Lumber, shelf price",
+                )
+            ]
+        }
+    ).dimensional[0]
+    assert stock.price == pytest.approx(6.48)
+    # A price per piece means nothing without the length it buys.
+    assert stock.price_unit == "8 ft piece"
+    assert stock.price_line(3).amount == pytest.approx(19.44)
+
+
+def test_an_unpriced_entry_refuses_to_be_multiplied(inv):
+    with pytest.raises(ValueError, match="no price"):
+        inv.sheet_for("plywood_birch", "3/4").price_line(2)
+
+
+def test_stock_labels_distinguish_the_two_baltic_birch_sizes(inv):
+    labels = {s.stock_label for s in inv.sheets_for("plywood_baltic_birch", "3/4")}
+    assert labels == {
+        'plywood_baltic_birch 3/4 (60" x 60")',
+        'plywood_baltic_birch 3/4 (48" x 96")',
+    }

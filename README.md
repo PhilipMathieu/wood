@@ -11,8 +11,12 @@ src/woodshop/
   parts.py            Board, Panel, Disc, Turning, ShapedBoard — solids that
                       carry cut-list metadata
   lumber.py           nominal -> actual dimension tables, kerf, fraction formatting
-  inventory.py        loads stock.yaml: dimensional, hardwood, and sheet stock
-  checks.py           design checks (envelope, fit, thickness, deflection, material, tipping)
+  inventory.py        loads stock.yaml: dimensional, hardwood, and sheet stock,
+                      each price carrying the date and source behind it
+  pricing.py          PriceLine and CostSummary — a total that cannot print
+                      without saying how old its rates are
+  checks.py           design checks (envelope, fit, thickness, deflection,
+                      material, tipping, price provenance)
   project.py          the registry that makes projects discoverable
   cutlist/
     extract.py        walk an assembly into a consolidated list of CutParts
@@ -80,7 +84,11 @@ stick, or from GitHub Pages. `--single-file` inlines every image into one HTML
 document you can mail to somebody.
 
 Costs are **omitted by default**, because the prices in `stock.yaml` are
-invented. `--with-costs` puts them back with that warning attached.
+invented. `--with-costs` puts them back — each amount tagged with the date its
+rate was quoted, or marked unverified when there is no date to tag it with.
+Provenance is published either way: every project page carries a *Prices*
+section naming each material it buys and where that material's price came
+from, which stays useful after somebody records a real one.
 
 A project joins the gallery by publishing a module-level `PROJECTS` list:
 
@@ -163,12 +171,20 @@ ERROR [material]  leg is turned but specified in plywood_baltic_birch: sheet
                   goods have no long grain running the length of a spindle
 WARN  [stability] 4.8 kg on 3 legs: a load of 3.6 kg (8 lb) on the rim between
                   two legs tips it
+ERROR [price]     cherry 4/4 is priced per bd ft but carries no price_as_of:
+                  treat it as invented until it is replaced by a quote with a
+                  date on it
+WARN  [price]     plywood_birch 3/4 (48" x 96") has no price in stock.yaml —
+                  any total that includes it is a total with a hole in it
 ```
 
 Most checks compare a number against a number. `check_material_suitability`
 compares a **material against an operation**, which is the question a cut list
 cannot ask on its own: a 3/4" Baltic birch slat and a 3/4" Baltic birch turned
 leg have identical rows, and only one of them is possible.
+`check_price_provenance` compares a **price against a date**, which is the
+question a price list cannot ask on its own: board feet are measured and stay
+true, dollars are quoted and go off.
 
 `CheckReport.ok` is `True` when nothing is an `ERROR`.
 
@@ -176,8 +192,45 @@ A material can be stocked in more than one sheet size — Baltic birch is both
 5'×5' and 4'×8' — so use `Inventory.best_sheet_for`, which picks the smallest
 sheet a part actually fits on rather than guessing from thickness.
 
-**Prices in `stock.yaml` are unverified placeholders.** Quantities, board feet,
-and yields are real; dollar totals are not.
+## Prices
+
+Every price in `stock.yaml` carries its own provenance:
+
+```yaml
+- species: cherry
+  thickness_quarter: "4/4"
+  price_per_bf: 12.50
+  price_as_of: 2026-08-16              # ISO date, required whenever a price is set
+  price_source: "O'Brien Hardwoods, phone quote"
+  price_url: "https://obrienhardwoods.com/"
+```
+
+A price with no `price_as_of` is *unverified*, not trusted:
+`check_price_provenance` reports it as an `ERROR`, and every total built from
+it prints `UNVERIFIED — placeholder prices`. That is why the placeholders can
+stay in the file — they are visibly placeholders — rather than having to be
+deleted before anything else can be built.
+
+`woodshop.pricing` is what makes that stick. A price never travels as a bare
+float: it is a `PriceLine` (quantity × rate, plus where the rate came from and
+when), and `CostSummary` refuses to render a total without the date behind it.
+A summary totals what it can and *names* what it cannot, so one unpriced
+material no longer drops the whole cost line:
+
+```
+cherry 4/4     8 boards of 7" x 8 ft  (37.3 bd ft, $467 (unverified))
+(!) plywood_birch 3/4 (48" x 96") has no price in stock.yaml — it is missing
+    from the total below, not free
+total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
+               excludes unpriced plywood_birch 3/4 (48" x 96")), 47% yield
+```
+
+**Every price in `stock.yaml` today is still an invented placeholder**, and
+deliberately undated so that it reads as one. O'Brien Hardwoods publishes no
+prices; the sizes, grades and thicknesses in that file are real, and only the
+money is not. Quantities, board feet, and yields are real; dollar totals are
+not, and will not be until somebody phones (207) 536-7860 and writes the
+numbers down with the date attached. Issue #3 lists exactly what to ask for.
 
 ## Known limitation of the 3-D views
 

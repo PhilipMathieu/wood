@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import datetime
+
 import matplotlib
 import pytest
 
@@ -9,6 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from woodshop.checks import CheckReport, Finding, Severity  # noqa: E402
+from woodshop.inventory import Inventory  # noqa: E402
 from woodshop.project import ProjectSpec, discover_projects  # noqa: E402
 from woodshop.render.gallery import (  # noqa: E402
     build_gallery,
@@ -159,6 +163,64 @@ def test_costs_come_with_the_caveat_attached(tmp_path, nightstand):
     assert "$" in text
     assert "placeholder" in text
     assert "Costs on this page are not real" in index.read_text(encoding="utf-8")
+
+
+def test_no_total_is_printed_without_a_date_or_an_unverified_marker(
+    tmp_path, nightstand
+):
+    """Issue #3: a dollar figure with nothing attached reads as a quote."""
+    index = build_gallery(
+        [nightstand], outdir=tmp_path, dpi=60, show_costs=True, downloads=False
+    )
+    plt.close("all")
+    for page in index.parent.rglob("*.html"):
+        for fragment in page.read_text(encoding="utf-8").split("$")[1:]:
+            head = fragment[:120]
+            assert "unverified" in head.lower() or "as of" in head, head
+
+
+def test_dated_prices_are_published_with_their_date_and_a_link(tmp_path, nightstand):
+    """What the pages do the day somebody records a real quote."""
+    inv = Inventory.load()
+    inv.hardwood = [
+        dataclasses.replace(
+            h,
+            price_as_of=datetime.date(2026, 8, 16),
+            price_source="O'Brien Hardwoods, phone quote",
+            price_url="https://obrienhardwoods.com/",
+        )
+        for h in inv.hardwood
+    ]
+    index = build_gallery(
+        [nightstand], outdir=tmp_path, dpi=60, show_costs=True, downloads=False,
+        inventory=inv,
+    )
+    plt.close("all")
+    text = (index.parent / "mysa-nightstand" / "index.html").read_text(encoding="utf-8")
+
+    assert "Prices are as of 2026-08-16" in text
+    assert 'href="https://obrienhardwoods.com/"' in text
+    assert "as of 2026-08-16" in text
+    # The scare block is data-driven: dated prices have earned their way out.
+    assert "Costs on this page are not real" not in text
+    assert "UNVERIFIED" not in text
+
+
+def test_price_provenance_is_published_even_when_costs_are_not(site):
+    """The amounts are the embarrassing part; the provenance is the useful part."""
+    text = (site.parent / "mysa-nightstand" / "index.html").read_text(encoding="utf-8")
+    assert "<h3>Prices</h3>" in text
+    assert "carries no price_as_of" in text
+    assert "PLACEHOLDER" in text
+
+
+def test_provenance_findings_do_not_redden_a_buildable_design(nightstand):
+    """An undated price is a problem with the quote, not with the joinery."""
+    built = build_project(nightstand)
+    assert built.report.ok
+    assert any(f.severity is Severity.ERROR for f in built.price_report.findings)
+    assert built.cost_summary.total is not None
+    assert not built.cost_summary.verified
 
 
 # ---------------------------------------------------------------------------

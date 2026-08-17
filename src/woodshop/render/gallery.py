@@ -10,12 +10,19 @@ each design, and writes a self-contained set of HTML pages: an index of cards,
 and one page per project carrying the four views, the cut list, the nesting
 diagrams, the check report styled by severity, and links to the STEP and STL.
 
-What it deliberately does not do
---------------------------------
-**Publish prices.**  Every price in ``stock.yaml`` is an invented placeholder,
-and a dollar figure on a web page reads as researched however the YAML file
-labels it.  Costs are omitted unless :func:`build_gallery` is called with
-``show_costs=True``, and then every one of them sits inside a warning block.
+What it does carefully
+----------------------
+**Prices.**  A dollar figure on a web page reads as researched however the
+source file labels it, so money is handled by two separate mechanisms here.
+Amounts are omitted unless :func:`build_gallery` is called with
+``show_costs=True``, and every amount that does appear carries the date its
+rate was quoted — or, while the rates in ``stock.yaml`` remain invented
+placeholders, the fact that it has no date at all.  Provenance itself is shown
+either way: every page carries the report from
+:func:`~woodshop.checks.check_price_provenance`, which names each material the
+design buys and says where its price came from and when.  That section costs
+nothing to publish and is the part that stops being embarrassing once somebody
+makes the phone call.
 
 Example
 -------
@@ -34,12 +41,18 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Iterable
 
-from woodshop.checks import CheckReport, Severity, estimate_mass_kg
+from woodshop.checks import (
+    CheckReport,
+    Severity,
+    check_price_provenance,
+    estimate_mass_kg,
+)
 from woodshop.cutlist.extract import CutPart, extract
 from woodshop.cutlist.hardwood import HardwoodPlan, nest_hardwood
 from woodshop.cutlist.optimize_2d import Cut2DResult, pack_by_material
 from woodshop.inventory import Inventory
 from woodshop.lumber import mm_to_fractional_inch
+from woodshop.pricing import CostSummary, sheet_cost_summary
 from woodshop.project import ProjectSpec, discover_projects
 from woodshop.render.export import export_assembly
 from woodshop.render.model3d import STANDARD_VIEWS, View, render_assembly
@@ -54,11 +67,12 @@ from woodshop.render.tables import render_cut_list
 __all__ = ["ProjectBuild", "build_project", "build_gallery", "slugify"]
 
 
-#: Warning shown wherever a cost appears.  See issue #3.
+#: Warning shown wherever an undated cost appears.  See issue #3.
 COST_CAVEAT = (
-    "Every price behind these figures is an unverified placeholder invented so "
-    "the cost machinery has something to multiply. The quantities are real; "
-    "the dollars are not. Do not quote them at anybody."
+    "At least one price behind these figures carries no date, which in "
+    "stock.yaml means it is an unverified placeholder invented so the cost "
+    "machinery has something to multiply. The quantities are real; those "
+    "dollars are not. Do not quote them at anybody."
 )
 
 #: Note on the one rendering limitation a woodworker will spot immediately.
@@ -114,6 +128,14 @@ class ProjectBuild:
         Sheet-goods nesting, keyed as :func:`pack_by_material` keys them.
     mass_kg : float
         Estimated finished mass.
+    price_report : CheckReport
+        Where each price came from and when — the findings of
+        :func:`~woodshop.checks.check_price_provenance`.  Kept apart from
+        *report* on purpose: an undated price does not stop anybody building
+        the piece, and it should not turn a buildable design red.
+    inventory : Inventory or None
+        The stock this project was costed against, kept so sheet prices can be
+        looked up after the fact.
     """
 
     spec: ProjectSpec
@@ -123,6 +145,8 @@ class ProjectBuild:
     hardwood: HardwoodPlan | None = None
     sheets: dict[str, Cut2DResult] = field(default_factory=dict)
     mass_kg: float = 0.0
+    price_report: CheckReport = field(default_factory=CheckReport)
+    inventory: Inventory | None = None
 
     @property
     def board_feet(self) -> float:
@@ -135,15 +159,27 @@ class ProjectBuild:
         return sum(r.sheets_used for r in self.sheets.values())
 
     @property
-    def cost(self) -> float | None:
-        """Total cost, or ``None`` if anything is unpriced.
+    def cost_summary(self) -> CostSummary:
+        """Boards and sheets together, with every rate's provenance attached.
 
-        Placeholder prices — see :data:`COST_CAVEAT`.
+        This is what the pages render.  It knows what was priced, what was
+        not, and how old the rates behind the total are, so nothing has to
+        publish a bare number and hope the caption is read.
         """
-        total = 0.0 if self.hardwood is None else self.hardwood.cost
-        if total is None:
-            return None
-        return total
+        summary = CostSummary()
+        if self.hardwood is not None:
+            summary = summary + self.hardwood.cost_summary
+        if self.sheets and self.inventory is not None:
+            summary = summary + sheet_cost_summary(self.sheets, self.inventory)
+        return summary
+
+    @property
+    def cost(self) -> float | None:
+        """Total of everything priced, or ``None`` if nothing is.
+
+        A partial total: :attr:`cost_summary` names what it excludes.
+        """
+        return self.cost_summary.total
 
     def counts(self) -> dict[Severity, int]:
         """Return the number of findings at each severity."""
@@ -188,6 +224,8 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
         hardwood=hardwood,
         sheets=sheets,
         mass_kg=estimate_mass_kg(parts),
+        price_report=CheckReport().extend(check_price_provenance(inv, parts)),
+        inventory=inv,
     )
 
 
@@ -540,8 +578,10 @@ def _card_stats(built: ProjectBuild, show_costs: bool) -> str:
         stats.append(f"{built.sheets_used} sheet{plural}")
     stats.append(f"{len(built.parts)} distinct parts")
     stats.append(f"{built.mass_kg:.0f} kg")
-    if show_costs and built.cost is not None:
-        stats.append(f"${built.cost:,.0f} (placeholder)")
+    if show_costs:
+        summary = built.cost_summary
+        if summary.total is not None:
+            stats.append(summary.to_label())
     return "".join(f'<span class="stat">{html.escape(s)}</span>' for s in stats)
 
 
@@ -558,6 +598,7 @@ def _render_index(
     ]
 
     caveat = "" if show_costs else _no_cost_note()
+    merged = _merged_summary(pages)
     body = (
         "<header><h1>Woodshop</h1>"
         '<p class="lede">Parametric furniture, cut lists that describe what you '
@@ -565,7 +606,7 @@ def _render_index(
         "below is generated from the model — the pictures and the numbers "
         "cannot disagree. Pick a piece to see its cut list, stock layouts and "
         "design checks.</p></header>"
-        f"{_cost_caveat() if show_costs else caveat}"
+        f"{_cost_block(merged) if show_costs else caveat}"
         f'<div class="cards">{"".join(cards)}</div>'
         f"{_footer(stamp)}"
     )
@@ -619,7 +660,7 @@ def _render_single_file(
         '<p class="lede">Every registered project, in one file: renders, cut '
         "lists, nesting layouts and design checks, all generated from the "
         "models.</p></header>"
-        f"{_cost_caveat() if show_costs else _no_cost_note()}"
+        f"{_cost_block(_merged_summary(pages)) if show_costs else _no_cost_note()}"
         f'<div class="cards">{"".join(cards)}</div>'
         f"{''.join(sections)}"
         f"{_footer(stamp)}"
@@ -700,6 +741,9 @@ def _render_project_body(
 
     out.append(f"<{sub}>Materials</{sub}>")
     out.append(_render_materials(built, show_costs))
+
+    out.append(f"<{sub}>Prices</{sub}>")
+    out.append(_render_prices(built, show_costs))
 
     if built.hardwood is not None and assets["boards"]:
         out.append(f"<{sub}>Board layout</{sub}>")
@@ -790,8 +834,8 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
     if built.hardwood is not None:
         for group in built.hardwood.groups:
             cost = ""
-            if show_costs and group.cost is not None:
-                cost = f" — ${group.cost:,.0f} at placeholder rates"
+            if show_costs and group.price_line is not None:
+                cost = f" — {group.price_line.to_text()}"
             rows.append(
                 f"<li>{html.escape(group.label)}: {group.boards_needed} board(s) of "
                 f'{group.stock.typical_width_in:g}" x '
@@ -803,12 +847,26 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
                 f"<li>{html.escape(label)}: edge-glued from {n} staves of "
                 f"{html.escape(mm_to_fractional_inch(stave_w))}</li>"
             )
+    sheet_lines = {
+        line.label: line
+        for line in (
+            sheet_cost_summary(built.sheets, built.inventory).lines
+            if built.inventory is not None
+            else ()
+        )
+    }
     for key, result in built.sheets.items():
         if result.sheets_used:
+            line = sheet_lines.get(key)
+            cost = f" — {line.to_text()}" if show_costs and line is not None else ""
             rows.append(
                 f"<li>{html.escape(key)}: {result.sheets_used} sheet(s), "
-                f"{result.yield_fraction * 100:.0f}% nested</li>"
+                f"{result.yield_fraction * 100:.0f}% nested{html.escape(cost)}</li>"
             )
+
+    if show_costs:
+        summary = built.cost_summary
+        rows.append(f"<li><strong>total: {html.escape(summary.to_text())}</strong></li>")
 
     yields = ""
     if built.hardwood is not None and built.hardwood.boards_needed:
@@ -824,8 +882,79 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
     return f'<ul>{"".join(rows)}</ul>{yields}'
 
 
-def _cost_caveat() -> str:
-    """Return the block that must accompany any published cost."""
+def _render_prices(built: ProjectBuild, show_costs: bool) -> str:
+    """Render where the prices came from, whether or not amounts are shown.
+
+    Provenance is published unconditionally.  Hiding the amounts keeps an
+    invented number off the page; it does nothing about the fact that the
+    numbers are invented, and only saying so does.
+    """
+    if not built.price_report.findings:
+        return '<p class="muted">This project buys no stock that carries a price.</p>'
+    out = [_render_findings(built.price_report)]
+    summary = built.cost_summary
+    if show_costs:
+        out.append(_cost_block(summary))
+    sources = _source_list(summary)
+    if sources:
+        out.append(sources)
+    if not show_costs and summary.lines:
+        out.append(
+            '<p class="muted">Amounts are omitted from this page. Build the '
+            "gallery with <code>--with-costs</code> to see them, each carrying "
+            "the date its rate was quoted.</p>"
+        )
+    return "".join(out)
+
+
+def _source_list(summary: CostSummary) -> str:
+    """Return the list of sources behind a summary, linked where possible."""
+    seen: dict[str, str] = {}
+    for line in summary.lines:
+        if line.source and line.source not in seen:
+            seen[line.source] = line.source_url
+    if not seen:
+        return ""
+    items = []
+    for source, url in seen.items():
+        text = html.escape(source)
+        if url:
+            text = f'<a href="{html.escape(url)}">{text}</a>'
+        items.append(f"<li>{text}</li>")
+    return f'<p class="muted">Price sources:</p><ul>{"".join(items)}</ul>'
+
+
+def _merged_summary(pages: list[tuple[ProjectBuild, dict[str, Any]]]) -> CostSummary:
+    """Combine every project's costs, for a note that covers the whole site."""
+    merged = CostSummary()
+    for built, _ in pages:
+        merged = merged + built.cost_summary
+    return merged
+
+
+def _cost_block(summary: CostSummary) -> str:
+    """Return the block that must accompany published costs.
+
+    Which block depends on the data, not on a hard-coded opinion: dated rates
+    get their dates, and undated ones get the warning they have earned.  The
+    day somebody records real prices with real dates, this page stops shouting
+    on its own.
+    """
+    if summary.verified:
+        oldest = summary.oldest_as_of
+        sources = ", ".join(summary.sources) or "source not recorded"
+        gap = (
+            f" Materials with no price at all are excluded: "
+            f"{', '.join(summary.unpriced)}."
+            if summary.unpriced
+            else ""
+        )
+        return (
+            f'<p class="muted">Prices are as of '
+            f"{html.escape(oldest.isoformat() if oldest else 'an unknown date')}, "
+            f"from {html.escape(sources)}. Lumber moves, so treat them as an "
+            f"estimate rather than a quote.{html.escape(gap)}</p>"
+        )
     return (
         f'<div class="caveat"><strong>Costs on this page are not real.</strong> '
         f"{html.escape(COST_CAVEAT)}</div>"
@@ -836,7 +965,8 @@ def _no_cost_note() -> str:
     """Return the note explaining why no costs appear."""
     return (
         '<p class="muted">Quantities are shown; costs are not. The prices in '
-        "<code>stock.yaml</code> are placeholders nobody has verified, and a "
-        "dollar figure on a web page reads as researched however the source "
-        "file labels it.</p>"
+        "<code>stock.yaml</code> carry no date, which is how that file marks a "
+        "number nobody has verified — and a dollar figure on a web page reads "
+        "as researched however the source file labels it. Each project page "
+        "still lists where its prices would come from.</p>"
     )

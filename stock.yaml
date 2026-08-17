@@ -8,10 +8,30 @@
 # Baltic birch are from O'Brien Hardwoods, 142 Presumpscot St, Portland ME
 # (obrienhardwoods.com), read 2026-08-16.
 #
-# EVERY PRICE BELOW IS AN UNVERIFIED PLACEHOLDER. O'Brien does not publish
-# prices; none of these came from a quote. They exist so the cost machinery
-# has something to multiply. Quantities and yields are real; dollar totals
-# are not. Replace them after a phone call before trusting any cost figure.
+# Prices carry their own provenance, per entry, in three optional fields:
+#
+#   price_as_of:  ISO date the price was true. REQUIRED whenever a price is
+#                 set. A price without one is treated as unverified by
+#                 `woodshop.checks.check_price_provenance`, which reports it
+#                 as an ERROR, and every total built from it prints the
+#                 marker "UNVERIFIED — placeholder prices".
+#   price_source: where the number came from — a quote, a price list, a shelf
+#                 tag. Shown alongside the figure wherever it is published.
+#   price_url:    a link to that source, when one exists.
+#
+# EVERY PRICE BELOW IS STILL AN UNVERIFIED PLACEHOLDER, and is deliberately
+# left undated so that it reads as one. O'Brien does not publish prices;
+# none of these came from a quote. They exist so the cost machinery has
+# something to multiply. Quantities and yields are real; dollar totals are
+# not. Replace them — number, date, and source together — after a phone call
+# or a visit, before trusting any cost figure.
+#
+# Prices still to collect (see issue #3): cherry $/bd ft in 4/4 through 10/4
+# and whether it is quoted rough, S2S or S4S and by grade; cherry ply 3/4"
+# 4x8; Baltic birch 3/4" in both 5x5 and 4x8, which are different products
+# and should not be assumed to track; birch ply 3/4" and 1/2"; and any sheet
+# minimums or cut charges. Dimensional softwood is unpriced too — it takes
+# `price_per_piece` with a `price_length_ft` saying which length that buys.
 
 dimensional:
   - species: pine
@@ -53,7 +73,8 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0        # buy to suit
-    price_per_bf: 12.50      # PLACEHOLDER — not a quote
+    price_per_bf: 12.50
+    price_source: "PLACEHOLDER — invented, never quoted"   # no price_as_of: unverified
 
   - species: cherry
     thickness_quarter: "5/4"
@@ -62,7 +83,8 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 13.50      # PLACEHOLDER — not a quote
+    price_per_bf: 13.50
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   - species: cherry
     thickness_quarter: "6/4"
@@ -71,7 +93,8 @@ hardwood:
     typical_width_in: 7
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 14.00      # PLACEHOLDER — not a quote
+    price_per_bf: 14.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   - species: cherry
     thickness_quarter: "8/4"
@@ -80,7 +103,8 @@ hardwood:
     typical_width_in: 6
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 15.00      # PLACEHOLDER — not a quote
+    price_per_bf: 15.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   # 10/4 is stocked, so a true 2" post is buyable — it does not need a
   # lamination. See NOTES.md on the post-size inference.
@@ -91,7 +115,8 @@ hardwood:
     typical_width_in: 6
     lengths_ft: [8, 10]
     qty_board_feet: 0
-    price_per_bf: 17.00      # PLACEHOLDER — not a quote
+    price_per_bf: 17.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
 sheet_goods:
   - material: plywood_birch
@@ -117,7 +142,8 @@ sheet_goods:
     sheet_height_in: 96
     qty: 0
     grain: length
-    price_per_sheet: 185.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 185.00
+    price_source: "PLACEHOLDER — invented, never quoted"
 
   # Baltic birch, B/BB grade, comes in TWO sizes and the choice is not just
   # about area:
@@ -131,7 +157,8 @@ sheet_goods:
     sheet_height_in: 60
     qty: 0
     grain: none
-    price_per_sheet: 145.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 145.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, interior glue, laser-friendly"
 
   - material: plywood_baltic_birch
@@ -141,7 +168,8 @@ sheet_goods:
     sheet_height_in: 96
     qty: 0
     grain: none
-    price_per_sheet: 175.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 175.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, exterior glue, chars under a laser"
 
   - material: plywood_baltic_birch
@@ -151,5 +179,6 @@ sheet_goods:
     sheet_height_in: 60
     qty: 0
     grain: none
-    price_per_sheet: 105.00        # PLACEHOLDER — not a quote
+    price_per_sheet: 105.00
+    price_source: "PLACEHOLDER — invented, never quoted"
     notes: "B/BB, interior glue"

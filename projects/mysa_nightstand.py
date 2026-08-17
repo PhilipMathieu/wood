@@ -69,6 +69,7 @@ from woodshop.checks import (
     Severity,
     check_envelope,
     check_material_suitability,
+    check_price_provenance,
     check_sheet_fit,
     check_thickness_substitution,
     check_tip_resistance,
@@ -467,6 +468,13 @@ def run(variant: str, outdir: Path) -> CheckReport:
     report = stand.check(assembly, parts)
     print(f"\n-- design checks {'-' * 61}")
     print(report.to_text())
+
+    # Separate from the design checks: where the money came from is a question
+    # about the quote, not about whether the piece stands up.
+    print(f"\n-- prices {'-' * 68}")
+    print(
+        CheckReport().extend(check_price_provenance(stand.inventory, parts)).to_text()
+    )
 
     sheet_materials = {s.material for s in stand.inventory.sheet_goods}
     solid = [p for p in parts if p.material not in sheet_materials]

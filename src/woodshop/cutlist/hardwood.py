@@ -31,6 +31,7 @@ from woodshop.cutlist.extract import CutPart
 from woodshop.cutlist.optimize_2d import Cut2DResult, optimize_2d
 from woodshop.inventory import HardwoodStock, Inventory
 from woodshop.lumber import KERF_MM, mm_to_fractional_inch
+from woodshop.pricing import CostSummary, PriceLine
 
 __all__ = ["BoardGroup", "HardwoodPlan", "nest_hardwood"]
 
@@ -81,11 +82,25 @@ class BoardGroup:
         return area_in2 * self.stock.rough_thickness_in / 144.0
 
     @property
-    def cost(self) -> float | None:
-        """Cost of this group, or ``None`` if the stock has no price."""
+    def price_line(self) -> PriceLine | None:
+        """Board feet times the rate, with the rate's provenance attached.
+
+        ``None`` if the stock has no price — an unpriced group is *named* by
+        :attr:`HardwoodPlan.cost_summary`, never quietly costed at zero.
+        """
         if self.stock.price_per_bf is None:
             return None
-        return self.board_feet * self.stock.price_per_bf
+        return self.stock.price_line(self.board_feet)
+
+    @property
+    def cost(self) -> float | None:
+        """Cost of this group, or ``None`` if the stock has no price.
+
+        A bare float, so it carries no provenance: use :attr:`price_line` for
+        anything a person will read.
+        """
+        line = self.price_line
+        return None if line is None else line.amount
 
     @property
     def purchased_area_mm2(self) -> float:
@@ -149,10 +164,29 @@ class HardwoodPlan:
         return sum(g.board_feet for g in self.groups)
 
     @property
+    def cost_summary(self) -> CostSummary:
+        """Costed groups, unpriced groups, and the provenance of both.
+
+        The summary is the honest form of :attr:`cost`: it can say "$1,097,
+        prices as of 2026-08-16, excluding the birch nobody has priced", which
+        a float cannot.
+        """
+        lines = [g.price_line for g in self.groups]
+        return CostSummary.of(
+            (line for line in lines if line is not None),
+            (g.label for g, line in zip(self.groups, lines) if line is None),
+        )
+
+    @property
     def cost(self) -> float | None:
-        """Total cost, or ``None`` if any group is unpriced."""
-        costs = [g.cost for g in self.groups]
-        return None if any(c is None for c in costs) else sum(c for c in costs)  # type: ignore[misc]
+        """Total of the groups that have a price; ``None`` if none of them do.
+
+        This used to return ``None`` when *any* group was unpriced, so a single
+        missing price dropped the cost line entirely rather than flagging it.
+        It now totals what it can, and :attr:`cost_summary` says what was left
+        out — a partial total that names its gaps beats no total at all.
+        """
+        return self.cost_summary.total
 
     @property
     def purchased_area_mm2(self) -> float:
@@ -190,7 +224,9 @@ class HardwoodPlan:
         """Render the plan as a few lines of plain text."""
         lines: list[str] = []
         for g in self.groups:
-            cost = "" if g.cost is None else f", ${g.cost:,.0f}"
+            # Never a bare figure: a price that does not say when it was true
+            # says so here, every time it is printed.
+            cost = "" if g.price_line is None else f", {g.price_line.to_text()}"
             lines.append(
                 f"  {g.label:<12s} {g.boards_needed:>3d} boards of "
                 f"{g.stock.typical_width_in:g}\" x "
@@ -213,7 +249,13 @@ class HardwoodPlan:
                 f"  (!) {p.label}: no stocked thickness matches "
                 f"{mm_to_fractional_inch(p.thickness_mm)}"
             )
-        total_cost = "" if self.cost is None else f", ${self.cost:,.0f}"
+        summary = self.cost_summary
+        total_cost = "" if summary.total is None else f", {summary.to_text()}"
+        for label in summary.unpriced:
+            lines.append(
+                f"  (!) {label} has no price in stock.yaml — it is missing from "
+                "the total below, not free"
+            )
         # Two yields, and they differ only when something is not a rectangle.
         # Printing both then is the honest thing; printing both always is
         # noise.
