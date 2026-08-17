@@ -1056,7 +1056,10 @@ case at all.
 
 `luccahouse.com` is blocked from this machine, so nothing here is measured off
 it and no photograph was read; what follows is from search results, and it is
-recorded that way in the module docstring too. Lucca House's **Grid System** is
+recorded that way in the module docstring too. **(Superseded — the domain was
+opened up later the same day and the photographs contradicted this section on
+one point. See "the pictures were right and the model was wrong, again", at the
+end.)** Lucca House's **Grid System** is
 prefinished maple plywood panels **notched to slide together**: no tools, no
 glue, no hardware, assembled or taken apart in under a minute, named by the
 grid they make (`5x1`, `4x2`, `5x4`), with three part sizes producing six
@@ -1144,3 +1147,75 @@ diagonal: 1.0 for anything roughly cubic, so the bed and the nightstand are
 untouched, and 0.85 for this. A renderer that crops silently is worse than one
 that fails, because the picture still looks plausible — and the picture is what
 this repo uses to catch the mistakes no dimension check can.
+
+## Addendum: the pictures were right and the model was wrong, again
+
+The console was designed from prose, because `luccahouse.com` was blocked by
+the egress proxy. Then `cdn.shopify.com` and the site itself were allowlisted,
+the manufacturer's own images could be read, and they contradicted the model.
+
+This is the second time in this repo. The bed was built from a listing's prose
+and rebuilt from the 360 viewer; the console was built from search snippets and
+corrected from tearsheets. **Prose describes what a thing is for. Pictures
+describe what it is.** Worth writing on the wall.
+
+### Correction 1: the slot direction was backwards
+
+The model had the shelves notched from the back and the uprights from the
+front, so the horizontals ran unbroken across the front of the case. Every
+consequence of that — the edging arrangement, the base rail — followed from it,
+and it is wrong.
+
+The evidence is a photograph of a single crossing with red edge banding
+(`4x2_color_swatch_red.jpg` on their CDN). At the crossing the **vertical**
+band runs through unbroken and the **horizontal** band butts into it on both
+sides. The member visible at the front owns the front half-depth. So:
+
+- uprights are slotted from the **back**, and keep their front half;
+- shelves are slotted from the **front**.
+
+Flipping it took two lines and deleted a part. With the uprights unbroken at
+the front, each one's edging is a single strip from the floor to the underside
+of the top — which covers the 25/64" of foot that the base rail was invented to
+hide. The rail, its `base_rail_float_in` parameter and its test are gone, and
+the front now reads as six verticals with shelf edges between them.
+
+The lesson is not "check the reference" — it is that a design decision with
+four consequences hanging off it deserves a source, and "it looked better to me
+that way" was doing the work of one.
+
+### Correction 2: the radius was more than twice too big
+
+The first radius was 2", picked by eye. Their tearsheets are dimensioned
+orthographic drawings, and they self-calibrate: the parts in the 4x2 sheet
+measure exactly 11-1/2" x 23-1/2" and 11-1/2" x 47-1/2", which gives 17.1 px/in
+directly off the image. Thresholding the panel colour and measuring where each
+panel's top row starts against its leftmost column gives the radius without
+any curve fitting:
+
+```
+4x2 tearsheet   long parts  197 x 803 px, r = 13-14 px   ->  0.76-0.82"
+4x2 tearsheet   short parts 403 x 197 px, r = 14-18 px   ->  0.82-1.05"
+1x1 tearsheet   parts       279 x 279 px, r = 19-26 px   ->  0.78-1.07"
+```
+
+Call it **0.8", and 0.07 of the panel's width** — which is the number that
+travels, because their panels are 11-1/2" wide and this console's are 12-3/4".
+`REFERENCE_RADIUS_RATIO` holds the ratio and `reference_corner_radius`
+multiplies it out: **7/8"** here. Rendered beside the old 2", the difference is
+not subtle — 2" reads as a rounded box, 7/8" as a square panel with the corners
+taken off, which is what the photographs show.
+
+### What was deliberately not adopted
+
+Their stock is **1/2"** plywood at **11-1/2"** deep, and their members overrun
+every crossing — the horizontals run past the end uprights and the uprights
+stand proud above and below. That is a shelf that wants to look like a grid.
+This is a console that has to hold 200 lb of records at browsing height inside
+a published 80" x 24" x 13", so it keeps 3/4"-class stock, a closed envelope,
+and a top that caps the uprights rather than letting them through.
+
+Both facts are recorded in the module docstring under *Where the joinery came
+from*, along with which two things are measured and which are borrowed. The
+distinction is the whole point: this piece is not a reproduction, and the file
+should never be able to be mistaken for one.

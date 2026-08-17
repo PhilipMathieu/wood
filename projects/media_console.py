@@ -8,10 +8,31 @@ with no tools, no glue and no hardware, and named by the grid they make (5x1,
 4x2, 5x4).  Three part sizes produce six products, and a unit is resized by
 swapping the long parts rather than by rebuilding it.
 
-Nothing here is measured off that site — it was not reachable from the machine
-this model was built on, and the description above comes from search results
-rather than from a drawing.  The brief below is the specification, and this
-console borrows the *system*, not a product.
+Where the joinery came from
+---------------------------
+Two things in this file *are* measured off that maker's own published images,
+and it is worth saying which, because the first draft of this model guessed
+both and got one of them backwards.  The site was unreachable at first and the
+model was built from prose; once it could be read, the manufacturer's
+dimensioned tearsheets and product photographs settled two questions:
+
+* **Which member owns the front.**  At every crossing the *upright's* banded
+  front edge runs through unbroken and the *shelf's* stops against it — so the
+  uprights are slotted from the back and the shelves from the front, which is
+  the opposite of what this model did until the photographs were read.
+* **The corner radius: about 0.07 of the panel's width.**  Measured off three
+  self-calibrating tearsheets (whose parts scale exactly to their published
+  11-1/2" x 23-1/2" and 11-1/2" x 47-1/2"), the radius is 13-14 px against
+  17.1 px/in — **0.79" to 0.88"** on an 11-1/2" panel, the same on long parts
+  and short, and the same ratio across three products.  The edge banding
+  sweeps round each curve, which is what proves the radius is in the plane of
+  the panel rather than a roundover on its edge.
+
+The published sizes were read too: 1/2" prefinished maple plywood, 11-1/2"
+deep, exteriors 47-1/2" and 59-1/2" wide.  This console is a different piece —
+sized to a record rather than to a 12" module, and thicker because a bay of
+records is heavier than a row of books — so it borrows the *system* and its
+proportions, not the dimensions.
 
 The brief, as given::
 
@@ -31,15 +52,20 @@ The kit
 -------
 Three panel parts, nine pieces, in a 5x2 grid — the cherry build::
 
-    upright   x6   23-9/16" x 12-3/4", two front-open slots
-    shelf     x2   80" x 12-3/4", six back-open slots
+    upright   x6   23-9/16" x 12-3/4", two back-open slots
+    shelf     x2   80" x 12-3/4", six front-open slots
     top       x1   80" x 12-3/4", six stopped housings in the underside
 
-Every crossing is a half-lap: the shelf is notched 6-3/8" back from its **back**
-edge, the upright 6-3/8" forward from its **front** edge, and the two slide
+Every crossing is a half-lap: the upright is notched 6-3/8" forward from its
+**back** edge, the shelf 6-3/8" back from its **front** edge, and the two slide
 together front to back until each fills the other.  The uprights are therefore
-all one part — a slot open at the front has no left hand and no right hand —
-and so are the two shelves, which is the whole economy of the system.
+all one part — a slot open at an edge has no left hand and no right hand — and
+so are the two shelves, which is the whole economy of the system.
+
+The upright keeps its front half-depth, so the front of the case reads as six
+verticals running floor to top with shelf edges between them.  That is not a
+styling choice: it follows from which member is notched where, and the
+photographs are unambiguous about it.
 
 The top is the one part that does not slide.  Its housings are 1/4" deep and
 stopped by its own front edging, so no slot reaches the surface the turntable
@@ -79,13 +105,10 @@ What is inferred rather than given
 ----------------------------------
 * **Solid edges are 1/4" thick**, on the front edge of every panel, so the
   panels are cut 12-3/4" deep and the console is 13" deep with the cherry on.
-  Because the shelves pass through the uprights at the front, the horizontal
-  edging runs unbroken and the uprights' is in one piece per row.
-* **The base rail.** Below the bottom shelf each upright shows 25/64" of foot,
-  which is too little to edge and too much to leave bare, so the bottom shelf's
-  edging is deepened to a 1-1/32" rail that covers both and stops a sixteenth
-  short of the floor.  The piece still stands on its six feet, and they can be
-  shimmed.
+  Because the uprights pass the shelves at the front, each upright's edging is
+  a single strip from the floor to the underside of the top — which also
+  covers its foot, so nothing is needed at the toe — and the shelves' edging is
+  one piece per bay between them.
 * **There is no back**, and the case wants cables through it.  With no glue,
   racking is resisted by the fit of twenty-four slots and by the top's
   housings — which is why the top is a structural part and not a lid.
@@ -148,13 +171,21 @@ Corners
 -------
 ``corner_radius_in`` rounds the panels' outer corners — every corner of the top
 in plan, every corner of an upright in its own plane — which is the other half
-of what the Grid System looks like.  It is off by default and costs nothing but
-a jig: the parts become :class:`woodshop.parts.ShapedBoard` profiles sawn from
-the same rectangles, so nothing about the grid, the openings or the envelope
-moves.  Two things it does change, both reported rather than assumed: the
-shelves stay square, because their corners are inside the case where nobody
-sees them, and a 2" radius eats the outer inch or so of the two end housings in
-the top, leaving about 99% of the engagement and all of the fit.
+of what the Grid System looks like.  The parts become
+:class:`woodshop.parts.ShapedBoard` profiles sawn from the same rectangles, so
+nothing about the grid, the openings or the envelope moves.
+
+**Size it by the ratio, not by eye.**  The measured radius is 0.07 of the
+panel's width (see *Where the joinery came from*), which on these 12-3/4"
+panels is :data:`REFERENCE_RADIUS_RATIO` x 12-3/4" = **7/8"**.  The first
+attempt used 2", which is more than twice the reference and reads as a
+different piece of furniture: at that size the curve starts eating the case
+rather than softening it.
+
+Two consequences, both reported rather than assumed: the shelves stay square,
+because their corners are inside the case where nobody sees them, and the
+radius interrupts the outer end of each end upright's housing in the top —
+about 1% of the engagement at 7/8", and all of the fit.
 
 Run it
 ------
@@ -346,6 +377,15 @@ def inches(value: float) -> float:
     return value * IN
 
 
+#: Corner radius as a fraction of the panel's width, measured off the maker's
+#: own tearsheets.
+#:
+#: Three products, long parts and short, all give 0.069-0.075: a radius of
+#: 0.79" to 0.88" on an 11-1/2" panel.  Held as a ratio rather than an inch
+#: because it is the ratio that stays constant across their range, and because
+#: this console's panels are not 11-1/2" wide.
+REFERENCE_RADIUS_RATIO: float = 0.07
+
 #: Segments per quarter-circle when a radius is sampled into a polyline.
 #:
 #: :class:`woodshop.parts.ShapedBoard` takes a polygon, so a curve is however
@@ -451,9 +491,6 @@ class MediaConsole:
     corner_radius_in : float, optional
         Radius on the panels' outer corners — every corner of the top in plan,
         every corner of an upright in its own plane — default ``0`` for square.
-    base_rail_float_in : float, optional
-        How far the base rail stops short of the floor, default 1/16", so that
-        the piece stands on its six feet rather than on a glued-on strip.
     inventory : Inventory, optional
         Stock inventory.  Loaded from ``stock.yaml`` if not given.
 
@@ -479,7 +516,6 @@ class MediaConsole:
 
     panel_nominal_thickness: str = "3/4"
     dado_depth_in: float = 0.25
-    base_rail_float_in: float = 0.0625
     corner_radius_in: float = 0.0
 
     inventory: Inventory = field(default_factory=Inventory.load)
@@ -594,6 +630,17 @@ class MediaConsole:
         """Radius on the panels' outer corners in mm, ``0`` for square."""
         return inches(self.corner_radius_in)
 
+    @property
+    def reference_corner_radius(self) -> float:
+        """The radius this piece would have at the measured proportion, mm.
+
+        :data:`REFERENCE_RADIUS_RATIO` of the panel's width — 7/8" on a 12-3/4"
+        panel.  Not applied automatically: it is what to pass to
+        ``corner_radius_in`` if you want the maker's proportion rather than a
+        number somebody liked the look of.
+        """
+        return REFERENCE_RADIUS_RATIO * self.panel_depth
+
     # ------------------------------------------------------------------
     # The published envelope
     # ------------------------------------------------------------------
@@ -701,16 +748,18 @@ class MediaConsole:
         return self.overall_h - self.top_t + self.dado_depth
 
     @property
+    def upright_edge_h(self) -> float:
+        """Exposed height of an upright's front edge, mm.
+
+        Floor to the underside of the top: the top's own edging caps it, and
+        the strip covers the foot on the way down.
+        """
+        return self.overall_h - self.top_t
+
+    @property
     def shelf_len(self) -> float:
         """Length of a shelf in mm — the case width, ends flush with the sides."""
         return self.case_w
-
-    @property
-    def base_rail_h(self) -> float:
-        """Height of the solid rail below the bottom shelf, mm."""
-        return (
-            self.panel_t + self.toe_reveal - inches(self.base_rail_float_in)
-        )
 
     @property
     def top_underside_z(self) -> float:
@@ -841,10 +890,13 @@ class MediaConsole:
     def _placed_upright(self, i: int):
         """Return upright *i*, positioned, with a slot at every shelf.
 
-        The slots open at the *front* edge and run half the depth back, so the
-        shelves fill them and read as continuous across the front.  A slot open
-        at the front is symmetrical about the panel's centre line, which is why
-        all six uprights are the same part and none of them is handed.
+        The slots open at the **back** edge, so the upright keeps its front
+        half-depth and runs unbroken from the floor to the top.  That is the
+        way round the photographs show (see *Where the joinery came from*): at
+        every crossing the vertical's banded front edge runs through and the
+        shelf's stops against it.  A slot open at an edge is symmetrical about
+        the panel's centre line, which is why all six uprights are the same
+        part and none of them is handed.
         """
         part = self._upright()
         placed = (
@@ -856,8 +908,8 @@ class MediaConsole:
             placed = placed - (
                 Pos(
                     self.upright_x(i),
-                    self.panel_front_y
-                    + (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
+                    self.panel_back_y
+                    - (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
                     self.shelf_z(row) + self.panel_t / 2,
                 )
                 * Rotation(90, 90, 0)
@@ -868,8 +920,9 @@ class MediaConsole:
     def _placed_shelf(self, row: int):
         """Return the shelf under *row*, positioned, slotted for every upright.
 
-        These slots open at the *back* edge, so a shelf drops onto the uprights
-        from the front and slides back until each part fills the other.
+        These slots open at the **front** edge, so a shelf goes on from the
+        front and slides back until each part fills the other, and its own
+        front edge stops at every upright it crosses.
         """
         part = self._shelf()
         placed = (
@@ -879,8 +932,8 @@ class MediaConsole:
             placed = placed - (
                 Pos(
                     self.upright_x(i),
-                    self.panel_back_y
-                    - (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
+                    self.panel_front_y
+                    + (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
                     self.shelf_z(row) + self.panel_t / 2,
                 )
                 * Rotation(0, 0, 90)
@@ -965,8 +1018,9 @@ class MediaConsole:
                 f"face grain runs up the case; {self.n_shelves} slots "
                 f"{mm_to_fractional_inch(self.panel_t, 64)} wide x "
                 f"{mm_to_fractional_inch(self.lap_depth, 32)} deep, cut from "
-                "the front edge; top end housed in the top. All "
-                f"{self.n_uprights} are the same part, ends included"
+                "the BACK edge so the front runs unbroken; top end housed in "
+                f"the top. All {self.n_uprights} are the same part, ends "
+                "included"
             ),
         )
 
@@ -983,8 +1037,8 @@ class MediaConsole:
                 f"runs the full width; {self.n_uprights} slots "
                 f"{mm_to_fractional_inch(self.panel_t, 64)} wide x "
                 f"{mm_to_fractional_inch(self.lap_depth, 32)} deep, cut from "
-                "the back edge, the outer two at the corners. Bottom shelf and "
-                "CD shelf are one part"
+                "the FRONT edge, the outer two at the corners. Bottom shelf "
+                "and CD shelf are one part"
             ),
         )
 
@@ -1046,9 +1100,13 @@ class MediaConsole:
     def _edging(self) -> list[object]:
         """Return every strip of solid front edging, positioned.
 
-        The horizontals run unbroken and the uprights' edging sits between them,
+        The uprights run unbroken and the shelves' edging sits between them,
         because that is what the joinery has already decided: where a shelf
-        crosses an upright, the front of the case *is* the shelf.
+        crosses an upright, the front of the case *is* the upright.  Every
+        strip runs the full length of the edge it covers, so the front reads
+        as five verticals from floor to top with shelf edges between — which
+        is what the photographs show, and it is also why this build needs no
+        rail at the floor: the uprights' own edging covers their feet.
 
         The painted build has none of this.  Paint is the reason it does not
         need any, and the reason it has to be filled instead.
@@ -1064,57 +1122,40 @@ class MediaConsole:
                 length_mm=self.case_w,
                 height_mm=self.panel_t,
                 notes=(
-                    "runs the full width and caps the uprights' edging; "
-                    "glued and planed flush before the kit goes together"
+                    "runs the full width and caps the uprights; glued and "
+                    "planed flush before the kit goes together"
                 ),
-            ),
-            # The bottom shelf's edging is deepened into a rail: it covers the
-            # shelf edge and the feet below it, and stops short of the floor.
-            Pos(
-                0.0,
-                self.edge_y,
-                self.shelf_z(0) + self.panel_t - self.base_rail_h / 2,
             )
-            * Rotation(90, 0, 0)
-            * self._edge_strip(
-                "base_rail",
-                length_mm=self.case_w,
-                height_mm=self.base_rail_h,
-                notes=(
-                    "covers the bottom shelf and the "
-                    f"{mm_to_fractional_inch(self.toe_reveal, 64)} of foot "
-                    "below it, stopping "
-                    f"{mm_to_fractional_inch(inches(self.base_rail_float_in), 32)}"
-                    " short of the floor so the uprights still carry the piece"
-                ),
-            ),
         ]
 
-        for row in range(1, self.n_shelves):
+        for i in range(self.n_uprights):
             out.append(
-                Pos(0.0, self.edge_y, self.shelf_z(row) + self.panel_t / 2)
-                * Rotation(90, 0, 0)
+                Pos(self.upright_x(i), self.edge_y, self.upright_edge_h / 2)
+                * Rotation(90, 0, 90)
                 * self._edge_strip(
-                    "shelf_edge",
-                    length_mm=self.case_w,
+                    "upright_edge",
+                    length_mm=self.upright_edge_h,
                     height_mm=self.panel_t,
-                    notes="runs the full width, unbroken by the uprights",
+                    notes=(
+                        "one piece, floor to the underside of the top — it "
+                        "covers the foot, so nothing is needed at the toe"
+                    ),
                 )
             )
 
-        for i in range(self.n_uprights):
-            for row, height in enumerate(self.row_heights):
-                z = self.shelf_z(row) + self.panel_t + height / 2
+        for row in range(self.n_shelves):
+            for bay in range(self.n_bays):
+                x = (self.upright_x(bay) + self.upright_x(bay + 1)) / 2
                 out.append(
-                    Pos(self.upright_x(i), self.edge_y, z)
-                    * Rotation(90, 0, 90)
+                    Pos(x, self.edge_y, self.shelf_z(row) + self.panel_t / 2)
+                    * Rotation(90, 0, 0)
                     * self._edge_strip(
-                        "upright_edge",
-                        length_mm=height,
+                        "shelf_edge",
+                        length_mm=self.bay_clear_w,
                         height_mm=self.panel_t,
                         notes=(
-                            "one per upright per row, fitted between the "
-                            "horizontals' edging after the kit is dry-fitted"
+                            "one per bay per shelf, fitted between the "
+                            "uprights' edging after the kit is dry-fitted"
                         ),
                     )
                 )
@@ -1125,16 +1166,14 @@ class MediaConsole:
     ) -> Board:
         """Return one strip of solid front edging.
 
-        All of them are the same section apart from the base rail: the board is
-        milled to the plywood's own thickness and ripped into strips the width
-        of the edging, so the strip's *thickness* is what matches the panel it
-        covers.
+        All of them are the same section: the board is planed to the edging's
+        thickness and ripped into strips as wide as the panel edge they cover,
+        so a strip's *width* is what matches the panel.
 
         Parameters
         ----------
         label : str
-            Part name: ``"top_edge"``, ``"shelf_edge"``, ``"upright_edge"``,
-            ``"base_rail"``.
+            Part name: ``"top_edge"``, ``"upright_edge"``, ``"shelf_edge"``.
         length_mm : float
             Finished length.  Cut long — every one of these is fitted.
         height_mm : float

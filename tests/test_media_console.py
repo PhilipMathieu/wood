@@ -97,14 +97,14 @@ def test_the_leftover_height_becomes_a_toe_reveal(console, assembly):
     )
 
 
-def test_the_base_rail_covers_the_feet_but_does_not_stand_on_them(console, assembly):
-    """The rail hides 25/64" of foot and stops a sixteenth short of the floor."""
-    rail = _placed(assembly)["base_rail"][0].bounding_box()
-    assert rail.min.Z == pytest.approx(0.0625 * IN, abs=0.01), (
-        "only the uprights touch the floor"
-    )
-    assert rail.max.Z == pytest.approx(console.toe_reveal + console.panel_t, abs=0.01)
-    assert rail.size.Z > console.panel_t, "it covers the feet as well as the shelf"
+def test_the_uprights_own_edging_covers_their_feet(console, assembly):
+    """No rail at the toe: each upright is edged in one piece to the floor."""
+    strips = [p.bounding_box() for p in _placed(assembly)["upright_edge"]]
+    assert len(strips) == console.n_uprights, "one strip per upright, not per row"
+    for strip in strips:
+        assert strip.min.Z == pytest.approx(0.0, abs=0.01)
+        assert strip.max.Z == pytest.approx(console.top_underside_z, abs=0.01)
+    assert "base_rail" not in _placed(assembly)
 
 
 def test_a_record_sits_inside_the_bay_in_all_three_directions(console):
@@ -128,9 +128,11 @@ def test_the_cd_row_takes_jewel_cases_two_deep(console):
 def test_at_a_crossing_each_part_has_only_its_own_half(console, assembly):
     """The whole design in one assertion.
 
-    Where a shelf crosses an upright, the upright has no material in the front
-    half of the depth and the shelf none in the back half — so the two fill
-    each other exactly, which is what lets them slide together with no glue.
+    Where a shelf crosses an upright, the *upright* keeps the front half of the
+    depth and the shelf keeps the back — so the two fill each other exactly,
+    which is what lets them slide together with no glue, and the front of the
+    case reads as an unbroken vertical.  This is the way round the maker's own
+    photographs show; the first version of this model had it reversed.
     """
     placed = _placed(assembly)
     upright = placed["upright"][2]
@@ -148,10 +150,10 @@ def test_at_a_crossing_each_part_has_only_its_own_half(console, assembly):
     front = probe(console.panel_front_y + console.lap_depth / 2)
     back = probe(console.panel_back_y - console.lap_depth / 2)
 
-    assert (upright & front).volume == pytest.approx(0.0, abs=1.0)
-    assert (upright & back).volume > 0.0
-    assert (shelf & front).volume > 0.0
-    assert (shelf & back).volume == pytest.approx(0.0, abs=1.0)
+    assert (upright & front).volume > 0.0
+    assert (upright & back).volume == pytest.approx(0.0, abs=1.0)
+    assert (shelf & front).volume == pytest.approx(0.0, abs=1.0)
+    assert (shelf & back).volume > 0.0
 
 
 def test_no_two_parts_occupy_the_same_space(console, assembly):
@@ -256,24 +258,21 @@ def test_the_case_comes_off_two_sheets(console, parts):
 
 def test_the_front_edges_come_off_four_quarter_cherry(console, parts):
     solid = [p for p in parts if p.material == "cherry"]
-    assert {p.label for p in solid} == {
-        "top_edge",
-        "shelf_edge",
-        "upright_edge",
-        "base_rail",
-    }
+    assert {p.label for p in solid} == {"top_edge", "shelf_edge", "upright_edge"}
     for strip in solid:
         assert strip.thickness_mm == pytest.approx(console.edge_t)
     plan = nest_hardwood(solid, console.inventory, "cherry")
     assert [g.stock.thickness_quarter for g in plan.groups] == ["4/4"]
 
 
-def test_the_horizontal_edging_runs_unbroken(console, parts):
-    """The shelves cross the uprights at the front, so their edging is one piece."""
+def test_the_upright_edging_runs_unbroken_and_the_shelves_fill_between(console, parts):
+    """The uprights cross the shelves at the front, so their edging is one piece."""
     by_label = {p.label: p for p in parts}
-    assert by_label["shelf_edge"].length_mm >= console.overall_w
-    assert by_label["top_edge"].length_mm >= console.overall_w
-    assert by_label["upright_edge"].length_mm < console.overall_h
+    assert by_label["upright_edge"].qty == console.n_uprights
+    assert by_label["upright_edge"].length_mm >= console.upright_edge_h
+    assert by_label["shelf_edge"].qty == console.n_bays * console.n_shelves
+    assert by_label["shelf_edge"].length_mm < console.bay_clear_w + 25.4
+    assert by_label["top_edge"].length_mm >= console.case_w
 
 
 # ---------------------------------------------------------------------------
