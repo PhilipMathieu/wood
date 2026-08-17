@@ -899,8 +899,26 @@ class MysaBed:
 
         side = (self.deck_width - inches(self.size.mattress_w_in)) / 2
         end = (self.deck_length - inches(self.size.mattress_l_in)) / 2
-        report.extend(check_clearance("mattress side clearance", side, 3.0, 19.0))
-        report.extend(check_clearance("mattress end clearance", end, 0.0, 25.0))
+        report.extend(
+            check_clearance(
+                "mattress side clearance",
+                side,
+                3.0,
+                19.0,
+                tight_note="mattress may bind",
+                loose_note="mattress will slide and expose the rail",
+            )
+        )
+        report.extend(
+            check_clearance(
+                "mattress end clearance",
+                end,
+                0.0,
+                25.0,
+                tight_note="mattress may bind",
+                loose_note="mattress will slide and expose the rail",
+            )
+        )
 
         report.extend(check_material_suitability(parts, self.inventory))
         report.extend(check_sheet_fit(parts, self.inventory))

@@ -932,3 +932,116 @@ staleness is now in place, and something has to actually go and look. The
 first version proposed there does not even parse the sign: it notices the
 image changed and shows it to a human, because a scraper that launders a bad
 parse into a dated price would undo everything #3 built.
+
+## Addendum: the media console, where the plywood decides the dimensions
+
+The first piece in this repo that is not a reproduction. The brief is prose:
+80" x 24" x 13" in cherry plywood, five record bays 15" wide and 13-1/2" tall,
+a shallower 8" row above for CDs, a clear top for the turntable, solid cherry
+front edges, dados, clear finish. Everything below came out of trying to make
+all of those numbers true at once, which they are not.
+
+### The brief is over-specified by 3/8" and an eighth of an inch
+
+Add it up. Five 15" bays and six 3/4" panels is 79-1/2", not 80". The two
+openings and three 3/4" panels come to 23-3/4" of the 24". The brief is
+internally inconsistent at exactly the scale that nobody notices on paper and
+everybody notices at the saw.
+
+Then the plywood moves both numbers again, in the *same* direction. `3/4"`
+cherry plywood measures 45/64", so six verticals take 4-7/32" instead of 4-1/2"
+and three horizontals take 2-3/32" instead of 2-1/4". The design's whole job is
+deciding where that slack goes:
+
+- **Across the width**: into the bays. They come out 15-5/32" clear, an eighth
+  over the brief. The alternative is a case 79-1/32" wide, and the envelope is
+  the number a room cares about.
+- **Up the height**: into the floor. The openings are held at 13-1/2" and 8"
+  exactly, and the 25/64" left over becomes a **toe reveal** — the bay bottoms
+  are housed that far off the floor and the case stands on its six panel ends.
+
+The second one is the better decision of the two. A 3/8" reveal is too small to
+read as a plinth, so it does not pretend to be one; what it does is keep a
+plywood bottom off a floor that is never flat, and give the piece a shadow line
+where it meets it. `check_envelope` confirms all three published dimensions to
+the sixteenth, which they only are because the openings were held and the bays
+were not.
+
+### The five bays are not a structural number — **and the check says so**
+
+`check_shelf_deflection` is new: the same simply-supported beam under a UDL
+that `check_slat_deflection` already used, factored out into
+`_udl_deflection_mm` and asked a different question.
+
+The difference is not cosmetic. A slat's load is *fixed* — 250 kg of mattress
+and people, however many slats there are — so its deflection goes as 1/n and
+the remedy is more slats. A shelf's load **comes with its length**: twice the
+shelf holds twice the records. So sag goes as the fourth power of the span, and
+the remedy is a divider. Two functions, because the two remedies are different
+sentences.
+
+What it found is the useful part. A full bay bottom — 75 records, 19 kg over a
+15-5/32" span — sags **0.1 mm**, span/2686. Undivided, the same bottom at the
+same load per foot sags **100 mm**, and the check reports that three bays would
+be enough to meet span/360.
+
+So the five bays are not holding the plywood up. They are there because a run
+of records much over 15" leans, slumps and bends the sleeves at the ends of it,
+which is a fact about records and not about stiffness — and the report now says
+both, in order, instead of leaving a reader to assume the dividers are
+structural.
+
+Shelves are held to span/360, not the span/240 the bed deck gets. Sag this side
+of collapse is an appearance problem, and appearance is stricter than
+serviceability.
+
+### `check_clearance` was telling a bookcase about its mattress
+
+Reusing it for the finger's room above a record sleeve turned up a hard-coded
+`"tight, mattress may bind"` in a general-purpose check. The band is general;
+what being outside it *costs* is not, and only the caller knows. `tight_note`
+and `loose_note` are now parameters, and the bed passes its own mattress
+wording. One call site made it look like a style choice; the second made it a
+bug.
+
+### The renderer was clipping the console and saying nothing
+
+The front elevation lost its right-hand end. mplot3d honours the *ratio* of
+`set_box_aspect` and not the size, so a long, low plot box runs past the axes
+and is silently cropped — a failure mode with no error, no warning, and a
+plausible-looking picture. `_fit_zoom` zooms out in proportion to how far the
+longest span exceeds its share of the diagonal: 1.0 for anything roughly cubic,
+so the bed and the nightstand render exactly as before, and 0.85 for an 80" x
+13" x 24" console.
+
+This is the second time the views have caught something no dimension check
+could. It is worth repeating that the renderer earns its keep as a *check*, not
+as decoration — and that a renderer which crops instead of failing is worse
+than one that draws nothing.
+
+### Dados, cut rather than described
+
+Every other project in the repo models parts that meet; this one models parts
+that are *housed*, and `woodshop.joinery.Dado` had been sitting unused since it
+was written. The verticals are housed 1/4" into the underside of the top (a
+rabbet at each end, a dado at each divider) and the shelves 1/4" into the
+verticals — twenty-six housings in all, four in every divider and two in each
+end panel — and every one of them is a real boolean followed by `retag`.
+
+The cut is what makes `test_the_housings_are_really_cut_away` possible: the
+intersection of a divider and the shelf running into it has zero volume. Model
+the joint as a note and the shelf ends sit inside solid plywood, which no
+dimension check would ever notice and every dry fit would.
+
+### What the cut list says, and one thing it overstates
+
+Two sheets of 4x8 cherry plywood at 52% yield, and a single 4/4 cherry board
+for the edging. The yield number is honest and unflattering: the parts total
+about 1.05 sheets of area, so the second sheet is mostly offcut — enough for a
+shorter second case, or for a back if the piece ever wants one.
+
+The overstatement is the edging. It is 31 lineal feet of 1/4"-wide strip milled
+to the plywood's 45/64", and `nest_hardwood` buys 4/4 stock for it and bills the
+full board thickness. Resawn, one 4/4 board yields two or three times what the
+plan assumes. The nester has no idea a part can be *cut out of the thickness*
+of a board rather than off its width, and that is the next real gap in it.

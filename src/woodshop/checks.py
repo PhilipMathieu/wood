@@ -39,6 +39,7 @@ __all__ = [
     "check_sheet_fit",
     "check_thickness_substitution",
     "check_slat_deflection",
+    "check_shelf_deflection",
     "check_material_suitability",
     "check_price_provenance",
     "check_tip_resistance",
@@ -189,6 +190,8 @@ def check_clearance(
     clearance_mm: float,
     min_mm: float,
     max_mm: float,
+    tight_note: str = "",
+    loose_note: str = "",
 ) -> list[Finding]:
     """Flag a clearance that falls outside a comfortable band.
 
@@ -200,6 +203,11 @@ def check_clearance(
         The measured clearance.
     min_mm, max_mm : float
         Acceptable range.
+    tight_note, loose_note : str, optional
+        What being under or over the band costs, in the caller's own terms —
+        a mattress binds, a record sleeve will not come out with one hand.
+        The band alone cannot say which, and a check that guesses says
+        "mattress" to a bookcase.
 
     Returns
     -------
@@ -208,15 +216,11 @@ def check_clearance(
     """
     text = f"{name} is {mm_to_fractional_inch(clearance_mm)}"
     if clearance_mm < min_mm:
-        return [Finding(Severity.WARN, "clearance", f"{text} — tight, mattress may bind")]
+        note = f", {tight_note}" if tight_note else ""
+        return [Finding(Severity.WARN, "clearance", f"{text} — tight{note}")]
     if clearance_mm > max_mm:
-        return [
-            Finding(
-                Severity.WARN,
-                "clearance",
-                f"{text} — loose, mattress will slide and expose the rail",
-            )
-        ]
+        note = f", {loose_note}" if loose_note else ""
+        return [Finding(Severity.WARN, "clearance", f"{text} — loose{note}")]
     return [Finding(Severity.INFO, "clearance", text)]
 
 
@@ -387,6 +391,43 @@ def _nominal_to_mm(nominal: str) -> float:
     return float(nominal) * _MM_PER_IN
 
 
+def _udl_deflection_mm(
+    span_mm: float,
+    width_mm: float,
+    thickness_mm: float,
+    load_kg: float,
+    e_mpa: float,
+) -> float:
+    """Return midspan sag of a simply-supported rectangular beam under a UDL.
+
+    The one piece of beam theory this module needs, written once: a slat and a
+    shelf are the same problem seen from different furniture.
+
+    Parameters
+    ----------
+    span_mm : float
+        Clear span between supports.
+    width_mm : float
+        Dimension across the span — a slat's width, a shelf's depth.
+    thickness_mm : float
+        Dimension the beam bends about.  It enters cubed, which is why an
+        eighth of an inch of thickness beats a great deal of anything else.
+    load_kg : float
+        Total load on this one beam, spread evenly along it.
+    e_mpa : float
+        Modulus of elasticity in MPa.
+
+    Returns
+    -------
+    float
+        Midspan deflection in mm.
+    """
+    w = load_kg * 9.80665 / span_mm
+    # Second moment of area of a rectangle bending about its weak axis.
+    i_mm4 = width_mm * thickness_mm**3 / 12.0
+    return 5.0 * w * span_mm**4 / (384.0 * e_mpa * i_mm4)
+
+
 def check_slat_deflection(
     material: str,
     span_mm: float,
@@ -442,13 +483,13 @@ def check_slat_deflection(
             )
         ]
 
-    # Uniformly distributed load per slat, N/mm.
-    load_n = design_load_kg * 9.80665 / n_slats
-    w = load_n / span_mm
-    # Second moment of area of a rectangle bending about its weak axis.
-    i_mm4 = slat_width_mm * slat_thickness_mm**3 / 12.0
-    # Midspan deflection of a simply-supported beam under a UDL.
-    deflection_mm = 5.0 * w * span_mm**4 / (384.0 * e_mpa * i_mm4)
+    deflection_mm = _udl_deflection_mm(
+        span_mm=span_mm,
+        width_mm=slat_width_mm,
+        thickness_mm=slat_thickness_mm,
+        load_kg=design_load_kg / n_slats,
+        e_mpa=e_mpa,
+    )
     limit_mm = span_mm / limit_ratio
     ratio = span_mm / deflection_mm if deflection_mm > 0 else float("inf")
 
@@ -473,6 +514,104 @@ def check_slat_deflection(
             f"{mm_to_fractional_inch(thicker_mm, 32)} stock, would meet it",
         )
     ]
+
+
+def check_shelf_deflection(
+    material: str,
+    span_mm: float,
+    depth_mm: float,
+    thickness_mm: float,
+    load_kg: float,
+    label: str = "shelf",
+    limit_ratio: float = 360.0,
+    run_mm: float | None = None,
+) -> list[Finding]:
+    """Estimate midspan sag of a loaded shelf, and say what would fix it.
+
+    Same beam as :func:`check_slat_deflection`, asked a different question.  A
+    slat is one of many under a load that is fixed however many there are; a
+    shelf is on its own, and its load *comes with its length* — twice the shelf
+    holds twice the records.  So deflection here grows as the fourth power of
+    the span, and the remedy that actually works is a divider rather than a
+    thicker board.
+
+    Parameters
+    ----------
+    material : str
+        Material key, looked up in :data:`ELASTIC_MODULUS_MPA`.
+    span_mm : float
+        Clear span between supports.
+    depth_mm : float
+        Shelf depth, front to back.
+    thickness_mm : float
+        Shelf thickness.
+    load_kg : float
+        Total load on this one shelf when it is full.
+    label : str, optional
+        What the shelf is, for the message, default ``"shelf"``.
+    limit_ratio : float, optional
+        Sag limit as span / ratio, default 360 — the point at which a straight
+        edge above a shelf stops looking straight.  Deflection this side of
+        collapse is an appearance problem, and appearance is stricter than the
+        span/240 a floor or a bed deck is held to.
+    run_mm : float, optional
+        The whole run the shelf divides up.  Given one, a failing shelf is told
+        how many bays that run needs rather than only how short each may be.
+
+    Returns
+    -------
+    list[Finding]
+        One finding: ``INFO`` within the limit, ``WARN`` beyond it with both
+        remedies costed.  ``INFO`` if the material's stiffness is unknown.
+
+    Notes
+    -----
+    A serviceability estimate, not a structural one.  It ignores the stiffening
+    a glued-on solid front edge contributes, which makes it conservative, and
+    it assumes the load is spread evenly, which a full shelf of records nearly
+    is and a single amplifier is not.
+    """
+    e_mpa = ELASTIC_MODULUS_MPA.get(material)
+    if e_mpa is None:
+        return [
+            Finding(
+                Severity.INFO,
+                "deflection",
+                f"no stiffness figure for {material!r}; {label} sag not estimated",
+            )
+        ]
+
+    deflection_mm = _udl_deflection_mm(
+        span_mm=span_mm,
+        width_mm=depth_mm,
+        thickness_mm=thickness_mm,
+        load_kg=load_kg,
+        e_mpa=e_mpa,
+    )
+    limit_mm = span_mm / limit_ratio
+    ratio = span_mm / deflection_mm if deflection_mm > 0 else float("inf")
+
+    message = (
+        f"{label} in {material}, {mm_to_fractional_inch(span_mm)} span carrying "
+        f"{load_kg:.1f} kg: {deflection_mm:.1f} mm midspan sag "
+        f"(span/{ratio:.0f}; limit span/{limit_ratio:.0f} = {limit_mm:.1f} mm)"
+    )
+    if deflection_mm <= limit_mm:
+        return [Finding(Severity.INFO, "deflection", message)]
+
+    # Load per unit length is what the contents set, so sag goes as span^4 and
+    # as 1/thickness^3.  Both remedies below hold the load per foot constant.
+    max_span_mm = span_mm * (limit_mm / deflection_mm) ** 0.25
+    thicker_mm = thickness_mm * (deflection_mm / limit_mm) ** (1 / 3)
+    remedy = (
+        f" — {mm_to_fractional_inch(max_span_mm)} is the longest span that "
+        f"meets it, or {mm_to_fractional_inch(thicker_mm, 32)} stock at this "
+        "span"
+    )
+    if run_mm is not None and max_span_mm > 0:
+        bays = int(-(-run_mm // max_span_mm))
+        remedy += f"; {bays} bays across a {mm_to_fractional_inch(run_mm)} run"
+    return [Finding(Severity.WARN, "deflection", message + remedy)]
 
 
 # Oven-dry-ish density at 8-12% MC, kg/m³.  Solid-wood figures are USDA Wood

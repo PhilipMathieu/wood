@@ -10,10 +10,12 @@ import pytest
 from woodshop.checks import (
     Severity,
     alternative_sheets,
+    check_clearance,
     check_envelope,
     check_material_suitability,
     check_price_provenance,
     check_sheet_fit,
+    check_shelf_deflection,
     check_slat_deflection,
     check_thickness_substitution,
     check_tip_resistance,
@@ -106,6 +108,91 @@ def test_unknown_material_does_not_raise():
         n_slats=16,
     )
     assert findings[0].severity is Severity.INFO
+
+
+# ---------------------------------------------------------------------------
+# A shelf is the same beam asked a different question
+# ---------------------------------------------------------------------------
+
+
+_SHELF = dict(depth_mm=323.85, thickness_mm=17.86)
+
+
+def test_a_bay_of_records_over_fifteen_inches_does_not_sag():
+    findings = check_shelf_deflection(
+        "plywood_cherry", span_mm=15.16 * _IN, load_kg=18.8, **_SHELF
+    )
+    assert findings[0].severity is Severity.INFO
+
+
+def test_the_same_shelf_undivided_sags_and_is_told_how_many_bays_it_needs():
+    """Five times the span at five times the load is 625 times the sag."""
+    run = 78.6 * _IN
+    findings = check_shelf_deflection(
+        "plywood_cherry", span_mm=run, load_kg=94.0, run_mm=run, **_SHELF
+    )
+    assert findings[0].severity is Severity.WARN
+    assert "3 bays across" in findings[0].message
+
+
+def test_a_shelf_with_no_run_given_is_told_a_span_instead():
+    findings = check_shelf_deflection(
+        "plywood_cherry", span_mm=78.6 * _IN, load_kg=94.0, **_SHELF
+    )
+    assert "bays across" not in findings[0].message
+    assert "longest span that meets it" in findings[0].message
+
+
+def test_a_shelf_of_unknown_material_does_not_raise():
+    findings = check_shelf_deflection(
+        "unobtanium", span_mm=800.0, load_kg=20.0, label="mystery shelf", **_SHELF
+    )
+    assert findings[0].severity is Severity.INFO
+    assert "mystery shelf" in findings[0].message
+
+
+def test_a_shelf_is_held_to_a_stricter_limit_than_a_bed_deck():
+    """Sag on a shelf is an appearance problem, and appearance is stricter."""
+    args = dict(span_mm=1000.0, load_kg=40.0, **_SHELF)
+    assert check_shelf_deflection("plywood_cherry", **args)[0].severity is Severity.WARN
+    assert (
+        check_shelf_deflection("plywood_cherry", limit_ratio=240.0, **args)[0].severity
+        is Severity.WARN
+    )
+    # The limit is what changes, not the beam: a slack enough one passes.
+    assert (
+        check_shelf_deflection("plywood_cherry", limit_ratio=40.0, **args)[0].severity
+        is Severity.INFO
+    )
+
+
+# ---------------------------------------------------------------------------
+# Clearance, in the caller's own terms
+# ---------------------------------------------------------------------------
+
+
+def test_a_clearance_inside_the_band_says_only_what_it_is():
+    (finding,) = check_clearance("room above a record sleeve", 28.6, 19.0, 50.8)
+    assert finding.severity is Severity.INFO
+    assert finding.message == 'room above a record sleeve is 1-1/8"'
+
+
+def test_what_a_tight_clearance_costs_comes_from_the_caller():
+    """Without this the check told a bookcase its mattress would bind."""
+    (finding,) = check_clearance(
+        "room above a record sleeve", 3.0, 19.0, 50.8,
+        tight_note="the sleeve will not come out one-handed",
+    )
+    assert finding.severity is Severity.WARN
+    assert "the sleeve will not come out one-handed" in finding.message
+    assert "mattress" not in finding.message
+
+
+def test_a_clearance_with_no_note_still_says_tight_or_loose():
+    (tight,) = check_clearance("gap", 1.0, 19.0, 50.8)
+    (loose,) = check_clearance("gap", 100.0, 19.0, 50.8)
+    assert tight.message.endswith("— tight")
+    assert loose.message.endswith("— loose")
 
 
 def test_alternative_sheets_finds_a_bigger_sheet(inv):
