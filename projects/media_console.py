@@ -144,6 +144,18 @@ Two builds
     slab simply lies on the grid under its own weight.  Screwing it down would
     be the one mistake that splits it.
 
+Corners
+-------
+``corner_radius_in`` rounds the panels' outer corners — every corner of the top
+in plan, every corner of an upright in its own plane — which is the other half
+of what the Grid System looks like.  It is off by default and costs nothing but
+a jig: the parts become :class:`woodshop.parts.ShapedBoard` profiles sawn from
+the same rectangles, so nothing about the grid, the openings or the envelope
+moves.  Two things it does change, both reported rather than assumed: the
+shelves stay square, because their corners are inside the case where nobody
+sees them, and a 2" radius eats the outer inch or so of the two end housings in
+the top, leaving about 99% of the engagement and all of the fit.
+
 Run it
 ------
 ::
@@ -151,11 +163,16 @@ Run it
     uv run python projects/media_console.py
     uv run python projects/media_console.py --variant painted --outdir build
     uv run python projects/media_console.py --variant both --outdir build
+
+and in a REPL, to see the corner treatment::
+
+    MediaConsole(variant="painted", corner_radius_in=2.0).build()
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -182,7 +199,7 @@ from woodshop.cutlist.optimize_2d import pack_by_material
 from woodshop.inventory import Inventory
 from woodshop.joinery import Dado
 from woodshop.lumber import mm_to_fractional_inch
-from woodshop.parts import Board, Panel, retag
+from woodshop.parts import Board, Panel, ShapedBoard, retag
 from woodshop.pricing import sheet_cost_summary
 from woodshop.project import ProjectSpec
 from woodshop.render import (
@@ -329,6 +346,79 @@ def inches(value: float) -> float:
     return value * IN
 
 
+#: Segments per quarter-circle when a radius is sampled into a polyline.
+#:
+#: :class:`woodshop.parts.ShapedBoard` takes a polygon, so a curve is however
+#: many straight lines you are willing to give it.  Twelve is past the point
+#: where the facets show at gallery sizes and well short of where the booleans
+#: start to labour.
+_ARC_SEGMENTS: int = 12
+
+
+def _rounded_rectangle(
+    length_mm: float,
+    width_mm: float,
+    radius_mm: float,
+    segments: int = _ARC_SEGMENTS,
+) -> list[tuple[float, float]]:
+    """Return a rectangle's outline with all four corners rounded off.
+
+    Drawn in the part frame :class:`woodshop.parts.ShapedBoard` expects: X
+    along the part's length, Y across its width.
+
+    All four corners, and not a chosen two, for two reasons.  The pair at the
+    top show as much as the pair at the floor — under the overhang at the ends
+    of the case, and against the top's own rounded corners.  And rounding a
+    chosen pair means naming them: the first draft of this set out to round
+    "the two corners at the floor" and silently rounded the two at the ceiling,
+    because the rotation that stands an upright on end reverses its length
+    axis.  A shape with no chosen end cannot be got the wrong way up.
+
+    Parameters
+    ----------
+    length_mm, width_mm : float
+        The rectangle the panel would be without the radius.
+    radius_mm : float
+        Corner radius.  Must fit twice over across the shorter side.
+    segments : int, optional
+        Straight segments per quarter-circle, default :data:`_ARC_SEGMENTS`.
+
+    Returns
+    -------
+    list of (float, float)
+        The closed outline, anticlockwise, without repeating the first point.
+
+    Raises
+    ------
+    ValueError
+        If the radius is not positive, or does not fit twice across the
+        shorter side.
+    """
+    if radius_mm <= 0:
+        raise ValueError(f"radius must be positive, got {radius_mm!r}")
+    if radius_mm * 2 > min(length_mm, width_mm):
+        raise ValueError(
+            f"a {mm_to_fractional_inch(radius_mm, 16)} radius does not fit "
+            f"twice across {mm_to_fractional_inch(min(length_mm, width_mm))}"
+        )
+
+    # Each corner's arc centre, and the angle its quarter starts at.
+    corners = (
+        ((radius_mm, radius_mm), 180.0),
+        ((length_mm - radius_mm, radius_mm), 270.0),
+        ((length_mm - radius_mm, width_mm - radius_mm), 0.0),
+        ((radius_mm, width_mm - radius_mm), 90.0),
+    )
+    points: list[tuple[float, float]] = []
+    for (cx, cy), start_deg in corners:
+        for i in range(segments + 1):
+            theta = math.radians(start_deg + 90.0 * i / segments)
+            points.append(
+                (cx + radius_mm * math.cos(theta), cy + radius_mm * math.sin(theta))
+            )
+    return points
+
+
 @dataclass
 class MediaConsole:
     """A parametric media console built as an interlocking grid.
@@ -358,6 +448,9 @@ class MediaConsole:
         read from the inventory and is what the geometry uses.
     dado_depth_in : float, optional
         Depth of the top's stopped housings, default 1/4".
+    corner_radius_in : float, optional
+        Radius on the panels' outer corners — every corner of the top in plan,
+        every corner of an upright in its own plane — default ``0`` for square.
     base_rail_float_in : float, optional
         How far the base rail stops short of the floor, default 1/16", so that
         the piece stands on its six feet rather than on a glued-on strip.
@@ -387,6 +480,7 @@ class MediaConsole:
     panel_nominal_thickness: str = "3/4"
     dado_depth_in: float = 0.25
     base_rail_float_in: float = 0.0625
+    corner_radius_in: float = 0.0
 
     inventory: Inventory = field(default_factory=Inventory.load)
 
@@ -494,6 +588,11 @@ class MediaConsole:
     def dado_depth(self) -> float:
         """Depth of the top's stopped housings in mm."""
         return inches(self.dado_depth_in)
+
+    @property
+    def corner_radius(self) -> float:
+        """Radius on the panels' outer corners in mm, ``0`` for square."""
+        return inches(self.corner_radius_in)
 
     # ------------------------------------------------------------------
     # The published envelope
@@ -836,8 +935,25 @@ class MediaConsole:
             mode=Mode.PRIVATE,
         )
 
-    def _upright(self) -> Panel:
-        """Return one upright as a :class:`woodshop.parts.Panel`."""
+    def _upright(self):
+        """Return one upright: a rectangle, or a rounded one."""
+        if self.corner_radius > 0:
+            return ShapedBoard(
+                profile=_rounded_rectangle(
+                    self.upright_h, self.panel_depth, self.corner_radius
+                ),
+                thickness_mm=self.panel_t,
+                material=self.panel_material,
+                label="upright",
+                grain_direction="length",
+                blank_margin_mm=0.0,
+                notes=(
+                    f"face grain runs up the case; {self.n_shelves} slots, and "
+                    "all four corners rounded to "
+                    f"{mm_to_fractional_inch(self.corner_radius, 16)} — every "
+                    "corner, so the part still has no top and no bottom"
+                ),
+            )
         return Panel(
             length_mm=self.upright_h,
             width_mm=self.panel_depth,
@@ -878,6 +994,24 @@ class MediaConsole:
             f"underside housed {mm_to_fractional_inch(self.dado_depth, 32)} "
             f"deep for all {self.n_uprights} uprights"
         )
+        if self.corner_radius > 0:
+            return ShapedBoard(
+                profile=_rounded_rectangle(
+                    self.overall_w,
+                    self.overall_d if self.has_solid_top else self.panel_depth,
+                    self.corner_radius,
+                ),
+                thickness_mm=self.top_t,
+                material=self.top_material,
+                label="top",
+                grain_direction="length",
+                blank_margin_mm=0.0,
+                notes=(
+                    "all four corners rounded to "
+                    f"{mm_to_fractional_inch(self.corner_radius, 16)} in plan; "
+                    f"{housed}, which the radius interrupts at the two ends"
+                ),
+            )
         if self.has_solid_top:
             return Board(
                 length_mm=self.overall_w,

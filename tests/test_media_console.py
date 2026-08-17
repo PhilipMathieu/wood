@@ -467,6 +467,80 @@ def test_the_painted_top_is_a_glue_up_of_solid_stock(painted, painted_parts):
 
 
 # ---------------------------------------------------------------------------
+# Rounded corners, borrowed from the same system as the joinery
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def rounded() -> MediaConsole:
+    return MediaConsole(corner_radius_in=2.0)
+
+
+def test_a_radius_does_not_move_the_envelope_or_the_openings(console, rounded):
+    bb = rounded.build().bounding_box()
+    assert bb.size.X == pytest.approx(80 * IN, abs=0.1)
+    assert bb.size.Y == pytest.approx(13 * IN, abs=0.1)
+    assert bb.size.Z == pytest.approx(24 * IN, abs=0.1)
+    assert rounded.bay_clear_w == pytest.approx(console.bay_clear_w)
+    assert rounded.toe_reveal == pytest.approx(console.toe_reveal)
+
+
+def test_a_radius_makes_the_panels_shaped_and_leaves_the_shelves_alone(rounded):
+    """The cut list has to say a panel is sawn to a profile, not cut to size."""
+    parts = {p.label: p for p in extract(rounded.build())}
+    assert parts["upright"].shape == "shaped"
+    assert parts["top"].shape == "shaped"
+    assert parts["shelf"].shape == "rectangular"
+
+
+def test_all_four_corners_of_an_upright_are_gone_and_the_edges_are_not(rounded):
+    """Four corners, not "the bottom two" — which the first draft got upside down.
+
+    The rotation that stands an upright on end reverses its length axis, so a
+    profile rounded at its X origin comes out rounded at the ceiling.  Rounding
+    every corner is both the look and the end of that trap.
+    """
+    upright = _placed(rounded.build())["upright"][0]
+    bb = upright.bounding_box()
+    x = (bb.min.X + bb.max.X) / 2
+    inset = 4.0  # a probe just inside the bounding box, well inside the radius
+
+    def probe(y: float, z: float):
+        return Pos(x, y, z) * Box(rounded.panel_t * 2, 6.0, 6.0)
+
+    for y in (bb.min.Y + inset, bb.max.Y - inset):
+        for z in (bb.min.Z + inset, bb.max.Z - inset):
+            assert probe(y, z).volume > 0
+            assert (upright & probe(y, z)).volume == pytest.approx(0.0, abs=1e-6)
+
+    mid_y, mid_z = (bb.min.Y + bb.max.Y) / 2, (bb.min.Z + bb.max.Z) / 2
+    assert (upright & probe(mid_y, bb.max.Z - inset)).volume > 0
+    assert (upright & probe(bb.min.Y + inset, mid_z)).volume > 0
+
+
+def test_the_rounded_top_still_houses_every_upright(rounded):
+    """The radius eats the ends of the two outer housings, and only those."""
+    placed = _placed(rounded.build())
+    raw_top = (
+        Pos(0.0, rounded.panel_y, rounded.top_underside_z + rounded.top_t / 2)
+        * rounded._top()
+    )
+    slab = Pos(0.0, 0.0, rounded.top_underside_z + rounded.dado_depth / 2) * Box(
+        3000.0, 900.0, rounded.dado_depth
+    )
+    middle = placed["upright"][2] & slab
+    end = placed["upright"][0] & slab
+    assert (middle & raw_top).volume == pytest.approx(middle.volume, rel=1e-6)
+    assert (end & raw_top).volume > 0.95 * end.volume
+
+
+def test_a_radius_too_big_for_the_panel_is_rejected():
+    console = MediaConsole(corner_radius_in=10.0)
+    with pytest.raises(ValueError, match="does not fit twice"):
+        console.build()
+
+
+# ---------------------------------------------------------------------------
 # The numbers that must not be silently impossible
 # ---------------------------------------------------------------------------
 
