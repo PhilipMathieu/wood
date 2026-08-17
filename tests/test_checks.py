@@ -19,6 +19,7 @@ from woodshop.checks import (
     check_slat_deflection,
     check_thickness_substitution,
     check_tip_resistance,
+    check_wood_movement,
     estimate_mass_kg,
 )
 from woodshop.cutlist.extract import CutPart
@@ -164,6 +165,60 @@ def test_a_shelf_is_held_to_a_stricter_limit_than_a_bed_deck():
         check_shelf_deflection("plywood_cherry", limit_ratio=40.0, **args)[0].severity
         is Severity.INFO
     )
+
+
+# ---------------------------------------------------------------------------
+# Wood movement — the thing plywood does not do
+# ---------------------------------------------------------------------------
+
+
+def test_a_thirteen_inch_cherry_top_moves_about_three_sixteenths():
+    (finding,) = check_wood_movement("cherry", width_mm=13 * _IN, label="top")
+    assert finding.severity is Severity.INFO
+    assert "3/16" in finding.message
+    assert "no fixing across its width" in finding.message
+
+
+def test_white_oak_moves_further_than_cherry_over_the_same_width():
+    def mm(species: str) -> float:
+        return float(
+            check_wood_movement(species, width_mm=13 * _IN)[0].message
+            .split("(")[1]
+            .split(" mm")[0]
+        )
+
+    assert mm("white_oak") > mm("cherry")
+
+
+def test_a_top_that_is_free_to_move_is_not_warned_about():
+    (finding,) = check_wood_movement(
+        "cherry", width_mm=13 * _IN, allowance_mm=10.0, label="top"
+    )
+    assert finding.severity is Severity.INFO
+    assert "inside the" in finding.message
+
+
+def test_a_top_screwed_down_across_the_grain_is_warned_about():
+    (finding,) = check_wood_movement(
+        "cherry", width_mm=13 * _IN, allowance_mm=0.0, label="top"
+    )
+    assert finding.severity is Severity.WARN
+    assert "split" in finding.message
+
+
+def test_a_damper_house_moves_a_panel_further():
+    six = check_wood_movement("cherry", width_mm=13 * _IN)[0].message
+    twelve = check_wood_movement("cherry", width_mm=13 * _IN, mc_swing_pct=12.0)[
+        0
+    ].message
+    assert six != twelve
+    assert "12-point" in twelve
+
+
+def test_an_unknown_species_does_not_raise():
+    (finding,) = check_wood_movement("unobtanium", width_mm=300.0)
+    assert finding.severity is Severity.INFO
+    assert "no shrinkage figure" in finding.message
 
 
 # ---------------------------------------------------------------------------

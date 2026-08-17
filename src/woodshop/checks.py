@@ -41,6 +41,7 @@ __all__ = [
     "check_slat_deflection",
     "check_shelf_deflection",
     "check_material_suitability",
+    "check_wood_movement",
     "check_price_provenance",
     "check_tip_resistance",
     "estimate_mass_kg",
@@ -757,6 +758,131 @@ def check_material_suitability(
                 )
             )
     return findings
+
+
+# Tangential shrinkage, green to oven-dry, as a percentage of green width.
+# USDA Wood Handbook table 4-3.  Tangential rather than radial because a
+# flat-sawn board is what a glue-up is normally made of, and it is the larger
+# of the two — the safe one to design to.
+TANGENTIAL_SHRINKAGE_PCT: dict[str, float] = {
+    "cherry": 7.1,
+    "maple": 9.9,
+    "walnut": 7.8,
+    "white_oak": 10.5,
+    "red_oak": 10.8,
+    "pine": 7.4,
+    "poplar": 8.2,
+    "white_cedar": 4.9,
+}
+
+#: Moisture content at which wood starts to move, in percent.
+#:
+#: Above the fibre saturation point the cell walls are already full and only
+#: the free water changes, so nothing moves.  Below it, movement is close
+#: enough to linear for a shop estimate.
+FIBRE_SATURATION_PCT: float = 30.0
+
+#: Seasonal swing in moisture content to design to, in percentage points.
+#:
+#: Six points — roughly 6% in a heated winter to 12% in a damp summer — is the
+#: usual figure for an interior piece in a temperate climate.  A house with no
+#: humidity control swings further; a museum swings less.
+DEFAULT_MC_SWING_PCT: float = 6.0
+
+
+def check_wood_movement(
+    species: str,
+    width_mm: float,
+    label: str = "panel",
+    mc_swing_pct: float = DEFAULT_MC_SWING_PCT,
+    allowance_mm: float | None = None,
+) -> list[Finding]:
+    """Estimate how far a solid panel moves across the grain, and against what.
+
+    Sheet goods do not do this and solid wood always does, so the check exists
+    for the moment a design mixes them: a plywood case does not move and a
+    solid top on it moves every year of its life.  The number is what decides
+    whether a joint has to allow for it or merely has to survive it.
+
+    Parameters
+    ----------
+    species : str
+        Species key, looked up in :data:`TANGENTIAL_SHRINKAGE_PCT`.
+    width_mm : float
+        Dimension **across the grain** — a top's depth, a panel's width.
+        Movement along the grain is negligible and is not estimated.
+    label : str, optional
+        What the part is, for the message, default ``"panel"``.
+    mc_swing_pct : float, optional
+        Seasonal moisture-content swing in percentage points, default
+        :data:`DEFAULT_MC_SWING_PCT`.
+    allowance_mm : float, optional
+        How much movement the construction actually permits.  Omit when the
+        part is free to move — the finding is then the number and the rule that
+        keeps it free.  Pass ``0.0`` to ask what a part glued or screwed across
+        the grain is being asked to survive.
+
+    Returns
+    -------
+    list[Finding]
+        One finding: ``INFO`` when the part is free or the allowance covers the
+        movement, ``WARN`` when it does not.  ``INFO`` if the species has no
+        shrinkage figure.
+
+    Notes
+    -----
+    A shop estimate, not a moisture model.  It assumes flat-sawn stock, linear
+    movement below the fibre saturation point, and a species-average
+    coefficient; real boards vary by a third either way.  It is meant to answer
+    "is this a sixteenth or half an inch?", which is the question the joinery
+    turns on.
+    """
+    shrinkage = TANGENTIAL_SHRINKAGE_PCT.get(species)
+    if shrinkage is None:
+        return [
+            Finding(
+                Severity.INFO,
+                "movement",
+                f"no shrinkage figure for {species!r}; {label} movement not "
+                "estimated",
+            )
+        ]
+
+    movement_mm = width_mm * (shrinkage / 100.0) * (mc_swing_pct / FIBRE_SATURATION_PCT)
+    across = (
+        f"{label}: {mm_to_fractional_inch(width_mm)} of {species} across the "
+        f"grain moves about {mm_to_fractional_inch(movement_mm, 32)} "
+        f"({movement_mm:.1f} mm) over a {mc_swing_pct:g}-point moisture swing"
+    )
+
+    if allowance_mm is None:
+        return [
+            Finding(
+                Severity.INFO,
+                "movement",
+                f"{across} — it has to be held so that it can, which means no "
+                "glue and no fixing across its width",
+            )
+        ]
+    if movement_mm <= allowance_mm:
+        return [
+            Finding(
+                Severity.INFO,
+                "movement",
+                f"{across}, inside the "
+                f"{mm_to_fractional_inch(allowance_mm, 32)} the joint allows",
+            )
+        ]
+    return [
+        Finding(
+            Severity.WARN,
+            "movement",
+            f"{across}, and the joint allows "
+            f"{mm_to_fractional_inch(allowance_mm, 32)} — the difference does "
+            "not disappear, it comes out as a split, a lifted joint, or a "
+            "drawer that only opens in August",
+        )
+    ]
 
 
 #: How long a price is treated as current, in days.

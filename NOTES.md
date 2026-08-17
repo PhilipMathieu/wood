@@ -1045,3 +1045,102 @@ to the plywood's 45/64", and `nest_hardwood` buys 4/4 stock for it and bills the
 full board thickness. Resawn, one 4/4 board yields two or three times what the
 plan assumes. The nester has no idea a part can be *cut out of the thickness*
 of a board rather than off its width, and that is the next real gap in it.
+
+## Addendum: the console became a kit, and then a second console
+
+The dado version above lasted about an hour. Asked to make it modular *like the
+original*, I went and found out what the original actually is — and it is not a
+case at all.
+
+### What the Grid System turned out to be
+
+`luccahouse.com` is blocked from this machine, so nothing here is measured off
+it and no photograph was read; what follows is from search results, and it is
+recorded that way in the module docstring too. Lucca House's **Grid System** is
+prefinished maple plywood panels **notched to slide together**: no tools, no
+glue, no hardware, assembled or taken apart in under a minute, named by the
+grid they make (`5x1`, `4x2`, `5x4`), with three part sizes producing six
+products and resizing done by swapping the long parts.
+
+That is a different animal from a glued case, and copying the *look* of it
+without the joinery would have been the wrong answer to the question.
+
+### One decision does all the work
+
+Every crossing is a half-lap: the shelf notched half its depth from the **back**
+edge, the upright half its depth from the **front**, sliding together front to
+back until each fills the other. Four consequences fall straight out of it, and
+none of them had to be designed separately:
+
+- **The parts collapse to three.** Six uprights, two shelves, a top. The
+  bottom shelf and the CD shelf are the same part; so are all six uprights,
+  end panels included, because a slot open at an edge is symmetrical and
+  therefore not handed. The dado version had ten shelves in two labels, four
+  dividers and two sides.
+- **The front edging reverses.** Where a shelf crosses an upright, the front of
+  the case *is* the shelf — there is no upright material there to glue a strip
+  to. So the horizontals' edging runs unbroken and the uprights' is in one
+  piece per row, which is the opposite of the glued version and was not a
+  styling choice.
+- **A 25/64" problem appeared at the floor.** Below the bottom shelf each
+  upright shows a foot of toe reveal, too little to edge and too much to leave
+  bare. The fix is the base rail: the bottom shelf's edging deepened to 1-1/32"
+  so it covers the shelf and the feet together, stopping a sixteenth short of
+  the floor so the uprights still carry the piece and can still be shimmed.
+- **The slot tolerance stops being cosmetic.** A dado 1/32" wide of the panel
+  is a glue line. A *slot* 1/32" wide of it, in a case with no glue anywhere,
+  is a wobble — so `check_thickness_substitution`'s warning is now joined by a
+  `kit` warning that says to cut one test slot in an offcut first.
+
+`test_at_a_crossing_each_part_has_only_its_own_half` is the whole design in one
+assertion: probe the front half of the depth at a crossing and the upright has
+no material there; probe the back half and the shelf has none. They interlock
+and never intersect, which a bounding-box test cannot tell you.
+
+### The painted build, which is not the same piece in cheaper clothes
+
+Then: a plain painted plywood build with a solid wood top. That is a variant in
+the repo's usual sense — same grid, same openings, same envelope — but almost
+every derived number moves, and *that is the point of deriving them*:
+
+| | cherry | painted |
+| --- | --- | --- |
+| sheet | cherry ply, **45/64"** | paint-grade birch, **23/32"** |
+| bays | 15-5/32" | **14-15/16"** |
+| toe reveal | 25/64" | 5/16" |
+| front edges | solid cherry, 15 strips | none — filled and painted |
+| top | a member of the grid | solid cherry, 3/4", overhanging 1/2" each end |
+| pieces | 9 panels + 15 strips | 8 panels + 1 board |
+
+Two things worth writing down:
+
+**The overhang pays for the thicker sheet.** A solid top that projects past the
+ends takes its overhang out of the *case*, not out of the room: the console is
+80" wide either way, the grid under it is 79", and the bays land at 14-15/16" —
+within a sixteenth of the 15" the brief asked for and closer than the cherry
+build gets. Birch ply being thicker than cherry ply would have pushed them the
+other way; the overhang more than cancels it.
+
+**A plywood case does not move and a solid top always does.** Hence
+`check_wood_movement`, which is new: tangential shrinkage from the Wood
+Handbook, a six-point seasonal moisture swing, and the answer for this piece is
+**3/16" across 13" of cherry**. That is not a rounding error, and it decides a
+joint: the top's housings run front to back, the same way it moves, so nothing
+restrains it and the slab simply lies on the grid under its own weight. Screws
+up through the shelves would be the one mistake that splits it — pass
+`allowance_mm=0.0` and the check says so in as many words.
+
+The check earns its keep beyond this piece. Every other check in the module
+asks whether a design *can be built*; this one asks whether it will still be
+built the same way in February.
+
+### And one thing the renderer nearly hid
+
+The 80" console was being cropped in the front and plan elevations — mplot3d
+honours the *ratio* of `set_box_aspect` and not the size, so a long, low plot
+box runs off the axes and is cropped with no error and no warning. `_fit_zoom`
+scales the drawing back by how far the longest span exceeds its share of the
+diagonal: 1.0 for anything roughly cubic, so the bed and the nightstand are
+untouched, and 0.85 for this. A renderer that crops silently is worse than one
+that fails, because the picture still looks plausible — and the picture is what
+this repo uses to catch the mistakes no dimension check can.

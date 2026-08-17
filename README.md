@@ -16,7 +16,8 @@ src/woodshop/
   pricing.py          PriceLine and CostSummary — a total that cannot print
                       without saying how old its rates are
   checks.py           design checks (envelope, fit, thickness, slat and shelf
-                      deflection, material, tipping, price provenance)
+                      deflection, material, wood movement, tipping, price
+                      provenance)
   project.py          the registry that makes projects discoverable
   cutlist/
     extract.py        walk an assembly into a consolidated list of CutParts
@@ -35,8 +36,9 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
-  media_console.py    80" cherry-plywood console: five record bays, a CD row,
-                      solid cherry front edges, dadoed together
+  media_console.py    80" console as a slide-together grid: five record bays,
+                      a CD row, half-lapped panels, no glue. Cherry-plywood
+                      and painted-birch/solid-top builds
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -51,7 +53,7 @@ uv sync
 uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
-uv run python projects/media_console.py --outdir build
+uv run python projects/media_console.py --variant both --outdir build
 ```
 
 That writes to `build/`:
@@ -198,6 +200,20 @@ WARN  [deflection] the same bottom undivided in plywood_cherry, 78-5/8" span
 
 Shelves are held to span/360 rather than the span/240 a bed deck gets: sag this
 side of collapse is an appearance problem, and appearance is stricter.
+
+`check_wood_movement` exists for designs that mix the two kinds of material.
+Plywood does not move and solid wood always does, so a solid top on a plywood
+case has to be *held so that it can*:
+
+```
+INFO  [movement] the solid top, across its depth: 13" of cherry across the
+                 grain moves about 3/16" (4.7 mm) over a 6-point moisture
+                 swing — it has to be held so that it can, which means no glue
+                 and no fixing across its width
+```
+
+Pass `allowance_mm` to ask what a part is being asked to survive: `0.0` is a
+top screwed down across the grain, and the finding says what that costs.
 
 Most checks compare a number against a number. `check_material_suitability`
 compares a **material against an operation**, which is the question a cut list

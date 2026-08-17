@@ -1,11 +1,17 @@
-"""Media console — five record bays, a CD row, and a clear top for the machines.
+"""Media console — a slide-together grid: five record bays, a CD row, clear top.
 
 Inspiration
 -----------
-https://luccahouse.com/ — the plain cherry casework, sized to what it holds
-rather than to a catalogue.  Nothing here is measured off that site: it was not
-reachable from the machine this model was built on, and no photograph was read.
-The brief below is the specification, and everything else is derived from it.
+https://luccahouse.com/ — the Grid System: prefinished maple plywood panels,
+notched so that they slide together, assembled or taken apart in under a minute
+with no tools, no glue and no hardware, and named by the grid they make (5x1,
+4x2, 5x4).  Three part sizes produce six products, and a unit is resized by
+swapping the long parts rather than by rebuilding it.
+
+Nothing here is measured off that site — it was not reachable from the machine
+this model was built on, and the description above comes from search results
+rather than from a drawing.  The brief below is the specification, and this
+console borrows the *system*, not a product.
 
 The brief, as given::
 
@@ -16,39 +22,73 @@ The brief, as given::
                 narrow enough that the stack never leans
     Above it    a shallower 8" row, CDs two deep
     Top         left clear for the turntable and the player
-    Material    3/4" cherry plywood with solid cherry front edges, dadoed so
-                the case is a single rigid box, finished clear, no stain
+    Material    3/4" cherry plywood with solid cherry front edges, finished
+                clear, no stain
+
+    …made modular: a kit of interlocking parts rather than a glued case.
+
+The kit
+-------
+Three panel parts, nine pieces, in a 5x2 grid — the cherry build::
+
+    upright   x6   23-9/16" x 12-3/4", two front-open slots
+    shelf     x2   80" x 12-3/4", six back-open slots
+    top       x1   80" x 12-3/4", six stopped housings in the underside
+
+Every crossing is a half-lap: the shelf is notched 6-3/8" back from its **back**
+edge, the upright 6-3/8" forward from its **front** edge, and the two slide
+together front to back until each fills the other.  The uprights are therefore
+all one part — a slot open at the front has no left hand and no right hand —
+and so are the two shelves, which is the whole economy of the system.
+
+The top is the one part that does not slide.  Its housings are 1/4" deep and
+stopped by its own front edging, so no slot reaches the surface the turntable
+stands on; it drops straight down onto the uprights, squares the grid, and
+lifts off first when the piece is taken apart.
+
+Assembly is: stand the uprights, push a shelf on from the front, push the
+second on, drop the top.  Disassembly is the same in reverse.  There is no glue
+anywhere in the case — only the front edging is glued, and that is done to a
+part rather than to an assembly.
 
 What the arithmetic decides
 ---------------------------
 Five of the brief's numbers cannot all be exact at once, and the plywood is
 what decides which one gives.  ``3/4"`` cherry plywood measures **45/64"**, so
-six vertical panels take 4-7/32" of the 80" rather than 4-1/2", and three
-horizontal panels take 2-3/32" of the 24" rather than 2-1/4":
+six uprights take 4-7/32" of the 80" rather than 4-1/2", and three horizontals
+take 2-3/32" of the 24" rather than 2-1/4":
 
 * **Bay width comes out 15-5/32", not 15"** — the width is fixed at 80" and the
-  five openings share what the six panels leave.  Holding a true 15" would mean
-  a case 79-1/32" wide, which is a worse trade than an eighth of an inch nobody
-  can see across a bay.
+  five openings share what the six uprights leave.  Holding a true 15" would
+  mean a case 79-1/32" wide, which is a worse trade than an eighth of an inch
+  nobody can see across a bay.
 * **The openings still hit 13-1/2" and 8" exactly**, and the 3/8" the thin
-  plywood gives back becomes the **toe reveal**: the bay bottoms are housed
-  25/64" off the floor and the case stands on the six panel ends.  It is not
-  decoration.  A floor is never flat, and a panel bearing on one telegraphs
-  every hump in it.
+  plywood gives back becomes the **toe reveal**: the bottom shelf crosses the
+  uprights 25/64" off the floor, and the piece stands on six panel feet.  A
+  floor is never flat, and a panel bearing on one telegraphs every hump in it.
+
+Cutting the slots to the sheet rather than to its label matters more here than
+in a glued case.  A dado 1/32" wide of the panel is a glue line; a *slot* 1/32"
+wide of it is a wobble, and there is no glue in this piece to take up the
+difference.
+
+Those numbers are the cherry build's.  The painted one is cut from a sheet that
+measures 23/32", and every one of them lands somewhere else — see *Two builds*.
 
 What is inferred rather than given
 ----------------------------------
 * **Solid edges are 1/4" thick**, on the front edge of every panel, so the
   panels are cut 12-3/4" deep and the console is 13" deep with the cherry on.
-  The front therefore reads as a grid of 1/4" solid lines, and the plywood
-  edge shows nowhere.
-* **The joinery is 1/4"-deep dados**: the shelves are housed in the verticals,
-  and the verticals are housed in the underside of the top — a dado for each
-  divider and a rabbet at each end.  That last joint is what makes the case a
-  box; without it the piece is a comb.
-* **There is no back.** The brief calls the console open, and a media console
-  wants cables through it.  Racking is carried by the dado grid alone, which
-  is what six full-depth verticals housed top and bottom are for.
+  Because the shelves pass through the uprights at the front, the horizontal
+  edging runs unbroken and the uprights' is in one piece per row.
+* **The base rail.** Below the bottom shelf each upright shows 25/64" of foot,
+  which is too little to edge and too much to leave bare, so the bottom shelf's
+  edging is deepened to a 1-1/32" rail that covers both and stops a sixteenth
+  short of the floor.  The piece still stands on its six feet, and they can be
+  shimmed.
+* **There is no back**, and the case wants cables through it.  With no glue,
+  racking is resisted by the fit of twenty-four slots and by the top's
+  housings — which is why the top is a structural part and not a lid.
 * **Capacities and weights** — 5 records to the inch at 250 g each, jewel cases
   at 10 mm and 100 g — are ordinary figures, not measurements of anybody's
   collection.  They set the load the shelves are checked against.
@@ -56,26 +96,61 @@ What is inferred rather than given
 Why five bays
 -------------
 Not stiffness.  :func:`woodshop.checks.check_shelf_deflection` puts the sag of
-a full bay bottom at a tenth of a millimetre and says **three** bays would be
-enough to keep an undivided one inside span/360 — the fourth and the fifth are
-there because a run of records much over 15" leans, slumps, and bends the
-sleeves at the ends of it.  Both findings are in the report, so the reason the
-piece looks the way it does is written down rather than implied.
+a full bay at a tenth of a millimetre and says **three** bays would be enough
+to keep an undivided shelf inside span/360 — the fourth and the fifth are there
+because a run of records much over 15" leans, slumps and bends the sleeves at
+the ends of it.  Both findings are in the report, so the reason the piece looks
+the way it does is written down rather than implied.
 
-Finish
-------
-Clear, no stain.  Cherry darkens on its own from pale amber to deep red-brown
-over the first year, so the piece is meant to leave the shop a little pale.
-That is also why the edging matters more than it looks: solid cherry and rotary
-cherry veneer start at slightly different colours and darken at slightly
-different rates, and sapwood in the edging never catches up.
+Resizing
+--------
+A column costs one upright and a longer pair of shelves and top; a row costs
+one shelf and taller uprights.  Nothing else in the kit changes, and no part is
+handed, which is what makes ``n_bays`` and the row heights honest parameters
+rather than a redraw.
+
+Two builds
+----------
+``cherry``
+    As briefed.  Cherry plywood throughout, solid cherry on every front edge,
+    the top a member of the grid, finished clear and no stain — cherry darkens
+    on its own from pale amber to deep red-brown over the first year, so the
+    piece is meant to leave the shop a little pale.  That is why the edging
+    matters more than it looks: solid cherry and rotary cherry veneer start at
+    slightly different colours and darken at slightly different rates, and
+    sapwood in the edging never catches up.
+
+``painted``
+    The plain build, and a genuinely different piece rather than the same one
+    in cheaper clothes:
+
+    * **Paint-grade birch plywood**, which measures **23/32"** where cherry ply
+      measures 45/64".  Every slot in the kit is cut to that instead, so the
+      bays come out 14-15/16" and the toe reveal 5/16" — the same design, told
+      by a different sheet.
+    * **No edging at all.**  Paint is the reason it does not need any and the
+      reason the edges have to be filled: eight bare plywood edges face the
+      room, and paint does not fill a void.
+    * **A solid cherry top**, 3/4" and overhanging 1/2" at each end, oiled
+      rather than painted.  The overhang comes out of the *case* — the console
+      is still 80" wide — which hands the bays back nearly the eighth of an
+      inch the thicker plywood took, and lands them within a sixteenth of the
+      15" the brief asked for.
+
+    The top is also the one part of either build that *moves*: 13" of cherry
+    across the grain travels about 3/16" a year, and
+    :func:`woodshop.checks.check_wood_movement` says so.  The housings run
+    front to back — the same way it moves — so nothing restrains it, and the
+    slab simply lies on the grid under its own weight.  Screwing it down would
+    be the one mistake that splits it.
 
 Run it
 ------
 ::
 
     uv run python projects/media_console.py
-    uv run python projects/media_console.py --outdir build
+    uv run python projects/media_console.py --variant painted --outdir build
+    uv run python projects/media_console.py --variant both --outdir build
 """
 
 from __future__ import annotations
@@ -98,6 +173,7 @@ from woodshop.checks import (
     check_sheet_fit,
     check_shelf_deflection,
     check_thickness_substitution,
+    check_wood_movement,
     estimate_mass_kg,
 )
 from woodshop.cutlist.extract import CutPart, extract
@@ -147,6 +223,96 @@ CD_MASS_KG: float = 0.1
 TOP_LOAD_KG: float = 15.0
 
 
+@dataclass(frozen=True)
+class Variant:
+    """What a version of the console is made of, and how it is finished.
+
+    The grid, the openings and the envelope are the same in both; everything
+    below is what changes when the piece stops being a cherry one.
+
+    Parameters
+    ----------
+    name : str
+        Key in :data:`VARIANTS`.
+    panel_material : str
+        Sheet-goods key for uprights and shelves.
+    edge_species : str
+        Solid species for the front edging, or ``""`` for none — a painted
+        case has no reason to hide a plywood edge under cherry.
+    edge_thickness_in : float
+        Thickness of that edging, ``0`` when there is none.
+    top_kind : str
+        ``"panel"`` — the top is a grid member in the same sheet — or
+        ``"solid"``, a slab that lies over the kit.
+    top_species : str
+        Species of a solid top.  Ignored when *top_kind* is ``"panel"``.
+    top_thickness_in : float
+        Thickness of a solid top.  Ignored when *top_kind* is ``"panel"``.
+    top_overhang_in : float
+        How far a solid top projects past each end of the case.
+    finish : str
+        What goes on it, in a sentence.
+    """
+
+    name: str
+    panel_material: str
+    edge_species: str
+    edge_thickness_in: float
+    top_kind: str
+    top_species: str
+    top_thickness_in: float
+    top_overhang_in: float
+    finish: str
+
+
+#: The two versions of the console.
+#:
+#: ``cherry``
+#:     The piece as briefed: cherry plywood throughout, solid cherry on every
+#:     front edge, the top a grid member like any other, clear finish.
+#:
+#: ``painted``
+#:     The plain version.  Paint-grade birch plywood — which measures 23/32"
+#:     where cherry ply measures 45/64", so every slot in the kit changes with
+#:     it — no edging at all, and a solid cherry top overhanging each end.
+#:     Fewer parts, one species of solid stock, and the only thing that shows
+#:     is the top.
+VARIANTS: dict[str, Variant] = {
+    "cherry": Variant(
+        name="cherry",
+        panel_material="plywood_cherry",
+        edge_species="cherry",
+        edge_thickness_in=0.25,
+        top_kind="panel",
+        top_species="",
+        top_thickness_in=0.0,
+        top_overhang_in=0.0,
+        finish="clear, no stain — the cherry darkens on its own",
+    ),
+    "painted": Variant(
+        name="painted",
+        panel_material="plywood_birch",
+        edge_species="",
+        edge_thickness_in=0.0,
+        top_kind="solid",
+        top_species="cherry",
+        top_thickness_in=0.75,
+        top_overhang_in=0.5,
+        finish=(
+            "case filled and painted, top oiled — the paint is what makes a "
+            "plywood edge an acceptable edge"
+        ),
+    ),
+}
+
+#: How far a slot cutter is run past the edge it opens on, mm.
+#:
+#: Cutting exactly to the edge leaves the boolean two coincident faces and,
+#: often enough, a film of geometry between them.  It has no effect on the
+#: part: the material beyond the edge is not there to remove.
+_CUTTER_OVERRUN_MM: float = 2.0
+
+
 def inches(value: float) -> float:
     """Convert inches to mm.
 
@@ -165,12 +331,12 @@ def inches(value: float) -> float:
 
 @dataclass
 class MediaConsole:
-    """A parametric media console: a run of record bays under a CD row.
+    """A parametric media console built as an interlocking grid.
 
     Every dimension below is a *published* one — the envelope and the two
-    opening heights.  Everything else (bay width, toe reveal, panel and shelf
+    opening heights.  Everything else (bay width, toe reveal, panel and slot
     sizes) is derived from them and from the thickness the plywood actually
-    measures, so changing the sheet changes the case rather than silently
+    measures, so changing the sheet changes the kit rather than silently
     changing the fit.
 
     Parameters
@@ -178,34 +344,37 @@ class MediaConsole:
     overall_w_in, overall_h_in, overall_d_in : float, optional
         Published envelope, default 80" x 24" x 13".
     n_bays : int, optional
-        Bays in the bottom row, default 5.
+        Bays across — the grid's columns, default 5.
     record_bay_h_in : float, optional
         Clear height of a record bay, default 13-1/2" — a 12-3/8" sleeve and a
         finger above it.
     cd_row_h_in : float, optional
         Clear height of the row above, default 8".
-    panel_material : str, optional
-        Sheet-goods key for the case, default ``"plywood_cherry"``.
+    variant : str, optional
+        Key in :data:`VARIANTS`, default ``"cherry"``.  ``"painted"`` is the
+        plain build: birch plywood, no edging, a solid cherry top.
     panel_nominal_thickness : str, optional
         Nominal sheet thickness, default ``"3/4"``.  The *actual* thickness is
         read from the inventory and is what the geometry uses.
-    species : str, optional
-        Solid-wood species for the front edges, default ``"cherry"``.
-    edge_thickness_in : float, optional
-        Thickness of the solid front edging, front to back, default 1/4".
     dado_depth_in : float, optional
-        Depth of every housing in the case, default 1/4".
+        Depth of the top's stopped housings, default 1/4".
+    base_rail_float_in : float, optional
+        How far the base rail stops short of the floor, default 1/16", so that
+        the piece stands on its six feet rather than on a glued-on strip.
     inventory : Inventory, optional
         Stock inventory.  Loaded from ``stock.yaml`` if not given.
 
     Raises
     ------
     ValueError
-        If fewer than two bays are asked for, if the edging or the housings are
-        deeper than the stock they land in, or if the two rows and their
-        panels are taller than the published height — in which case there is no
-        console to model, only a stack that does not fit in it.
+        If the variant is unknown, if fewer than two bays are asked for, if the
+        edging or the housings are deeper than the stock they land in, or if
+        the rows and their shelves are taller than the published height — in
+        which case there is no console to model, only a stack that does not fit
+        in one.
     """
+
+    variant: str = "cherry"
 
     overall_w_in: float = 80.0
     overall_h_in: float = 24.0
@@ -215,23 +384,25 @@ class MediaConsole:
     record_bay_h_in: float = 13.5
     cd_row_h_in: float = 8.0
 
-    panel_material: str = "plywood_cherry"
     panel_nominal_thickness: str = "3/4"
-    species: str = "cherry"
-    edge_thickness_in: float = 0.25
     dado_depth_in: float = 0.25
+    base_rail_float_in: float = 0.0625
 
     inventory: Inventory = field(default_factory=Inventory.load)
 
     def __post_init__(self) -> None:
         """Reject a console whose numbers do not describe a case."""
+        if self.variant not in VARIANTS:
+            raise ValueError(
+                f"variant must be one of {sorted(VARIANTS)}, got {self.variant!r}"
+            )
         if self.n_bays < 2:
             raise ValueError(
                 f"a run of bays needs at least 2 of them, got {self.n_bays}"
             )
-        if self.edge_thickness_in >= self.overall_d_in:
+        if self.spec.edge_thickness_in >= self.overall_d_in:
             raise ValueError(
-                f"{self.edge_thickness_in:g}\" of edging on a "
+                f"{self.spec.edge_thickness_in:g}\" of edging on a "
                 f"{self.overall_d_in:g}\" deep case leaves no panel"
             )
         if self.dado_depth_in >= self.panel_t / IN:
@@ -240,12 +411,59 @@ class MediaConsole:
                 f"{mm_to_fractional_inch(self.panel_t, 64)} stock"
             )
         if self.toe_reveal < 0:
+            rows = ", ".join(mm_to_fractional_inch(h) for h in self.row_heights)
             raise ValueError(
-                f"a {self.record_bay_h_in:g}\" bay and a {self.cd_row_h_in:g}\" "
-                f"row plus three panels come to "
+                f"{self.n_rows} rows of {rows}, {self.n_shelves} shelves and a "
+                f"{mm_to_fractional_inch(self.top_t, 64)} top come to "
                 f"{mm_to_fractional_inch(self.overall_h - self.toe_reveal)}, "
                 f"which does not fit inside {self.overall_h_in:g}\""
             )
+
+    # ------------------------------------------------------------------
+    # What the variant decides
+    # ------------------------------------------------------------------
+
+    @property
+    def spec(self) -> Variant:
+        """The :class:`Variant` this console is built to."""
+        return VARIANTS[self.variant]
+
+    @property
+    def panel_material(self) -> str:
+        """Sheet-goods key for the uprights and shelves."""
+        return self.spec.panel_material
+
+    @property
+    def species(self) -> str:
+        """Solid species this build buys — the edging's, or the top's."""
+        return self.spec.edge_species or self.spec.top_species
+
+    @property
+    def has_edging(self) -> bool:
+        """Whether the front edges are covered in solid stock."""
+        return self.spec.edge_thickness_in > 0 and bool(self.spec.edge_species)
+
+    @property
+    def has_solid_top(self) -> bool:
+        """Whether the top is a slab rather than a member of the grid."""
+        return self.spec.top_kind == "solid"
+
+    @property
+    def top_material(self) -> str:
+        """Material of the top."""
+        return self.spec.top_species if self.has_solid_top else self.panel_material
+
+    @property
+    def top_t(self) -> float:
+        """Thickness of the top in mm."""
+        if self.has_solid_top:
+            return inches(self.spec.top_thickness_in)
+        return self.panel_t
+
+    @property
+    def top_overhang(self) -> float:
+        """How far the top projects past each end of the case, mm."""
+        return inches(self.spec.top_overhang_in)
 
     # ------------------------------------------------------------------
     # Stock
@@ -253,24 +471,28 @@ class MediaConsole:
 
     @property
     def sheet(self):
-        """The sheet the case is cut from."""
+        """The sheet the kit is cut from."""
         return self.inventory.sheet_for(
             self.panel_material, self.panel_nominal_thickness
         )
 
     @property
     def panel_t(self) -> float:
-        """Measured panel thickness in mm — 45/64", not 3/4"."""
+        """Measured panel thickness in mm.
+
+        Never the nominal 3/4": cherry ply measures 45/64" and paint-grade
+        birch 23/32", and every slot in the kit is cut to whichever it is.
+        """
         return self.sheet.thickness_mm
 
     @property
     def edge_t(self) -> float:
-        """Thickness of the solid front edging in mm."""
-        return inches(self.edge_thickness_in)
+        """Thickness of the solid front edging in mm, ``0`` when there is none."""
+        return inches(self.spec.edge_thickness_in)
 
     @property
     def dado_depth(self) -> float:
-        """Depth of every housing in mm."""
+        """Depth of the top's stopped housings in mm."""
         return inches(self.dado_depth_in)
 
     # ------------------------------------------------------------------
@@ -293,13 +515,46 @@ class MediaConsole:
         return inches(self.overall_d_in)
 
     # ------------------------------------------------------------------
+    # The grid
+    # ------------------------------------------------------------------
+
+    @property
+    def row_heights(self) -> tuple[float, ...]:
+        """Clear height of each row in mm, bottom first."""
+        return (inches(self.record_bay_h_in), inches(self.cd_row_h_in))
+
+    @property
+    def n_rows(self) -> int:
+        """Rows in the grid."""
+        return len(self.row_heights)
+
+    @property
+    def n_uprights(self) -> int:
+        """Two ends plus the dividers between the bays."""
+        return self.n_bays + 1
+
+    @property
+    def n_shelves(self) -> int:
+        """Slotted horizontals: one under each row.  The top is not one."""
+        return self.n_rows
+
+    @property
+    def grid_label(self) -> str:
+        """The grid, in the system's own notation — ``"5x2"``."""
+        return f"{self.n_bays}x{self.n_rows}"
+
+    # ------------------------------------------------------------------
     # Derived geometry
     # ------------------------------------------------------------------
 
     @property
-    def n_verticals(self) -> int:
-        """Two ends plus the dividers between the bays."""
-        return self.n_bays + 1
+    def case_w(self) -> float:
+        """Width of the grid itself, mm — the envelope less any top overhang.
+
+        A solid top that projects past the ends takes its overhang out of the
+        case rather than out of the room: the piece is 80" wide either way.
+        """
+        return self.overall_w - 2 * self.top_overhang
 
     @property
     def panel_depth(self) -> float:
@@ -307,75 +562,93 @@ class MediaConsole:
         return self.overall_d - self.edge_t
 
     @property
+    def lap_depth(self) -> float:
+        """How far each slot runs into its panel, mm — half the depth.
+
+        Half and half is what lets one part be both members: cut deeper on the
+        shelf and the upright would have to be cut shallower, and the two would
+        stop being the same joint seen from two sides.
+        """
+        return self.panel_depth / 2
+
+    @property
     def bay_clear_w(self) -> float:
         """Clear width of one bay in mm.
 
-        The width is published and the panels take what they take, so this is
-        an outcome rather than a choice: 15-5/32" for the default case, an
-        eighth over the 15" the brief names, because the plywood is thin.
+        The width is published and the uprights take what they take, so this is
+        an outcome rather than a choice: 15-5/32" for the cherry grid, an
+        eighth over the 15" the brief names, because the plywood is thin.  The
+        painted build's overhang hands most of that eighth back.
         """
-        return (self.overall_w - self.n_verticals * self.panel_t) / self.n_bays
+        return (self.case_w - self.n_uprights * self.panel_t) / self.n_bays
 
     @property
     def toe_reveal(self) -> float:
-        """Height of the bay bottoms off the floor, mm.
+        """Height of the bottom shelf off the floor, mm.
 
-        What is left of the published height once both openings and all three
-        horizontal panels have had theirs.
+        What is left of the published height once every row and every
+        horizontal panel has had theirs.
         """
         return (
             self.overall_h
-            - 3 * self.panel_t
-            - inches(self.record_bay_h_in)
-            - inches(self.cd_row_h_in)
+            - self.top_t
+            - self.n_shelves * self.panel_t
+            - sum(self.row_heights)
         )
 
     @property
-    def vertical_h(self) -> float:
-        """Length of a side or divider in mm, housing at the top included."""
-        return self.overall_h - self.panel_t + self.dado_depth
-
-    @property
-    def vertical_edge_h(self) -> float:
-        """Exposed height of a vertical's front edge, mm.
-
-        The top's own edging runs the full width and caps them, so a vertical's
-        edging stops at the underside of the top.
-        """
-        return self.overall_h - self.panel_t
+    def upright_h(self) -> float:
+        """Length of an upright in mm, its housing in the top included."""
+        return self.overall_h - self.top_t + self.dado_depth
 
     @property
     def shelf_len(self) -> float:
-        """Length of a shelf in mm, both housings included."""
-        return self.bay_clear_w + 2 * self.dado_depth
+        """Length of a shelf in mm — the case width, ends flush with the sides."""
+        return self.case_w
 
     @property
-    def bay_bottom_z(self) -> float:
-        """Underside of the bay bottoms, mm off the floor."""
-        return self.toe_reveal
-
-    @property
-    def cd_shelf_z(self) -> float:
-        """Underside of the CD shelves, mm off the floor."""
-        return self.toe_reveal + self.panel_t + inches(self.record_bay_h_in)
+    def base_rail_h(self) -> float:
+        """Height of the solid rail below the bottom shelf, mm."""
+        return (
+            self.panel_t + self.toe_reveal - inches(self.base_rail_float_in)
+        )
 
     @property
     def top_underside_z(self) -> float:
         """Underside of the top, mm off the floor."""
-        return self.overall_h - self.panel_t
+        return self.overall_h - self.top_t
 
     @property
     def clear_run(self) -> float:
-        """Width the bays share between the two end panels, mm."""
-        return self.overall_w - 2 * self.panel_t
+        """Width the bays share between the two end uprights, mm."""
+        return self.case_w - 2 * self.panel_t
 
-    def vertical_x(self, i: int) -> float:
-        """Return the centre line of vertical *i* in mm, ``0`` at the middle.
+    def shelf_z(self, row: int) -> float:
+        """Return the underside of the shelf below *row*, mm off the floor.
+
+        Parameters
+        ----------
+        row : int
+            ``0`` is the bottom row, so ``shelf_z(0)`` is the bottom shelf and
+            sits at the toe reveal.
+
+        Returns
+        -------
+        float
+            Height of the shelf's underside off the floor.
+        """
+        z = self.toe_reveal
+        for h in self.row_heights[:row]:
+            z += self.panel_t + h
+        return z
+
+    def upright_x(self, i: int) -> float:
+        """Return the centre line of upright *i* in mm, ``0`` at the middle.
 
         Parameters
         ----------
         i : int
-            ``0`` is the left end panel, :attr:`n_verticals` - 1 the right.
+            ``0`` is the left end, :attr:`n_uprights` - 1 the right.
 
         Returns
         -------
@@ -383,12 +656,22 @@ class MediaConsole:
             Distance from the console's centre line, negative to the left.
         """
         pitch = self.bay_clear_w + self.panel_t
-        return -self.overall_w / 2 + self.panel_t / 2 + i * pitch
+        return -self.case_w / 2 + self.panel_t / 2 + i * pitch
 
     @property
     def panel_y(self) -> float:
         """Centre of a panel front to back, mm — the edging is in front of it."""
         return -self.overall_d / 2 + self.edge_t + self.panel_depth / 2
+
+    @property
+    def panel_front_y(self) -> float:
+        """Front face of the plywood, behind the edging, mm."""
+        return -self.overall_d / 2 + self.edge_t
+
+    @property
+    def panel_back_y(self) -> float:
+        """Back face of the plywood, mm."""
+        return self.overall_d / 2
 
     @property
     def edge_y(self) -> float:
@@ -437,83 +720,181 @@ class MediaConsole:
         Returns
         -------
         build123d.Compound
-            Every panel, shelf and edging strip, positioned, with the housings
-            cut so the model shows the joint rather than implying it.
+            Every panel and edging strip, positioned, with the slots and
+            housings cut — so the model shows parts that interlock rather than
+            parts that claim to.
         """
         children: list[object] = [self._placed_top()]
 
-        for i in range(self.n_verticals):
-            children.append(self._placed_vertical(i))
+        for i in range(self.n_uprights):
+            children.append(self._placed_upright(i))
+        for row in range(self.n_shelves):
+            children.append(self._placed_shelf(row))
 
-        for bay in range(self.n_bays):
-            x = (self.vertical_x(bay) + self.vertical_x(bay + 1)) / 2
-            children.append(
-                Pos(x, self.panel_y, self.bay_bottom_z + self.panel_t / 2)
-                * self._shelf(
-                    "bay_bottom",
-                    notes=(
-                        f"housed {mm_to_fractional_inch(self.toe_reveal, 64)} "
-                        "off the floor in the verticals either side; identical "
-                        f"to a cd_shelf, {2 * self.n_bays} in all"
-                    ),
-                )
-            )
-            children.append(
-                Pos(x, self.panel_y, self.cd_shelf_z + self.panel_t / 2)
-                * self._shelf(
-                    "cd_shelf",
-                    notes="housed in the verticals either side; carries the CDs",
-                )
-            )
-            for z in (self.bay_bottom_z, self.cd_shelf_z):
-                children.append(
-                    Pos(x, self.edge_y, z + self.panel_t / 2)
-                    * self._edging(
-                        "shelf_edge",
-                        length_mm=self.bay_clear_w,
-                        notes=(
-                            "fitted between the verticals' edging after "
-                            "glue-up, so it is cut long and trimmed to the "
-                            "opening"
-                        ),
-                    )
-                )
-
-        # -- Solid cherry on every front edge ---------------------------
-        children.append(
-            Pos(0.0, self.edge_y, self.top_underside_z + self.panel_t / 2)
-            * self._edging(
-                "top_edge",
-                length_mm=self.overall_w,
-                notes=(
-                    "runs the full width and caps the verticals' edging; "
-                    "glued on and planed flush after the case is together"
-                ),
-            )
+        children.extend(self._edging())
+        return Compound(
+            children=children,
+            label=f"media_console_{self.variant}_{self.grid_label}",
         )
-        for i in range(self.n_verticals):
-            children.append(
-                Pos(self.vertical_x(i), self.edge_y, self.vertical_edge_h / 2)
-                * Rotation(0, 90, 0)
-                * self._edging(
-                    "vertical_edge",
-                    length_mm=self.vertical_edge_h,
-                    notes=(
-                        "glued on before assembly; it is what the shelf "
-                        "housings stop against"
-                    ),
-                )
-            )
 
-        return Compound(children=children, label="media_console")
+    # -- The three panel parts -----------------------------------------
+
+    def _placed_upright(self, i: int):
+        """Return upright *i*, positioned, with a slot at every shelf.
+
+        The slots open at the *front* edge and run half the depth back, so the
+        shelves fill them and read as continuous across the front.  A slot open
+        at the front is symmetrical about the panel's centre line, which is why
+        all six uprights are the same part and none of them is handed.
+        """
+        part = self._upright()
+        placed = (
+            Pos(self.upright_x(i), self.panel_y, self.upright_h / 2)
+            * Rotation(0, 90, 0)
+            * part
+        )
+        for row in range(self.n_shelves):
+            placed = placed - (
+                Pos(
+                    self.upright_x(i),
+                    self.panel_front_y
+                    + (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
+                    self.shelf_z(row) + self.panel_t / 2,
+                )
+                * Rotation(90, 90, 0)
+                * self._slot()
+            )
+        return retag(placed, like=part)
+
+    def _placed_shelf(self, row: int):
+        """Return the shelf under *row*, positioned, slotted for every upright.
+
+        These slots open at the *back* edge, so a shelf drops onto the uprights
+        from the front and slides back until each part fills the other.
+        """
+        part = self._shelf()
+        placed = (
+            Pos(0.0, self.panel_y, self.shelf_z(row) + self.panel_t / 2) * part
+        )
+        for i in range(self.n_uprights):
+            placed = placed - (
+                Pos(
+                    self.upright_x(i),
+                    self.panel_back_y
+                    - (self.lap_depth - _CUTTER_OVERRUN_MM) / 2,
+                    self.shelf_z(row) + self.panel_t / 2,
+                )
+                * Rotation(0, 0, 90)
+                * self._slot()
+            )
+        return retag(placed, like=part)
 
     def _placed_top(self):
-        """Return the top, positioned, with a housing for every vertical.
+        """Return the top, positioned, housed for every upright.
 
-        The two at the ends are rabbets rather than dados — geometrically the
-        same cut, and the difference is only that one side of it is fresh air.
+        The housings are 1/4" deep in the underside and stopped short of the
+        front, so nothing shows on the surface the turntable stands on.  The
+        top drops straight down, which is what squares the grid and holds the
+        upright spacing.
+
+        A solid top runs the housings *across* its grain — which is the safe
+        way round, because the grooves then run the same way the top moves and
+        cannot restrain it.  See :func:`woodshop.checks.check_wood_movement`.
         """
-        part = Panel(
+        part = self._top()
+        top_y = 0.0 if self.has_solid_top else self.panel_y
+        top = Pos(0.0, top_y, self.top_underside_z + self.top_t / 2) * part
+        for i in range(self.n_uprights):
+            top = top - (
+                Pos(
+                    self.upright_x(i),
+                    self.panel_y,
+                    self.top_underside_z + self.dado_depth / 2,
+                )
+                * Rotation(0, 0, 90)
+                * Dado(
+                    width_mm=self.panel_t,
+                    depth_mm=self.dado_depth,
+                    length_mm=self.panel_depth,
+                    mode=Mode.PRIVATE,
+                )
+            )
+        return retag(top, like=part)
+
+    def _slot(self) -> Dado:
+        """Return one half-lap slot, drawn in its own frame.
+
+        Every crossing in the kit is this cut and no other: the mating panel's
+        measured thickness wide, right through the stock, and half the panel's
+        depth long — run past the edge it opens on so the boolean has no
+        coincident faces to argue with.
+        """
+        return Dado(
+            width_mm=self.panel_t,
+            depth_mm=self.panel_t + 2 * _CUTTER_OVERRUN_MM,
+            length_mm=self.lap_depth + _CUTTER_OVERRUN_MM,
+            mode=Mode.PRIVATE,
+        )
+
+    def _upright(self) -> Panel:
+        """Return one upright as a :class:`woodshop.parts.Panel`."""
+        return Panel(
+            length_mm=self.upright_h,
+            width_mm=self.panel_depth,
+            thickness_mm=self.panel_t,
+            material=self.panel_material,
+            label="upright",
+            grain_direction="length",
+            notes=(
+                f"face grain runs up the case; {self.n_shelves} slots "
+                f"{mm_to_fractional_inch(self.panel_t, 64)} wide x "
+                f"{mm_to_fractional_inch(self.lap_depth, 32)} deep, cut from "
+                "the front edge; top end housed in the top. All "
+                f"{self.n_uprights} are the same part, ends included"
+            ),
+        )
+
+    def _shelf(self) -> Panel:
+        """Return one shelf — the long part, and there are only two."""
+        return Panel(
+            length_mm=self.shelf_len,
+            width_mm=self.panel_depth,
+            thickness_mm=self.panel_t,
+            material=self.panel_material,
+            label="shelf",
+            grain_direction="length",
+            notes=(
+                f"runs the full width; {self.n_uprights} slots "
+                f"{mm_to_fractional_inch(self.panel_t, 64)} wide x "
+                f"{mm_to_fractional_inch(self.lap_depth, 32)} deep, cut from "
+                "the back edge, the outer two at the corners. Bottom shelf and "
+                "CD shelf are one part"
+            ),
+        )
+
+    def _top(self):
+        """Return the top: a member of the grid, or a slab that lies over it."""
+        housed = (
+            f"underside housed {mm_to_fractional_inch(self.dado_depth, 32)} "
+            f"deep for all {self.n_uprights} uprights"
+        )
+        if self.has_solid_top:
+            return Board(
+                length_mm=self.overall_w,
+                width_mm=self.overall_d,
+                thickness_mm=self.top_t,
+                material=self.top_material,
+                label="top",
+                grain_direction="length",
+                notes=(
+                    f"glue-up, grain running the length; {housed}, the grooves "
+                    "running the same way it moves so they cannot restrain it. "
+                    f"Overhangs {mm_to_fractional_inch(self.top_overhang, 32)} "
+                    "at each end and simply lies on the grid — no fixing across "
+                    "its width, ever"
+                ),
+            )
+        return Panel(
             length_mm=self.overall_w,
             width_mm=self.panel_depth,
             thickness_mm=self.panel_t,
@@ -521,124 +902,109 @@ class MediaConsole:
             label="top",
             grain_direction="length",
             notes=(
-                "face grain runs the length; underside housed for all "
-                f"{self.n_verticals} verticals — a rabbet at each end and "
-                f"{self.n_bays - 1} dados between"
+                f"{housed}, stopped at the front by its own edging so nothing "
+                "shows on the top face"
             ),
         )
-        top = Pos(0.0, self.panel_y, self.top_underside_z + self.panel_t / 2) * part
-        z = self.top_underside_z + self.dado_depth / 2
-        for i in range(self.n_verticals):
-            top = top - (
-                Pos(self.vertical_x(i), self.panel_y, z)
-                * Rotation(0, 0, 90)
-                * self._housing()
-            )
-        return retag(top, like=part)
 
-    def _housing(self) -> Dado:
-        """Return one housing, drawn in its own frame and rotated by the caller.
+    # -- Solid cherry on every front edge -------------------------------
 
-        Every joint in the case is the same cut: the stock's measured
-        thickness wide, :attr:`dado_depth` deep, running the full depth of the
-        panel it crosses.
+    def _edging(self) -> list[object]:
+        """Return every strip of solid front edging, positioned.
+
+        The horizontals run unbroken and the uprights' edging sits between them,
+        because that is what the joinery has already decided: where a shelf
+        crosses an upright, the front of the case *is* the shelf.
+
+        The painted build has none of this.  Paint is the reason it does not
+        need any, and the reason it has to be filled instead.
         """
-        return Dado(
-            width_mm=self.panel_t,
-            depth_mm=self.dado_depth,
-            length_mm=self.panel_depth,
-            mode=Mode.PRIVATE,
-        )
+        if not self.has_edging:
+            return []
 
-    def _placed_vertical(self, i: int):
-        """Return vertical *i*, positioned, with its shelf housings cut.
-
-        An end panel is housed on its inner face only; a divider is housed on
-        both, which leaves 13/64" of web between the two dados — plenty, and
-        the reason the housings are 1/4" deep rather than half the stock.
-        """
-        is_end = i in (0, self.n_verticals - 1)
-        part = self._vertical(is_end=is_end)
-        placed = (
-            Pos(self.vertical_x(i), self.panel_y, self.vertical_h / 2)
-            * Rotation(0, 90, 0)
-            * part
-        )
-
-        faces = []
-        if i > 0:
-            faces.append(-1.0)  # housing on the left face, for the bay to its left
-        if i < self.n_verticals - 1:
-            faces.append(+1.0)
-        offset = self.panel_t / 2 - self.dado_depth / 2
-
-        for side in faces:
-            for z in (self.bay_bottom_z, self.cd_shelf_z):
-                placed = placed - (
-                    Pos(
-                        self.vertical_x(i) + side * offset,
-                        self.panel_y,
-                        z + self.panel_t / 2,
-                    )
-                    * Rotation(90, 90, 0)
-                    * self._housing()
-                )
-        return retag(placed, like=part)
-
-    def _vertical(self, is_end: bool) -> Panel:
-        """Return a side or a divider as a :class:`woodshop.parts.Panel`."""
-        if is_end:
-            return Panel(
-                length_mm=self.vertical_h,
-                width_mm=self.panel_depth,
-                thickness_mm=self.panel_t,
-                material=self.panel_material,
-                label="side",
-                grain_direction="length",
+        out: list[object] = [
+            Pos(0.0, self.edge_y, self.top_underside_z + self.panel_t / 2)
+            * Rotation(90, 0, 0)
+            * self._edge_strip(
+                "top_edge",
+                length_mm=self.case_w,
+                height_mm=self.panel_t,
                 notes=(
-                    "face grain runs up the case; two shelf housings on the "
-                    "inner face, top end housed in the rabbet under the top"
+                    "runs the full width and caps the uprights' edging; "
+                    "glued and planed flush before the kit goes together"
                 ),
-            )
-        return Panel(
-            length_mm=self.vertical_h,
-            width_mm=self.panel_depth,
-            thickness_mm=self.panel_t,
-            material=self.panel_material,
-            label="divider",
-            grain_direction="length",
-            notes=(
-                "same blank as a side; housed on both faces, and it carries "
-                "the load of two bays straight to the floor"
             ),
-        )
+            # The bottom shelf's edging is deepened into a rail: it covers the
+            # shelf edge and the feet below it, and stops short of the floor.
+            Pos(
+                0.0,
+                self.edge_y,
+                self.shelf_z(0) + self.panel_t - self.base_rail_h / 2,
+            )
+            * Rotation(90, 0, 0)
+            * self._edge_strip(
+                "base_rail",
+                length_mm=self.case_w,
+                height_mm=self.base_rail_h,
+                notes=(
+                    "covers the bottom shelf and the "
+                    f"{mm_to_fractional_inch(self.toe_reveal, 64)} of foot "
+                    "below it, stopping "
+                    f"{mm_to_fractional_inch(inches(self.base_rail_float_in), 32)}"
+                    " short of the floor so the uprights still carry the piece"
+                ),
+            ),
+        ]
 
-    def _shelf(self, label: str, notes: str) -> Panel:
-        """Return one shelf — a bay bottom or a CD shelf, which are one part."""
-        return Panel(
-            length_mm=self.shelf_len,
-            width_mm=self.panel_depth,
-            thickness_mm=self.panel_t,
-            material=self.panel_material,
-            label=label,
-            grain_direction="length",
-            notes=notes,
-        )
+        for row in range(1, self.n_shelves):
+            out.append(
+                Pos(0.0, self.edge_y, self.shelf_z(row) + self.panel_t / 2)
+                * Rotation(90, 0, 0)
+                * self._edge_strip(
+                    "shelf_edge",
+                    length_mm=self.case_w,
+                    height_mm=self.panel_t,
+                    notes="runs the full width, unbroken by the uprights",
+                )
+            )
 
-    def _edging(self, label: str, length_mm: float, notes: str) -> Board:
+        for i in range(self.n_uprights):
+            for row, height in enumerate(self.row_heights):
+                z = self.shelf_z(row) + self.panel_t + height / 2
+                out.append(
+                    Pos(self.upright_x(i), self.edge_y, z)
+                    * Rotation(90, 0, 90)
+                    * self._edge_strip(
+                        "upright_edge",
+                        length_mm=height,
+                        height_mm=self.panel_t,
+                        notes=(
+                            "one per upright per row, fitted between the "
+                            "horizontals' edging after the kit is dry-fitted"
+                        ),
+                    )
+                )
+        return out
+
+    def _edge_strip(
+        self, label: str, length_mm: float, height_mm: float, notes: str
+    ) -> Board:
         """Return one strip of solid front edging.
 
-        All three kinds are the same section — the board is milled to the
-        plywood's own thickness and then ripped into strips the width of the
-        edging, so the strip's *thickness* is what matches the panel it covers.
-        Only the length and where it goes differ.
+        All of them are the same section apart from the base rail: the board is
+        milled to the plywood's own thickness and ripped into strips the width
+        of the edging, so the strip's *thickness* is what matches the panel it
+        covers.
 
         Parameters
         ----------
         label : str
-            Part name: ``"top_edge"``, ``"vertical_edge"``, ``"shelf_edge"``.
+            Part name: ``"top_edge"``, ``"shelf_edge"``, ``"upright_edge"``,
+            ``"base_rail"``.
         length_mm : float
             Finished length.  Cut long — every one of these is fitted.
+        height_mm : float
+            How much of the panel edge it covers.
         notes : str
             What this strip is doing, carried to the cut list.
 
@@ -648,14 +1014,14 @@ class MediaConsole:
             The strip, unplaced.
         """
         milling = (
-            f"{self.species} milled to the plywood's "
-            f"{mm_to_fractional_inch(self.panel_t, 64)} and ripped into "
-            f"{mm_to_fractional_inch(self.edge_t, 32)} strips"
+            f"4/4 {self.species} planed to "
+            f"{mm_to_fractional_inch(self.edge_t, 32)} and ripped "
+            f"{mm_to_fractional_inch(height_mm, 64)} wide"
         )
         return Board(
             length_mm=length_mm,
-            thickness_mm=self.panel_t,
-            width_mm=self.edge_t,
+            thickness_mm=self.edge_t,
+            width_mm=height_mm,
             material=self.species,
             label=label,
             trim_allowance_mm=inches(0.5),
@@ -697,10 +1063,60 @@ class MediaConsole:
         report.extend(check_thickness_substitution(parts, self.inventory))
         report.extend(check_material_suitability(parts, self.inventory))
 
+        report.extend(self._kit_findings(parts))
         report.extend(self._fit_findings())
         report.extend(self._load_findings(parts))
         report.extend(self._construction_findings())
         return report
+
+    def _kit_findings(self, parts: list[CutPart]) -> list[Finding]:
+        """Describe the kit: what it is made of, and what a slot fit costs."""
+        plywood = [p for p in parts if p.material == self.panel_material]
+        distinct = {p.label for p in plywood}
+        pieces = sum(p.qty for p in plywood)
+        slots = self.n_uprights * self.n_shelves * 2
+        top = (
+            f"a solid {self.top_material} top over it"
+            if self.has_solid_top
+            else "a top in the same sheet"
+        )
+        return [
+            Finding(
+                Severity.INFO,
+                "kit",
+                f"the {self.variant} build: a {self.grid_label} grid from "
+                f"{len(distinct)} panel parts and {pieces} pieces — "
+                f"{self.n_uprights} uprights, {self.n_shelves} shelves — with "
+                f"{top}. No part is handed, because a slot open at an edge is "
+                f"symmetrical. Finish: {self.spec.finish}",
+            ),
+            Finding(
+                Severity.INFO,
+                "kit",
+                f"{slots} slots, each "
+                f"{mm_to_fractional_inch(self.lap_depth, 32)} of engagement "
+                f"({self.lap_depth / self.panel_depth * 100:.0f}% of the "
+                "depth): shelves slide on from the front, the top drops on "
+                "last, and it comes apart in that order. No glue and no "
+                "fasteners anywhere in the case",
+            ),
+            Finding(
+                Severity.WARN,
+                "kit",
+                f"the slots are cut to the sheet's "
+                f"{mm_to_fractional_inch(self.panel_t, 64)}, not to its 3/4\" "
+                "label: in a glued case that difference is a glue line, here "
+                "it is the whole joint. Cut one test slot in an offcut and fit "
+                "it before the rest — nothing downstream takes up slack",
+            ),
+            Finding(
+                Severity.INFO,
+                "kit",
+                "adding a column costs one upright and a longer pair of "
+                "shelves and top; adding a row costs one shelf and taller "
+                "uprights. Nothing else in the kit changes",
+            ),
+        ]
 
     def _fit_findings(self) -> list[Finding]:
         """Compare the openings against the things they are sized for."""
@@ -713,14 +1129,27 @@ class MediaConsole:
                 "bay",
                 f"{self.n_bays} bays come out "
                 f"{mm_to_fractional_inch(self.bay_clear_w, 32)} clear, not "
-                f"{nominal_bay:g}\": {self.n_verticals} panels of "
+                f"{nominal_bay:g}\": {self.n_uprights} uprights of "
                 f"{mm_to_fractional_inch(self.panel_t, 64)} take "
-                f"{mm_to_fractional_inch(self.n_verticals * self.panel_t, 32)} "
-                f"of the {self.overall_w_in:g}\", where "
-                f"{self.n_verticals} of a true 3/4\" would take "
-                f"{mm_to_fractional_inch(self.n_verticals * inches(0.75), 32)}",
+                f"{mm_to_fractional_inch(self.n_uprights * self.panel_t, 32)} "
+                f"of the {mm_to_fractional_inch(self.case_w, 32)} of case, "
+                f"where {self.n_uprights} of a true 3/4\" would take "
+                f"{mm_to_fractional_inch(self.n_uprights * inches(0.75), 32)}",
             )
         )
+        if self.top_overhang > 0:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "bay",
+                    f"the top's {mm_to_fractional_inch(self.top_overhang, 32)} "
+                    "overhang at each end comes out of the case rather than "
+                    f"the room: {self.overall_w_in:g}\" of console over "
+                    f"{mm_to_fractional_inch(self.case_w, 32)} of grid, which "
+                    "hands the bays back most of what the thick paint-grade "
+                    "plywood took",
+                )
+            )
 
         sleeve = inches(LP_SLEEVE_IN)
         findings.extend(
@@ -790,7 +1219,21 @@ class MediaConsole:
                 depth_mm=self.panel_depth,
                 thickness_mm=self.panel_t,
                 load_kg=self.record_load_kg,
-                label="bay bottom, full of records",
+                label="bay of records, between two uprights",
+            )
+        )
+        # The lap halves the shelf at every crossing — which is exactly where a
+        # shelf continuous over six supports is worked hardest.  Rather than
+        # model a stepped section, sag the whole span as if it were all lap:
+        # an upper bound that is far past pessimistic and still nothing.
+        findings.extend(
+            check_shelf_deflection(
+                self.panel_material,
+                span_mm=self.bay_clear_w,
+                depth_mm=self.lap_depth,
+                thickness_mm=self.panel_t,
+                load_kg=self.record_load_kg,
+                label="the same bay if the half-lap ran its whole length",
             )
         )
         findings.extend(
@@ -822,7 +1265,7 @@ class MediaConsole:
             depth_mm=self.panel_depth,
             thickness_mm=self.panel_t,
             load_kg=self.record_load_kg * self.n_bays,
-            label="the same bottom undivided",
+            label="the same shelf with no uprights under it",
             run_mm=self.clear_run,
         )
         findings.extend(undivided)
@@ -832,7 +1275,7 @@ class MediaConsole:
                     Severity.INFO,
                     "bay",
                     f"so sag alone does not ask for {self.n_bays} bays — the "
-                    "extra dividers are for the records, which lean and warp "
+                    "extra uprights are for the records, which lean and warp "
                     "in any run much over "
                     f"{mm_to_fractional_inch(self.bay_clear_w, 8)}",
                 )
@@ -840,36 +1283,94 @@ class MediaConsole:
         return findings
 
     def _construction_findings(self) -> list[Finding]:
-        """Report what the case is standing on, and what it is not."""
-        footprint = self.n_verticals * self.panel_t * self.panel_depth
-        return [
+        """Report what holds the kit together, and what does not."""
+        footprint = self.n_uprights * self.panel_t * self.panel_depth
+        findings: list[Finding] = [
             Finding(
                 Severity.INFO,
                 "stability",
-                f"the case stands on {self.n_verticals} panel ends — "
+                f"the case stands on {self.n_uprights} panel feet — "
                 f"{footprint / IN**2:.0f} sq in of bearing over "
-                f"{self.overall_w_in:g}\" — with the bay bottoms housed "
-                f"{mm_to_fractional_inch(self.toe_reveal, 64)} clear of the "
-                "floor, so an uneven floor cannot telegraph through a bottom",
+                f"{self.overall_w_in:g}\" — with the bottom shelf crossing "
+                f"them {mm_to_fractional_inch(self.toe_reveal, 64)} clear of "
+                "the floor, so an uneven floor cannot telegraph through a "
+                "panel and the feet can be shimmed",
             ),
             Finding(
                 Severity.INFO,
                 "racking",
-                "no back panel: the dado grid is the whole of the racking "
-                f"resistance, so the {self.n_verticals} housings under the top "
-                "are structural and every one of them wants glue, not just a "
-                "friction fit",
+                "no back and no glue: racking is resisted by the fit of the "
+                f"{self.n_uprights * self.n_shelves} crossings and by the "
+                "top's housings, which is why the top is a structural part "
+                "rather than a lid. Slack slots show up as sway, not as a gap",
             ),
             Finding(
                 Severity.INFO,
-                "material",
-                f"solid {self.species} edging against {self.panel_material} "
-                "veneer: the two start at different colours and darken at "
-                "different rates, and sapwood in the edging never catches up "
-                "— pull every strip from one board, and keep the piece out of "
-                "direct sun for its first months so it darkens evenly",
+                "racking",
+                "nothing but friction stops a shelf sliding back out the front "
+                "— loaded, it never will, and empty the piece is meant to come "
+                "apart. A 1/4\" dowel through each crossing locks it if it has "
+                "to travel loaded",
             ),
         ]
+
+        if self.has_edging:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    f"solid {self.species} edging against {self.panel_material} "
+                    "veneer: the two start at different colours and darken at "
+                    "different rates, and sapwood in the edging never catches "
+                    "up — pull every strip from one board, and keep the piece "
+                    "out of direct sun for its first months so it darkens "
+                    "evenly",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    f"no edging: {self.n_uprights + self.n_shelves} panels show "
+                    "a bare plywood edge at the front, and paint does not fill "
+                    "a void — grain filler or two coats of sanding sealer, "
+                    "sanded back each time, or the voids telegraph through the "
+                    "topcoat by the second summer",
+                )
+            )
+
+        if self.has_solid_top:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    f"a solid {self.top_material} top on a "
+                    f"{self.panel_material} case: the two finish differently on "
+                    "purpose — oil on the top, paint on the grid — and the "
+                    "only piece that has to be selected for grain is the one "
+                    "part anybody looks at",
+                )
+            )
+            findings.extend(
+                check_wood_movement(
+                    self.top_material,
+                    width_mm=self.overall_d,
+                    label="the solid top, across its depth",
+                )
+            )
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "movement",
+                    "which the grid allows: the housings run front to back, "
+                    "the same way the top moves, so nothing pins it. It lies "
+                    "on the kit under its own weight — screws through the "
+                    "shelves into it, or glue in the housings, would be the "
+                    "one mistake that splits it",
+                )
+            )
+        return findings
 
 
 # ---------------------------------------------------------------------------
@@ -877,11 +1378,13 @@ class MediaConsole:
 # ---------------------------------------------------------------------------
 
 
-def run(outdir: Path) -> CheckReport:
-    """Build the console, write its cut list and diagrams, print the report.
+def run(variant: str, outdir: Path) -> CheckReport:
+    """Build one console, write its cut list and diagrams, print the report.
 
     Parameters
     ----------
+    variant : str
+        Key in :data:`VARIANTS` — ``"cherry"`` or ``"painted"``.
     outdir : Path
         Directory for the generated CSV, Markdown, PDF, and CAD files.
 
@@ -891,12 +1394,15 @@ def run(outdir: Path) -> CheckReport:
         The design-check findings.
     """
     outdir.mkdir(parents=True, exist_ok=True)
-    console = MediaConsole()
+    console = MediaConsole(variant=variant)
     assembly = console.build()
     parts = extract(assembly)
 
-    stem = "media_console"
-    print(f"\n{'=' * 78}\n  Media console — 80\" x 24\" x 13\"\n{'=' * 78}")
+    stem = f"media_console_{variant}"
+    print(
+        f"\n{'=' * 78}\n  Media console — {variant}, "
+        f"a {console.grid_label} grid\n{'=' * 78}"
+    )
 
     df = render_cut_list(
         parts,
@@ -953,7 +1459,7 @@ def run(outdir: Path) -> CheckReport:
     render_assembly(
         assembly,
         output_png=outdir / f"{stem}.png",
-        title="Media console",
+        title=f"Media console — {variant}, a {console.grid_label} grid",
     )
     export_assembly(
         assembly,
@@ -965,19 +1471,31 @@ def run(outdir: Path) -> CheckReport:
     return report
 
 
-def _spec() -> ProjectSpec:
-    """Return the gallery entry for the console."""
-    console = MediaConsole()
+def _spec(variant: str) -> ProjectSpec:
+    """Return the gallery entry for one variant."""
+    console = MediaConsole(variant=variant)
+    if console.has_solid_top:
+        material = (
+            f"paint-grade {console.panel_material.replace('plywood_', '')} "
+            f"plywood, painted, under a solid {console.top_material} top "
+            f"overhanging {mm_to_fractional_inch(console.top_overhang, 32)} "
+            "at each end"
+        )
+    else:
+        material = (
+            f"{console.panel_material.replace('plywood_', '')} plywood with "
+            f"solid {console.species} front edges, finished clear"
+        )
     return ProjectSpec(
-        slug="media-console",
-        name="Media console",
+        slug=f"media-console-{variant}",
+        name=f"Media console — {variant}",
         summary=(
             f'{console.overall_w_in:g}"W x {console.overall_h_in:g}"H x '
-            f'{console.overall_d_in:g}"D in cherry plywood with solid cherry '
-            f"front edges: {console.n_bays} record bays "
-            f'{console.record_bay_h_in:g}" tall under a '
+            f'{console.overall_d_in:g}"D: a {console.grid_label} grid of '
+            f"half-lapped panels that slide together — {console.n_bays} record "
+            f'bays {console.record_bay_h_in:g}" tall under a '
             f'{console.cd_row_h_in:g}" CD row, and a clear top for the '
-            "turntable."
+            f"turntable. {material.capitalize()}."
         ),
         species=console.species,
         source_url="https://luccahouse.com/",
@@ -985,24 +1503,32 @@ def _spec() -> ProjectSpec:
         check=console.check,
         inventory=console.inventory,
         notes=(
-            "Sized to a record rather than to a catalogue: the openings are "
-            "held exactly and the bay width, the toe reveal and the sheet "
-            "count are whatever 45/64\" plywood leaves of an 80\" case."
+            "A kit rather than a case: six uprights, two shelves and a top, "
+            "no glue and no fasteners. Sized to a record rather than to a "
+            "catalogue — the openings are held exactly and the bay width, the "
+            "toe reveal and the sheet count are whatever the plywood actually "
+            "measures."
         ),
-        tags=["case", "storage"],
+        tags=["case", "storage", "flatpack", variant],
     )
 
 
 #: Projects this module contributes to the gallery.
-PROJECTS: list[ProjectSpec] = [_spec()]
+PROJECTS: list[ProjectSpec] = [_spec("cherry"), _spec("painted")]
 
 
 def main() -> None:
-    """Parse arguments and build the console."""
+    """Parse arguments and build the requested console or consoles."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--variant", choices=[*sorted(VARIANTS), "both"], default="cherry"
+    )
     parser.add_argument("--outdir", type=Path, default=Path("build"))
     args = parser.parse_args()
-    run(args.outdir)
+
+    variants = sorted(VARIANTS) if args.variant == "both" else [args.variant]
+    for variant in variants:
+        run(variant, args.outdir)
 
 
 if __name__ == "__main__":
