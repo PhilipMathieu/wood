@@ -50,7 +50,7 @@ class View:
 #: Isometric plus the three orthographic views, in the order they are drawn.
 STANDARD_VIEWS: tuple[View, ...] = (
     View("Isometric", 22.0, -55.0),
-    View("Front (foot)", 2.0, -90.0),
+    View("Front", 2.0, -90.0),
     View("Side", 2.0, 0.0),
     View("Plan", 89.0, -90.0),
 )
@@ -120,7 +120,7 @@ def render_assembly(
     output_png: str | Path | None = None,
     output_pdf: str | Path | None = None,
     views: tuple[View, ...] = STANDARD_VIEWS,
-    tolerance: float = 1.0,
+    tolerance: float = 0.5,
     title: str = "",
     figsize: tuple[float, float] = (14.0, 12.0),
     close: bool = True,
@@ -138,8 +138,9 @@ def render_assembly(
     views : tuple of View, optional
         Camera angles, default :data:`STANDARD_VIEWS`.
     tolerance : float, optional
-        Tessellation tolerance in mm, default 1.0.  Everything in this project
-        is flat-sided, so a coarse tolerance costs nothing.
+        Tessellation tolerance in mm, default 0.5.  Flat-sided parts look the
+        same at any tolerance; a turned leg or a round top does not, and 0.5 mm
+        is where the faceting stops showing at gallery sizes.
     title : str, optional
         Figure title.
     figsize : tuple, optional

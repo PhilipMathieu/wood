@@ -39,10 +39,28 @@ def render_cut_list(
     -------
     pandas.DataFrame
         Columns: ``label``, ``material``, ``grain``, ``qty``,
-        ``length``, ``width``, ``thickness``.
+        ``length``, ``width``, ``thickness`` — and ``shape`` as well if any
+        part is not rectangular.
+
+    Notes
+    -----
+    The dimensions are the **blank**: what to cut from a board, not what the
+    finished part measures.  For a rectangle those are the same thing.  For a
+    round or turned part they are not, and the blank is the useful one — an
+    18" disc is bought and cut as an 18-1/4" square, and nobody can hand you a
+    board 1-1/2" tapering to 1".  The ``shape`` column says what to do with the
+    blank once it is cut.
     """
-    rows = [
-        {
+    columns = ["label", "material", "grain", "qty", "length", "width", "thickness"]
+    # A column reading "rectangular" on every row of a bed teaches nobody
+    # anything; on a nightstand with three turned legs it is the whole point.
+    shaped = any(p.shape != "rectangular" for p in parts)
+    if shaped:
+        columns.append("shape")
+
+    rows = []
+    for p in parts:
+        row = {
             "label": p.label,
             "material": p.material,
             "grain": p.grain_direction,
@@ -51,11 +69,11 @@ def render_cut_list(
             "width": mm_to_fractional_inch(p.width_mm),
             "thickness": mm_to_fractional_inch(p.thickness_mm),
         }
-        for p in parts
-    ]
+        if shaped:
+            row["shape"] = p.profile or p.shape
+        rows.append(row)
 
-    df = pd.DataFrame(rows, columns=["label", "material", "grain", "qty",
-                                     "length", "width", "thickness"])
+    df = pd.DataFrame(rows, columns=columns)
 
     if output_csv is not None:
         df.to_csv(output_csv, index=False)

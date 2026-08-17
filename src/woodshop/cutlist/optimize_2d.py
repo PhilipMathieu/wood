@@ -67,6 +67,12 @@ class Placement:
     grain_direction : str
         The part's grain direction, carried through so a diagram can show
         which way the grain runs and why a part is oriented as it is.
+    shape : str
+        The part's shape.  A ``"round"`` or ``"turned"`` part occupies the
+        whole rectangle on the sheet — that is the blank — but only part of it
+        survives, which a diagram should show and a yield figure should admit.
+    finished_area_mm2 : float or None
+        Face area of the finished part.  ``None`` means the whole rectangle.
     """
 
     label: str
@@ -78,6 +84,45 @@ class Placement:
     rotated: bool = False
     material: str = ""
     grain_direction: str = "none"
+    shape: str = "rectangular"
+    finished_area_mm2: float | None = None
+
+    @property
+    def blank_area_mm2(self) -> float:
+        """Area of the rectangle this placement occupies."""
+        return self.width_mm * self.height_mm
+
+    @property
+    def yielded_area_mm2(self) -> float:
+        """Area of the finished part inside that rectangle."""
+        if self.finished_area_mm2 is None:
+            return self.blank_area_mm2
+        return self.finished_area_mm2
+
+
+def _placement(
+    part: CutPart,
+    sheet_index: int,
+    x_mm: float,
+    y_mm: float,
+    width_mm: float,
+    height_mm: float,
+    rotated: bool,
+) -> Placement:
+    """Build a :class:`Placement`, copying the part's metadata onto it."""
+    return Placement(
+        label=part.label,
+        sheet_index=sheet_index,
+        x_mm=x_mm,
+        y_mm=y_mm,
+        width_mm=width_mm,
+        height_mm=height_mm,
+        rotated=rotated,
+        material=part.material,
+        grain_direction=part.grain_direction,
+        shape=part.shape,
+        finished_area_mm2=part.finished_area_each_mm2,
+    )
 
 
 @dataclass
@@ -107,14 +152,40 @@ class Cut2DResult:
 
     @property
     def used_area_mm2(self) -> float:
-        """Total area of placed parts, in mm²."""
-        return sum(p.width_mm * p.height_mm for p in self.placements)
+        """Total area of placed blanks, in mm²."""
+        return sum(p.blank_area_mm2 for p in self.placements)
+
+    @property
+    def finished_area_mm2(self) -> float:
+        """Total area of the finished parts inside those blanks, in mm²."""
+        return sum(p.yielded_area_mm2 for p in self.placements)
+
+    @property
+    def stock_area_mm2(self) -> float:
+        """Total area of the stock bought for this run, in mm²."""
+        return self.sheets_used * self.sheet_w_mm * self.sheet_h_mm
 
     @property
     def yield_fraction(self) -> float:
-        """Fraction of purchased sheet area that ends up in parts (0-1)."""
-        total = self.sheets_used * self.sheet_w_mm * self.sheet_h_mm
+        """Fraction of purchased sheet area taken up by blanks (0-1).
+
+        This answers "how well did I nest?".  For anything that is not a
+        rectangle it flatters the result, because a blank is not a part — see
+        :attr:`finished_yield_fraction`.
+        """
+        total = self.stock_area_mm2
         return 0.0 if total == 0 else self.used_area_mm2 / total
+
+    @property
+    def finished_yield_fraction(self) -> float:
+        """Fraction of purchased sheet area that ends up in finished parts.
+
+        Identical to :attr:`yield_fraction` when everything is rectangular.
+        Lower when it is not: an 18" disc nested as an 18-1/4" square is the
+        right blank to buy, and 21% of it leaves as shavings.
+        """
+        total = self.stock_area_mm2
+        return 0.0 if total == 0 else self.finished_area_mm2 / total
 
 
 def _orientations(
@@ -272,16 +343,9 @@ def _pack_shelf(
                 for dx, dy, rot in choices:
                     if dy <= shelf_h and cursor + dx <= sheet_w_mm:
                         placements.append(
-                            Placement(
-                                label=part.label,
-                                sheet_index=sheet_index,
-                                x_mm=cursor,
-                                y_mm=y0,
-                                width_mm=dx - kerf_mm,
-                                height_mm=dy - kerf_mm,
-                                rotated=rot,
-                                material=part.material,
-                                grain_direction=part.grain_direction,
+                            _placement(
+                                part, sheet_index, cursor, y0,
+                                dx - kerf_mm, dy - kerf_mm, rot,
                             )
                         )
                         shelf[2] = cursor + dx
@@ -301,16 +365,9 @@ def _pack_shelf(
                 if top + dy <= sheet_h_mm:
                     shelves.append([top, dy, dx])
                     placements.append(
-                        Placement(
-                            label=part.label,
-                            sheet_index=sheet_index,
-                            x_mm=0.0,
-                            y_mm=top,
-                            width_mm=dx - kerf_mm,
-                            height_mm=dy - kerf_mm,
-                            rotated=rot,
-                            material=part.material,
-                            grain_direction=part.grain_direction,
+                        _placement(
+                            part, sheet_index, 0.0, top,
+                            dx - kerf_mm, dy - kerf_mm, rot,
                         )
                     )
                     placed = True
@@ -323,16 +380,9 @@ def _pack_shelf(
         dx, dy, rot = choices[0]
         sheets.append([[0.0, dy, dx]])
         placements.append(
-            Placement(
-                label=part.label,
-                sheet_index=len(sheets) - 1,
-                x_mm=0.0,
-                y_mm=0.0,
-                width_mm=dx - kerf_mm,
-                height_mm=dy - kerf_mm,
-                rotated=rot,
-                material=part.material,
-                grain_direction=part.grain_direction,
+            _placement(
+                part, len(sheets) - 1, 0.0, 0.0,
+                dx - kerf_mm, dy - kerf_mm, rot,
             )
         )
 
@@ -372,16 +422,9 @@ def _pack_maxrects(
                 abs(rect.width - orig_l) < 0.01 and abs(rect.height - orig_w) < 0.01
             )
             placements.append(
-                Placement(
-                    label=part.label,
-                    sheet_index=bin_index,
-                    x_mm=rect.x,
-                    y_mm=rect.y,
-                    width_mm=rect.width - kerf_mm,
-                    height_mm=rect.height - kerf_mm,
-                    rotated=rotated,
-                    material=part.material,
-                    grain_direction=part.grain_direction,
+                _placement(
+                    part, bin_index, rect.x, rect.y,
+                    rect.width - kerf_mm, rect.height - kerf_mm, rotated,
                 )
             )
             packed_ids.add(rid)

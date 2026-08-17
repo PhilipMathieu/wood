@@ -28,23 +28,133 @@ if TYPE_CHECKING:
     from woodshop.cutlist.hardwood import HardwoodPlan
     from woodshop.cutlist.optimize_2d import Cut2DResult, Placement
 
-__all__ = ["render_sheet_diagram", "render_board_diagram", "cut_sequence"]
+__all__ = [
+    "render_sheet_diagram",
+    "render_board_diagram",
+    "cut_sequence",
+    "save_figures",
+]
 
 _IN = 25.4
 
 
-def _grain_hatch(placement: "Placement") -> str | None:
+def save_figures(
+    figs: list[plt.Figure],
+    outdir: str | Path,
+    stem: str,
+    ext: str = "png",
+    dpi: int = 110,
+    close: bool = True,
+) -> list[Path]:
+    """Write each figure to its own image file and return the paths.
+
+    A multi-page PDF is the right thing to carry to the saw and the wrong
+    thing to put on a web page, which cannot embed one.  This is the other
+    output.
+
+    Parameters
+    ----------
+    figs : list of matplotlib.figure.Figure
+        Figures to write, in order.
+    outdir : str or Path
+        Directory to write into.  Created if it does not exist.
+    stem : str
+        Filename stem.  Files are named ``{stem}-1.{ext}``, ``{stem}-2.{ext}``,
+        and so on — one-based, matching the "Sheet 1 of 3" in the titles.
+    ext : str, optional
+        Image extension, default ``"png"``.  ``"svg"`` also works and stays
+        sharp at any zoom.
+    dpi : int, optional
+        Resolution for raster formats, default 110.
+    close : bool, optional
+        Close each figure after writing, default ``True``.
+
+    Returns
+    -------
+    list[Path]
+        The files written, in order.
+    """
+    directory = Path(outdir)
+    directory.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for index, fig in enumerate(figs, start=1):
+        path = directory / f"{stem}-{index}.{ext}"
+        fig.savefig(path, dpi=dpi, bbox_inches="tight")
+        written.append(path)
+        if close:
+            plt.close(fig)
+    return written
+
+
+#: Above this length-to-width ratio the stock is drawn lying down.
+#:
+#: A 4x8 sheet stands up fine at 2:1.  A 6" x 10 ft board at 20:1 becomes a
+#: ribbon down a page four times taller than it is wide, unreadable at any
+#: size a screen or a sheet of paper can hold.
+LANDSCAPE_ASPECT: float = 3.0
+
+
+def _xy(x: float, y: float, landscape: bool) -> tuple[float, float]:
+    """Swap a coordinate or size pair when the stock is drawn lying down."""
+    return (y, x) if landscape else (x, y)
+
+
+def _grain_hatch(placement: "Placement", landscape: bool = False) -> str | None:
     """Return a hatch pattern showing which way the grain runs, if it matters.
 
-    ``'|'`` means the grain runs up the page (along the stock's length),
-    ``'-'`` means across it.  Parts with no grain requirement get no hatch.
+    The hatch follows the part's grain *as drawn*, so it stays truthful when
+    the stock is turned on its side.  Parts with no grain requirement get no
+    hatch.
     """
     grain = getattr(placement, "grain_direction", "none")
     if grain == "none":
         return None
     if grain == "length":
-        return "|" if placement.rotated else "-"
-    return "-" if placement.rotated else "|"
+        hatch = "|" if placement.rotated else "-"
+    else:
+        hatch = "-" if placement.rotated else "|"
+    if landscape:
+        hatch = "-" if hatch == "|" else "|"
+    return hatch
+
+
+def _draw_finished_outline(ax, placement: "Placement", landscape: bool) -> None:
+    """Outline the finished part inside its blank, for non-rectangular parts.
+
+    The blank is what the saw cuts and what the layout has to fit; the outline
+    is what survives.  Drawing both is the difference between a diagram that
+    says "an 18-1/4" square" and one that shows why you bought it.
+    """
+    shape = getattr(placement, "shape", "rectangular")
+    if shape == "rectangular":
+        return
+    area = placement.yielded_area_mm2
+    if area <= 0:
+        return
+    cx = placement.x_mm + placement.width_mm / 2
+    cy = placement.y_mm + placement.height_mm / 2
+    style = dict(fill=False, linestyle="--", linewidth=0.9, edgecolor="black")
+
+    if shape == "round":
+        # Exact: the finished area is a circle, so it fixes the diameter.
+        radius = (area / 3.141592653589793) ** 0.5
+        ax.add_patch(mpatches.Circle(_xy(cx, cy, landscape), radius, **style))
+        return
+
+    # A turning: a band down the middle of the blank at the mean diameter.
+    # The real profile tapers, but mean diameter is what the area fixes, and
+    # the point of the outline is "most of this square is shavings".
+    along = max(placement.width_mm, placement.height_mm)
+    mean_dia = area / along if along else 0.0
+    if placement.height_mm >= placement.width_mm:
+        x, y = cx - mean_dia / 2, placement.y_mm
+        w, h = mean_dia, placement.height_mm
+    else:
+        x, y = placement.x_mm, cy - mean_dia / 2
+        w, h = placement.width_mm, mean_dia
+    ax.add_patch(
+        mpatches.Rectangle(_xy(x, y, landscape), *_xy(w, h, landscape), **style)
+    )
 
 
 def _inch_ticks(set_ticks, set_labels, extent_mm: float, step_in: float) -> None:
@@ -68,43 +178,70 @@ def _render_layout(
     panel_label: str,
     subtitle: str,
     close: bool,
+    landscape: bool | None = None,
 ) -> list[plt.Figure]:
-    """Draw one figure per sheet or board."""
+    """Draw one figure per sheet or board.
+
+    When *landscape* is ``None`` the orientation follows the stock's aspect
+    ratio: long thin boards are turned on their side, sheets are left standing.
+    The layout itself is unchanged — only which way up it is drawn.
+    """
     figs: list[plt.Figure] = []
     cmap = plt.get_cmap("tab20")
 
+    aspect = panel_h_mm / panel_w_mm if panel_w_mm else 1.0
+    if landscape is None:
+        landscape = aspect > LANDSCAPE_ASPECT
+
+    width_label = f"width  {mm_to_fractional_inch(panel_w_mm)}"
+    length_label = (
+        f"length  {mm_to_fractional_inch(panel_h_mm)}  "
+        f"(face grain {'↔' if landscape else '↕'})"
+    )
+
     for index in range(n_panels):
         # Keep the drawing a sensible shape whatever the stock's aspect ratio.
-        aspect = panel_h_mm / panel_w_mm if panel_w_mm else 1.0
-        height = max(5.0, min(16.0, 7.0 * aspect))
-        fig, ax = plt.subplots(figsize=(7.0, height))
-        ax.set_xlim(0, panel_w_mm)
-        ax.set_ylim(0, panel_h_mm)
+        if landscape:
+            figsize = (min(16.0, max(7.0, 3.0 * aspect)), 4.0)
+        else:
+            figsize = (7.0, max(5.0, min(16.0, 7.0 * aspect)))
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.set_xlim(0, panel_h_mm if landscape else panel_w_mm)
+        ax.set_ylim(0, panel_w_mm if landscape else panel_h_mm)
         ax.set_aspect("equal")
         ax.set_title(f"{panel_label} {index + 1} of {n_panels}\n{subtitle}", fontsize=10)
-        ax.set_xlabel(f"width  {mm_to_fractional_inch(panel_w_mm)}")
-        ax.set_ylabel(f"length  {mm_to_fractional_inch(panel_h_mm)}  (face grain ↕)")
+        ax.set_xlabel(length_label if landscape else width_label)
+        ax.set_ylabel(width_label if landscape else length_label)
         # Geometry is in mm, but nobody at the saw is measuring this in mm.
-        _inch_ticks(ax.set_xticks, ax.set_xticklabels, panel_w_mm, 6.0)
-        _inch_ticks(ax.set_yticks, ax.set_yticklabels, panel_h_mm, 12.0)
+        across_step, along_step = 6.0, 12.0
+        _inch_ticks(
+            ax.set_xticks, ax.set_xticklabels,
+            *( (panel_h_mm, along_step) if landscape else (panel_w_mm, across_step) ),
+        )
+        _inch_ticks(
+            ax.set_yticks, ax.set_yticklabels,
+            *( (panel_w_mm, across_step) if landscape else (panel_h_mm, along_step) ),
+        )
 
         on_panel = [p for p in placements if p.sheet_index == index]
         for i, pl in enumerate(on_panel):
             ax.add_patch(
                 mpatches.Rectangle(
-                    (pl.x_mm, pl.y_mm), pl.width_mm, pl.height_mm,
+                    _xy(pl.x_mm, pl.y_mm, landscape),
+                    *_xy(pl.width_mm, pl.height_mm, landscape),
                     linewidth=1, edgecolor="black",
                     facecolor=cmap(i % 20), alpha=0.55,
-                    hatch=_grain_hatch(pl),
+                    hatch=_grain_hatch(pl, landscape),
                 )
             )
+            _draw_finished_outline(ax, pl, landscape)
             long_side = max(pl.width_mm, pl.height_mm)
+            drawn_w, drawn_h = _xy(pl.width_mm, pl.height_mm, landscape)
             ax.text(
-                pl.x_mm + pl.width_mm / 2,
-                pl.y_mm + pl.height_mm / 2,
+                *_xy(pl.x_mm + pl.width_mm / 2, pl.y_mm + pl.height_mm / 2, landscape),
                 f"{pl.label}\n{mm_to_fractional_inch(long_side)}",
                 ha="center", va="center", fontsize=6,
-                rotation=90 if pl.height_mm > pl.width_mm * 1.5 else 0,
+                rotation=90 if drawn_h > drawn_w * 1.5 else 0,
             )
 
         figs.append(fig)
@@ -153,6 +290,8 @@ def render_sheet_diagram(
         f"{', '.join(materials) or 'sheet goods'} · "
         f"{result.yield_fraction * 100:.0f}% yield"
     )
+    if abs(result.finished_yield_fraction - result.yield_fraction) > 0.005:
+        subtitle += f" nested, {result.finished_yield_fraction * 100:.0f}% finished"
     figs = _render_layout(
         result.placements, result.sheets_used, w, h, "Sheet", subtitle,
         close=output_pdf is None and close,
@@ -188,11 +327,17 @@ def render_board_diagram(
     """
     figs: list[plt.Figure] = []
     for group in plan.groups:
+        # Yields are quoted against the width you *buy*, matching HardwoodPlan.
+        # Measuring them against the narrower post-jointing width would put two
+        # different numbers for the same quantity on the same page.
         subtitle = (
             f"{group.label} · {group.stock.typical_width_in:g}\" x "
             f"{group.board_length_mm / 304.8:.0f} ft · "
-            f"{group.board_feet:.1f} bd ft"
+            f"{group.board_feet:.1f} bd ft · "
+            f"{group.yield_fraction * 100:.0f}% nested"
         )
+        if abs(group.finished_yield_fraction - group.yield_fraction) > 0.005:
+            subtitle += f", {group.finished_yield_fraction * 100:.0f}% after the lathe"
         figs.extend(
             _render_layout(
                 group.nesting.placements,
