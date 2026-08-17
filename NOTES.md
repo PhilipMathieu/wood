@@ -927,5 +927,8 @@ and are commented as assumptions, because a yield estimate built on an assumed
 
 And there is a maintenance problem the file cannot solve: **the specials change
 every month**. A price list that has to be re-photographed to stay true will
-not stay true. Hence the issue on scheduled refreshes — the machinery for
-noticing staleness is now in place, and something has to actually go and look.
+not stay true. Hence #9 on scheduled refreshes — the machinery for noticing
+staleness is now in place, and something has to actually go and look. The
+first version proposed there does not even parse the sign: it notices the
+image changed and shows it to a human, because a scraper that launders a bad
+parse into a dated price would undo everything #3 built.

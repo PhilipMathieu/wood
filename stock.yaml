@@ -57,7 +57,7 @@
 # (207) 536-7860 — a photograph of the price board would settle all of it.
 #
 # The specials change monthly, which is a maintenance problem this file
-# cannot solve on its own. See the issue on scheduled price refreshes.
+# cannot solve on its own. See issue #9 on scheduled price refreshes.
 #
 # Softwood carries either `price_per_piece` (with `price_length_ft` saying
 # which length that buys) or `price_per_lineal_ft`, whichever the supplier
