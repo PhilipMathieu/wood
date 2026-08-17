@@ -81,6 +81,14 @@ whole difference between a grid and a box.  The uprights would overrun top and
 bottom in the same way if there were room; there is not — see *What the
 arithmetic decides*.
 
+The four ledges that overrun leaves are not a leftover.  They are the only
+surfaces on the piece at a height you look *at* rather than down on, and they
+are meant for a plant or something small — 5 kg on the very tip of one deflects
+it two hundredths of a millimetre, so what limits an ear is what will sit still
+on it.  What they are *not* is bays: nothing stands beyond them, so records put
+there walk off the end, and anything with soil in it wants a saucer, because
+they are also the one place on this piece where water is likely.
+
 The top is the one part that does not slide.  Its housings are 1/4" deep and
 stopped by its own front edging, so no slot reaches the surface the turntable
 stands on; it drops straight down onto the uprights, squares the grid, and
@@ -185,23 +193,20 @@ Two builds
 
 Corners
 -------
-``corner_radius_in`` rounds the panels' outer corners — every corner of the top
-in plan, every corner of an upright in its own plane — which is the other half
-of what the Grid System looks like.  The parts become
-:class:`woodshop.parts.ShapedBoard` profiles sawn from the same rectangles, so
-nothing about the grid, the openings or the envelope moves.
+Every outer corner of a panel is rounded — the top in plan, each upright in its
+own plane — at **7/8"**, which is :data:`REFERENCE_RADIUS_RATIO` of these
+12-3/4" panels and the maker's own proportion rather than a number somebody
+liked the look of.  The first attempt used 2", more than twice that, and read
+as a different piece of furniture: at that size the curve eats the case instead
+of softening it.
 
-**Size it by the ratio, not by eye.**  The measured radius is 0.07 of the
-panel's width (see *Where the joinery came from*), which on these 12-3/4"
-panels is :data:`REFERENCE_RADIUS_RATIO` x 12-3/4" = **7/8"**.  The first
-attempt used 2", which is more than twice the reference and reads as a
-different piece of furniture: at that size the curve starts eating the case
-rather than softening it.
+The parts become :class:`woodshop.parts.ShapedBoard` profiles sawn from the
+same rectangles, so nothing about the grid, the openings or the envelope moves.
+The shelves stay square, because their corners are inside the case where nobody
+sees them, and the radius interrupts the outer end of each end upright's
+housing in the top — about 1% of the engagement, and none of the fit.
 
-Two consequences, both reported rather than assumed: the shelves stay square,
-because their corners are inside the case where nobody sees them, and the
-radius interrupts the outer end of each end upright's housing in the top —
-about 1% of the engagement at 7/8", and all of the fit.
+``corner_radius_in=0`` goes back to square.
 
 Run it
 ------
@@ -227,6 +232,7 @@ from pathlib import Path
 from build123d import Compound, Mode, Pos, Rotation
 
 from woodshop.checks import (
+    ELASTIC_MODULUS_MPA,
     CheckReport,
     Finding,
     Severity,
@@ -285,6 +291,13 @@ CD_MASS_KG: float = 0.1
 #: What the top is expected to carry over one span: a turntable, or an
 #: amplifier, at the heavy end of either.
 TOP_LOAD_KG: float = 15.0
+
+#: What an ear is expected to carry, kg.
+#:
+#: A 10" pot of damp soil with something growing in it, which is heavier than
+#: anybody expects — and it is checked at the very tip of the cantilever,
+#: where nobody would actually stand it.
+EAR_LOAD_KG: float = 5.0
 
 
 @dataclass(frozen=True)
@@ -517,7 +530,9 @@ class MediaConsole:
         Depth of the top's stopped housings, default 1/4".
     corner_radius_in : float, optional
         Radius on the panels' outer corners — every corner of the top in plan,
-        every corner of an upright in its own plane — default ``0`` for square.
+        every corner of an upright in its own plane.  ``None``, the default,
+        takes the maker's own proportion (:data:`REFERENCE_RADIUS_RATIO` of the
+        panel's width); ``0`` leaves them square.
     end_overhang_in : float, optional
         How far the horizontals run past the outermost upright.  ``None``, the
         default, takes the maker's own proportion
@@ -549,7 +564,7 @@ class MediaConsole:
 
     panel_nominal_thickness: str = "3/4"
     dado_depth_in: float = 0.25
-    corner_radius_in: float = 0.0
+    corner_radius_in: float | None = None
     end_overhang_in: float | None = None
 
     inventory: Inventory = field(default_factory=Inventory.load)
@@ -662,6 +677,8 @@ class MediaConsole:
     @property
     def corner_radius(self) -> float:
         """Radius on the panels' outer corners in mm, ``0`` for square."""
+        if self.corner_radius_in is None:
+            return self.reference_corner_radius
         return inches(self.corner_radius_in)
 
     @property
@@ -683,9 +700,9 @@ class MediaConsole:
         """The radius this piece would have at the measured proportion, mm.
 
         :data:`REFERENCE_RADIUS_RATIO` of the panel's width — 7/8" on a 12-3/4"
-        panel.  Not applied automatically: it is what to pass to
-        ``corner_radius_in`` if you want the maker's proportion rather than a
-        number somebody liked the look of.
+        panel.  This is what ``corner_radius_in=None`` uses, so the shipped
+        design carries the maker's proportion rather than a number somebody
+        liked the look of.
         """
         return REFERENCE_RADIUS_RATIO * self.panel_depth
 
@@ -1408,16 +1425,7 @@ class MediaConsole:
                 f"{mm_to_fractional_inch(self.bay_clear_w, 32)} and not "
                 f"{mm_to_fractional_inch(flush_bay, 32)}",
             ),
-            Finding(
-                Severity.WARN,
-                "capacity",
-                f"an ear is a ledge, not a bay: there is no upright beyond it, "
-                f"so records in the outer "
-                f"{mm_to_fractional_inch(self.end_overhang, 16)} have nothing "
-                "to lean on and will slide off the end. Keep the run inboard "
-                "of the last upright and treat the ears as somewhere to put a "
-                "record down while the other side plays",
-            ),
+            *self._ear_findings(),
             Finding(
                 Severity.INFO,
                 "kit",
@@ -1431,6 +1439,62 @@ class MediaConsole:
                 "matching it properly would mean a "
                 f"{(self.overall_h + 2 * self.end_overhang) / IN:.0f}\" "
                 "console or shorter rows",
+            ),
+        ]
+
+    def _ear_findings(self) -> list[Finding]:
+        """Weigh the ears as what they are for: standing things on.
+
+        The overrun is joinery first — it is what makes every crossing a
+        full-width lap — but the four ledges it leaves are the piece's only
+        surfaces at a height you look *at* rather than down on, and they are
+        meant for plants and small objects rather than for records.  So the
+        questions worth answering are how much they carry and what a wet pot
+        does to them, not whether a record fits.
+        """
+        ear = self.end_overhang
+        e_mpa = ELASTIC_MODULUS_MPA.get(self.panel_material, 6000.0)
+        i_mm4 = self.panel_depth * self.panel_t**3 / 12.0
+        # A cantilever loaded at its tip: the worst case for a ledge, and the
+        # way anybody actually sets a pot down on one.
+        load_kg = EAR_LOAD_KG
+        deflection_mm = (
+            load_kg * 9.80665 * ear**3 / (3.0 * e_mpa * i_mm4)
+        )
+        return [
+            Finding(
+                Severity.INFO,
+                "capacity",
+                f"the four ears are {mm_to_fractional_inch(ear, 16)} x "
+                f"{mm_to_fractional_inch(self.overall_d, 16)} ledges for "
+                f"plants and small things: {load_kg:g} kg set on the very tip "
+                f"of one deflects it {deflection_mm:.2f} mm "
+                f"(ear/{ear / deflection_mm:.0f}), so what limits them is what "
+                "will sit still on them, not the plywood",
+            ),
+            Finding(
+                Severity.WARN,
+                "capacity",
+                "an ear is not a bay: there is no upright beyond it, so "
+                "records stood in the outer "
+                f"{mm_to_fractional_inch(ear, 16)} have nothing to lean on and "
+                "will walk off the end. Keep the collection inboard of the "
+                "last upright",
+            ),
+            Finding(
+                Severity.WARN,
+                "material",
+                "anything with soil in it needs a saucer and a cork mat: a wet "
+                "ring on "
+                + (
+                    "an oiled top is a stain, and on a plywood edge it is "
+                    "swelling that no finish flattens again"
+                    if self.has_solid_top
+                    else "clear-finished cherry darkens unevenly, and it does "
+                    "it exactly where the light already darkens the wood"
+                )
+                + ". The ears are the one place on this piece where water is "
+                "likely, and they are end grain and edge veneer",
             ),
         ]
 
@@ -1819,8 +1883,10 @@ def _spec(variant: str) -> ProjectSpec:
             f'{console.overall_d_in:g}"D: a {console.grid_label} grid of '
             f"half-lapped panels that slide together — {console.n_bays} record "
             f'bays {console.record_bay_h_in:g}" tall under a '
-            f'{console.cd_row_h_in:g}" CD row, and a clear top for the '
-            f"turntable. {material.capitalize()}."
+            f'{console.cd_row_h_in:g}" CD row, a clear top for the turntable, '
+            f"and the horizontals running "
+            f"{mm_to_fractional_inch(console.end_overhang, 16)} past the end "
+            f"uprights into ledges for plants. {material.capitalize()}."
         ),
         species=console.species,
         source_url="https://luccahouse.com/",
@@ -1829,10 +1895,10 @@ def _spec(variant: str) -> ProjectSpec:
         inventory=console.inventory,
         notes=(
             "A kit rather than a case: six uprights, two shelves and a top, "
-            "no glue and no fasteners. Sized to a record rather than to a "
-            "catalogue — the openings are held exactly and the bay width, the "
-            "toe reveal and the sheet count are whatever the plywood actually "
-            "measures."
+            "no glue and no fasteners. The joinery, the overrun and the corner "
+            "radius are measured off the maker's own drawings; the sizes are "
+            "the brief's. Every crossing is a full-width lap, which is bought "
+            "out of the bays and costs them an inch and three quarters each."
         ),
         tags=["case", "storage", "flatpack", variant],
     )

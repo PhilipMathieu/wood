@@ -1269,3 +1269,29 @@ That last one is the honest limit of borrowing a system for a piece it was not
 drawn for. The horizontal half of the language fits inside the brief; the
 vertical half does not, and pretending otherwise would mean quietly changing
 what the piece is for.
+
+### Shipped: both proportions on by default, and the ears got a job
+
+`corner_radius_in` and `end_overhang_in` both now default to `None`, meaning
+*the maker's proportion* — 7/8" of radius and 4-7/16" of overrun on these
+12-3/4" panels. Passing `0` to either goes back to square corners or flush
+ends. Holding them as ratios rather than inches is what makes that work: the
+painted build's panels are 13" wide, so it takes 0.91" and 4-9/16" without
+anybody restating the numbers.
+
+The ears turned out to be the point rather than the price. They are the only
+surfaces on the piece at a height you look *at* rather than down on, and they
+are for a plant or something small — so the report now weighs them as ledges:
+5 kg on the very tip of one deflects it 0.02 mm, ear/4539, which says the limit
+is what will sit still on a 4-7/16" shelf and not the plywood under it. Two
+warnings keep their company, because a ledge that is good for a plant is bad
+for two other things:
+
+- **Not a bay.** Nothing stands beyond an ear, so records put there walk off
+  the end.
+- **Water.** A pot of damp soil on end grain and edge veneer is the one place
+  on this piece where a ring is likely — saucer and cork mat, and on the
+  painted build's plywood edge a ring is swelling, not a stain.
+
+That is the sort of thing a check is for: the design got a new use, and the
+consequences of that use are now printed next to it rather than remembered.

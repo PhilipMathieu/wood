@@ -219,8 +219,10 @@ def test_only_interlocking_parts_share_a_bounding_box(assembly):
     assert clashes == {("shelf", "upright"), ("top", "upright")}
 
 
-def test_every_part_loses_exactly_the_slots_it_is_meant_to(console, assembly):
-    placed = _placed(assembly)
+def test_every_part_loses_exactly_the_slots_it_is_meant_to():
+    """Square-cornered, so the only thing missing from a blank is joinery."""
+    console = MediaConsole(corner_radius_in=0.0)
+    placed = _placed(console.build())
     one_slot = console.panel_t * console.panel_t * console.lap_depth
     one_housing = console.panel_t * console.dado_depth * console.panel_depth
 
@@ -462,7 +464,9 @@ def test_the_solid_top_overhangs_the_case_at_each_end(painted):
     assert top.max.X > max(b.max.X for b in uprights) + IN / 4
 
 
-def test_the_solid_top_is_still_housed_on_every_upright(painted):
+def test_the_solid_top_is_still_housed_on_every_upright():
+    """Square-cornered: the radius takes its own bite, measured separately."""
+    painted = MediaConsole(variant="painted", corner_radius_in=0.0)
     placed = _placed(painted.build())
     top = placed["top"][0]
     blank = painted.overall_w * painted.overall_d * painted.top_t
@@ -515,17 +519,26 @@ def test_the_painted_top_is_a_glue_up_of_solid_stock(painted, painted_parts):
 
 
 @pytest.fixture(scope="module")
-def rounded() -> MediaConsole:
-    return MediaConsole(corner_radius_in=2.0)
+def rounded(console) -> MediaConsole:
+    """Return the shipped design — the radius is on by default now."""
+    return console
 
 
-def test_a_radius_does_not_move_the_envelope_or_the_openings(console, rounded):
+def test_the_radius_is_the_makers_proportion_by_default(console):
+    assert console.corner_radius == pytest.approx(0.07 * console.panel_depth)
+    assert console.corner_radius == pytest.approx(console.reference_corner_radius)
+    assert 0.85 * IN < console.corner_radius < 0.95 * IN
+    assert MediaConsole(corner_radius_in=0.0).corner_radius == 0.0
+
+
+def test_a_radius_does_not_move_the_envelope_or_the_openings(rounded):
+    square = MediaConsole(corner_radius_in=0.0)
     bb = rounded.build().bounding_box()
     assert bb.size.X == pytest.approx(80 * IN, abs=0.1)
     assert bb.size.Y == pytest.approx(13 * IN, abs=0.1)
     assert bb.size.Z == pytest.approx(24 * IN, abs=0.1)
-    assert rounded.bay_clear_w == pytest.approx(console.bay_clear_w)
-    assert rounded.toe_reveal == pytest.approx(console.toe_reveal)
+    assert rounded.bay_clear_w == pytest.approx(square.bay_clear_w)
+    assert rounded.toe_reveal == pytest.approx(square.toe_reveal)
 
 
 def test_a_radius_makes_the_panels_shaped_and_leaves_the_shelves_alone(rounded):
@@ -546,10 +559,13 @@ def test_all_four_corners_of_an_upright_are_gone_and_the_edges_are_not(rounded):
     upright = _placed(rounded.build())["upright"][0]
     bb = upright.bounding_box()
     x = (bb.min.X + bb.max.X) / 2
-    inset = 4.0  # a probe just inside the bounding box, well inside the radius
+    # Sized off the radius so the whole probe stays outside the arc: its far
+    # corner sits 1.1r from the arc centre.
+    inset = 0.15 * rounded.corner_radius
+    side = 0.15 * rounded.corner_radius
 
     def probe(y: float, z: float):
-        return Pos(x, y, z) * Box(rounded.panel_t * 2, 6.0, 6.0)
+        return Pos(x, y, z) * Box(rounded.panel_t * 2, side, side)
 
     for y in (bb.min.Y + inset, bb.max.Y - inset):
         for z in (bb.min.Z + inset, bb.max.Z - inset):
