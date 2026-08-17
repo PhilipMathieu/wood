@@ -238,17 +238,24 @@ total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
 
 | Stock | Prices | Source |
 | --- | --- | --- |
-| white cedar (28 profiles/grades) | **real**, per lineal foot | [Lumbery's published pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
-| cherry 4/4–10/4 | placeholder, undated | O'Brien publishes none — needs a call |
+| white cedar (28 profiles/grades) | **real** shelf prices, per lineal foot | [Lumbery's pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
+| cherry 6/4, red oak 4/4, white oak 5/4 and 8/4, 6 mm Baltic birch | **real** but on **sale** to 2026-08-31 | [O'Brien Hardwoods August specials](https://obrienhardwoods.com/specials) |
+| walnut 4/4 shorts | **real**, a standing special | [Atlantic Hardwoods specials](https://www.atlantichardwoods.com/specials) |
+| cherry 4/4, 5/4, 8/4, 10/4 | placeholder, undated | neither yard publishes a full list — needs a call |
 | cherry and Baltic birch plywood | placeholder, undated | as above |
 | birch plywood, pine, poplar | no price | — |
 
-The cherry and plywood numbers are invented and deliberately undated, so
-`check_price_provenance` reports every one of them as an `ERROR` and any total
-they reach is marked unverified. The sizes, grades and thicknesses in that
-file are real; only that money is not, and it will not be until somebody
-phones O'Brien Hardwoods on (207) 536-7860 and writes the numbers down with
-the date attached. Issue #3 lists exactly what to ask for.
+Three states, and the file distinguishes all three. A **shelf price** is good
+until it goes stale. A **sale price** carries `price_valid_until`, so the check
+reports it as a special while it lasts and warns the day it lapses — a total
+built on last month's discount is wrong in a way that looks perfectly
+researched. A **placeholder** is undated, which makes it an `ERROR` and marks
+every total it reaches unverified.
+
+The remaining cherry and plywood numbers are invented. The sizes, grades and
+thicknesses in that file are real; only that money is not, and it will not be
+until somebody phones O'Brien Hardwoods on (207) 536-7860 and writes the shelf
+prices down with the date attached. Issue #3 lists exactly what to ask for.
 
 ## Known limitation of the 3-D views
 

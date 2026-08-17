@@ -867,3 +867,65 @@ $10,000 — are recorded in the file's header and not modelled. So are the cedar
 shakes ($155/bundle clear, $85 wall, $20 low) and the 4x8 lattice sheets ($250
 each, thickness unpublished): a bundle is not a unit this schema has, and a
 sheet whose thickness nobody states is not a `SheetStock`.
+
+## Addendum: a sale price is a third kind of number
+
+Two domains came off the blocklist, and both suppliers turned out to have real
+prices after all — which promptly broke the model again, in a way worth
+recording.
+
+**O'Brien's specials do exist**, as a PNG on their CDN. August 2026:
+
+```
+4/4 Red Oak          $2.99 BF        6/4 Cherry           $5.25 BF
+5/4 White Oak        $8.90 BF        8/4 White Oak        $9.79 BF
+6mm Baltic 4x8 B/BB  $61.00 ea
+```
+
+**Atlantic Hardwoods** lists one lumber special — 4/4 walnut, 4-6 ft shorts, at
+$8.50/bf — alongside red oak stair treads by the piece and prefinished flooring
+by the square foot, neither of which is stock this schema can hold.
+
+The cherry number is the one that stings. The placeholder sitting in that slot
+was **$14.00/bf**. The real August price is **$5.25**. Nobody would have caught
+that by reading the file; it took a picture of a sign.
+
+### The problem with a real price
+
+A special is real, dated, sourced — and temporary. That is a third state, and
+until now the file had two: dated (believe it) and undated (do not). Recording
+$5.25 as *the* price for 6/4 cherry would be true for two weeks and then
+quietly wrong, and wrong in the most convincing possible way, because every
+qualifier the machinery prints would say it was verified.
+
+So `price_valid_until` now exists, and the check reads it:
+
+- inside the window → `INFO`, *"a sale price good to 2026-08-31 … not the shelf
+  price"*
+- past it → `WARN`, *"the shelf price is not recorded, so this total is a total
+  at last month's discount"*
+
+`CostSummary.earliest_valid_until` propagates it, because a total built partly
+from specials is only good until the first of them runs out. The expiry finding
+deliberately supersedes the staleness one: both apply to an old special, and
+"the sale ended" explains the number where "this is 200 days old" only
+describes it.
+
+The assumption worth flagging: the sheet says "AUGUST SPECIALS" and prints no
+end date, so 2026-08-31 is inferred. That is recorded in the comment beside the
+entries rather than presented as quoted.
+
+### What the specials did not settle
+
+The shelf prices. Four cherry thicknesses are still placeholders, and the bed
+uses all of them — its total still prints `UNVERIFIED`, correctly, because one
+real sale price among four invented ones does not make a verified total. The
+specials also brought in two species (red and white oak) whose widths, lengths
+and grades the sheet does not give: those fields follow the cherry convention
+and are commented as assumptions, because a yield estimate built on an assumed
+7" board is a different kind of claim from a price read off a sign.
+
+And there is a maintenance problem the file cannot solve: **the specials change
+every month**. A price list that has to be re-photographed to stay true will
+not stay true. Hence the issue on scheduled refreshes — the machinery for
+noticing staleness is now in place, and something has to actually go and look.

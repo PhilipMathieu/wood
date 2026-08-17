@@ -371,6 +371,67 @@ def test_the_shipped_stock_file_is_honest_about_its_prices(inv):
         for f in findings
         if "carries no price_as_of" in f.message
     )
-    assert not any(
-        f.severity is Severity.INFO and "cherry" in f.message for f in findings
+    # Cherry 6/4 is real but on sale, and reads as exactly that; the other
+    # cherry thicknesses are still invented, and read as that.
+    assert any(
+        f.severity is Severity.INFO and "cherry 6/4" in f.message
+        and "sale price" in f.message
+        for f in findings
     )
+    assert all(
+        f.severity is Severity.ERROR
+        for f in findings
+        if f.message.startswith(("cherry 4/4", "cherry 5/4", "cherry 8/4", "cherry 10/4"))
+    )
+
+
+def test_a_live_sale_price_is_reported_as_a_sale_price():
+    """August's specials are real numbers with a fuse on them."""
+    stock = _priced(
+        price_per_bf=5.25, price_as_of=date(2026, 8, 17),
+        price_valid_until=date(2026, 8, 31),
+        price_source="O'Brien Hardwoods, August 2026 specials sheet",
+    )
+    findings = check_price_provenance(stock, [_cherry_slat()], today=_TODAY)
+    assert [f.severity for f in findings] == [Severity.INFO]
+    assert "good to 2026-08-31" in findings[0].message
+    assert "not the shelf price" in findings[0].message
+
+
+def test_an_expired_sale_price_is_warned_about():
+    stock = _priced(
+        price_per_bf=5.25, price_as_of=date(2026, 8, 17),
+        price_valid_until=date(2026, 8, 31),
+        price_source="O'Brien Hardwoods, August 2026 specials sheet",
+    )
+    findings = check_price_provenance(
+        stock, [_cherry_slat()], today=date(2026, 9, 15)
+    )
+    assert [f.severity for f in findings] == [Severity.WARN]
+    assert "ended 2026-08-31" in findings[0].message
+    assert "last month's discount" in findings[0].message
+
+
+def test_an_expired_sale_beats_staleness_to_the_finding():
+    """Both apply; the one that explains the number wins."""
+    stock = _priced(
+        price_per_bf=5.25, price_as_of=date(2025, 1, 1),
+        price_valid_until=date(2025, 1, 31),
+    )
+    findings = check_price_provenance(stock, [_cherry_slat()], today=_TODAY)
+    assert len(findings) == 1
+    assert "sale price that ended" in findings[0].message
+
+
+def test_the_shipped_specials_are_flagged_as_sale_prices(inv):
+    """Regression: the cherry, oak and 6 mm Baltic prices are August's, not the shelf's."""
+    live = check_price_provenance(inv, today=date(2026, 8, 20))
+    assert any(
+        f.severity is Severity.INFO and "cherry 6/4" in f.message
+        and "not the shelf price" in f.message
+        for f in live
+    )
+    lapsed = check_price_provenance(inv, today=date(2026, 9, 15))
+    expired = [f for f in lapsed if "sale price that ended" in f.message]
+    assert len(expired) == 5
+    assert all(f.severity is Severity.WARN for f in expired)

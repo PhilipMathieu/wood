@@ -178,3 +178,42 @@ def test_sheets_are_priced_by_the_sheet_and_keyed_as_the_packer_keys_them():
 
 def test_a_key_that_names_no_stocked_sheet_returns_nothing():
     assert sheet_for_key(_inventory(), 'plywood_unobtanium 3/4 (48" x 96")') is None
+
+
+# ---------------------------------------------------------------------------
+# Sale prices: real, dated, sourced — and temporary
+# ---------------------------------------------------------------------------
+
+_SPECIAL = PriceLine(
+    "cherry 6/4", 10.0, "bd ft", 5.25, as_of=date(2026, 8, 17),
+    valid_until=date(2026, 8, 31),
+    source="O'Brien Hardwoods, August 2026 specials sheet",
+)
+
+
+def test_a_sale_price_says_when_it_runs_out():
+    assert _SPECIAL.to_text().endswith("(as of 2026-08-17, sale ends 2026-08-31)")
+    assert not _SPECIAL.expired(date(2026, 8, 31))
+    assert _SPECIAL.expired(date(2026, 9, 1))
+
+
+def test_a_total_built_on_a_special_carries_its_end_date():
+    summary = CostSummary.of([_SPECIAL])
+    assert summary.verified
+    assert summary.earliest_valid_until == date(2026, 8, 31)
+    assert "includes sale prices ending 2026-08-31" in summary.to_text()
+
+
+def test_the_earliest_sale_end_governs_a_mixed_total():
+    """A total is good until the first of its discounts runs out."""
+    earlier = PriceLine(
+        "red_oak 4/4", 10.0, "bd ft", 2.99, as_of=date(2026, 8, 17),
+        valid_until=date(2026, 8, 20),
+    )
+    summary = CostSummary.of([_SPECIAL, earlier])
+    assert summary.earliest_valid_until == date(2026, 8, 20)
+
+
+def test_a_shelf_price_says_nothing_about_sales():
+    assert "sale" not in CostSummary.of([_DATED]).to_text()
+    assert CostSummary.of([_DATED]).earliest_valid_until is None

@@ -949,11 +949,21 @@ def _cost_block(summary: CostSummary) -> str:
             if summary.unpriced
             else ""
         )
+        # A sale price is dated, sourced and real, and stops being true on a
+        # day somebody printed. Saying which day is the whole difference
+        # between an estimate and a number that quietly rots.
+        ends = summary.earliest_valid_until
+        sale = (
+            f" Some of it is on sale: this total holds only to "
+            f"{ends.isoformat()}."
+            if ends is not None
+            else ""
+        )
         return (
             f'<p class="muted">Prices are as of '
             f"{html.escape(oldest.isoformat() if oldest else 'an unknown date')}, "
             f"from {html.escape(sources)}. Lumber moves, so treat them as an "
-            f"estimate rather than a quote.{html.escape(gap)}</p>"
+            f"estimate rather than a quote.{html.escape(sale)}{html.escape(gap)}</p>"
         )
     return (
         f'<div class="caveat"><strong>Costs on this page are not real.</strong> '

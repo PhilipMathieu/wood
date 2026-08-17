@@ -660,9 +660,11 @@ def check_price_provenance(
     list[Finding]
         ``ERROR`` for a price with no ``price_as_of`` — an unverified number
         that will otherwise be multiplied into a total that reads like a quote.
-        ``WARN`` for a price older than *stale_after_days*, and for a material
-        the design uses that carries no price at all.  ``INFO`` for a price
-        that is current, quoting its date and source.
+        ``WARN`` for a price older than *stale_after_days*, for a sale price
+        whose ``price_valid_until`` has passed, and for a material the design
+        uses that carries no price at all.  ``INFO`` for a price that is
+        current, quoting its date, its source, and its sale end date if it has
+        one.
 
     Notes
     -----
@@ -702,7 +704,28 @@ def check_price_provenance(
 
         age = stock.price_age_days(when)
         quoted = f"quoted {stock.price_as_of.isoformat()}"
-        if age is not None and age > stale_after_days:
+        if stock.price_has_expired(when):
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "price",
+                    f"{label} was a sale price that ended "
+                    f"{stock.price_valid_until.isoformat()} ({source}): the "
+                    "shelf price is not recorded, so this total is a total at "
+                    "last month's discount",
+                )
+            )
+        elif stock.price_is_a_special:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "price",
+                    f"{label} priced per {stock.price_unit}, {quoted} — a sale "
+                    f"price good to {stock.price_valid_until.isoformat()} "
+                    f"({source}), not the shelf price",
+                )
+            )
+        elif age is not None and age > stale_after_days:
             findings.append(
                 Finding(
                     Severity.WARN,

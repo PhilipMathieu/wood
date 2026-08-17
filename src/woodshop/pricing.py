@@ -77,6 +77,10 @@ class PriceLine:
     as_of : datetime.date or None
         The day the rate was true.  ``None`` means nobody has verified it, and
         every rendering of this line says so.
+    valid_until : datetime.date or None, optional
+        The last day the rate is known to hold.  Set for a *sale* price, which
+        is real, dated, sourced — and temporary.  A special that has run out
+        is as wrong as an invented number and much more convincing.
     source : str, optional
         Where the rate came from, e.g. ``"O'Brien Hardwoods, phone quote"``.
     source_url : str, optional
@@ -88,6 +92,7 @@ class PriceLine:
     unit: str
     unit_price: float
     as_of: date | None = None
+    valid_until: date | None = None
     source: str = ""
     source_url: str = ""
 
@@ -106,7 +111,14 @@ class PriceLine:
         """Short parenthetical for this line: a date, or the lack of one."""
         if self.as_of is None:
             return "unverified"
-        return f"as of {self.as_of.isoformat()}"
+        text = f"as of {self.as_of.isoformat()}"
+        if self.valid_until is not None:
+            text += f", sale ends {self.valid_until.isoformat()}"
+        return text
+
+    def expired(self, today: date) -> bool:
+        """Return ``True`` if this is a sale price whose end date has passed."""
+        return self.valid_until is not None and today > self.valid_until
 
     def to_text(self) -> str:
         """Render the amount, always qualified, e.g. ``'$584 (unverified)'``."""
@@ -186,6 +198,16 @@ class CostSummary:
         return min(dates)
 
     @property
+    def earliest_valid_until(self) -> date | None:
+        """The first sale end date among the contributing rates, if any.
+
+        A total built partly from specials is only good until the first of
+        them runs out, so that is the date it is quoted with.
+        """
+        ends = [line.valid_until for line in self.lines if line.valid_until is not None]
+        return min(ends) if ends else None
+
+    @property
     def sources(self) -> list[str]:
         """De-duplicated source descriptions, in first-seen order."""
         out: list[str] = []
@@ -201,6 +223,9 @@ class CostSummary:
         parts.append(
             f"prices as of {oldest.isoformat()}" if oldest else UNVERIFIED_MARKER
         )
+        ends = self.earliest_valid_until
+        if ends is not None:
+            parts.append(f"includes sale prices ending {ends.isoformat()}")
         if self.unpriced:
             parts.append(f"excludes unpriced {', '.join(self.unpriced)}")
         return "; ".join(parts)

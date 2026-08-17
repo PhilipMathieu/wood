@@ -83,6 +83,7 @@ class PricedStock:
     price_unit: str
     stock_label: str
     price_as_of: date | None
+    price_valid_until: date | None
     price_source: str
     price_url: str
 
@@ -91,11 +92,22 @@ class PricedStock:
         """``True`` only if there is a price *and* a date it was true on."""
         return self.price is not None and self.price_as_of is not None
 
+    @property
+    def price_is_a_special(self) -> bool:
+        """``True`` if this rate is a sale price with an end date on it."""
+        return self.price_valid_until is not None
+
     def price_age_days(self, today: date | None = None) -> int | None:
         """Days since the price was quoted, or ``None`` if it carries no date."""
         if self.price_as_of is None:
             return None
         return ((today or date.today()) - self.price_as_of).days
+
+    def price_has_expired(self, today: date | None = None) -> bool:
+        """Return ``True`` if this is a sale price whose end date has passed."""
+        if self.price_valid_until is None:
+            return False
+        return (today or date.today()) > self.price_valid_until
 
     def price_note(self) -> str:
         """Describe where the price came from and when, for a report or a page.
@@ -111,7 +123,10 @@ class PricedStock:
         source = self.price_source or "source not recorded"
         if self.price_as_of is None:
             return f"{source}, undated — unverified placeholder"
-        return f"{source}, {self.price_as_of.isoformat()}"
+        note = f"{source}, {self.price_as_of.isoformat()}"
+        if self.price_valid_until is not None:
+            note += f", sale price through {self.price_valid_until.isoformat()}"
+        return note
 
     def price_line(self, quantity: float) -> PriceLine:
         """Return a :class:`~woodshop.pricing.PriceLine` for *quantity* units.
@@ -140,6 +155,7 @@ class PricedStock:
             unit=self.price_unit,
             unit_price=self.price,
             as_of=self.price_as_of,
+            valid_until=self.price_valid_until,
             source=self.price_source,
             source_url=self.price_url,
         )
@@ -181,6 +197,8 @@ class DimensionalStock(PricedStock):
         the supplier printed beats converting to a house unit.
     price_as_of : datetime.date or None, optional
         The day the price was true.  ``None`` marks the price unverified.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
     price_source : str, optional
         Where the price came from.
     price_url : str, optional
@@ -204,6 +222,7 @@ class DimensionalStock(PricedStock):
     price_length_ft: float | None = None
     price_per_lineal_ft: float | None = None
     price_as_of: date | None = None
+    price_valid_until: date | None = None
     price_source: str = ""
     price_url: str = ""
 
@@ -279,6 +298,8 @@ class HardwoodStock(PricedStock):
     price_as_of : datetime.date or None, optional
         The day the price was true.  ``None`` marks the price unverified — see
         :class:`PricedStock`.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
     price_source : str, optional
         Where the price came from, e.g. ``"O'Brien Hardwoods, phone quote"``.
     price_url : str, optional
@@ -301,6 +322,7 @@ class HardwoodStock(PricedStock):
     qty_board_feet: float = 0.0
     price_per_bf: float | None = None
     price_as_of: date | None = None
+    price_valid_until: date | None = None
     price_source: str = ""
     price_url: str = ""
 
@@ -358,6 +380,8 @@ class SheetStock(PricedStock):
     price_as_of : datetime.date or None, optional
         The day the price was true.  ``None`` marks the price unverified — see
         :class:`PricedStock`.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
     price_source : str, optional
         Where the price came from.
     price_url : str, optional
@@ -383,6 +407,7 @@ class SheetStock(PricedStock):
     grain: str = "length"
     price_per_sheet: float | None = None
     price_as_of: date | None = None
+    price_valid_until: date | None = None
     price_source: str = ""
     price_url: str = ""
     notes: str = ""
@@ -472,21 +497,26 @@ def _with_dates(entry: dict[str, Any]) -> dict[str, Any]:
     neither is rejected rather than carried: an unparseable date would satisfy
     "has a ``price_as_of``" while telling nobody when the price was true.
     """
-    raw = entry.get("price_as_of")
-    if raw is None:
-        return entry
-    if isinstance(raw, datetime):
-        return {**entry, "price_as_of": raw.date()}
-    if isinstance(raw, date):
-        return entry
-    if isinstance(raw, str):
-        try:
-            return {**entry, "price_as_of": date.fromisoformat(raw.strip())}
-        except ValueError as exc:
-            raise ValueError(
-                f"price_as_of must be an ISO date (YYYY-MM-DD), got {raw!r}"
-            ) from exc
-    raise ValueError(f"price_as_of must be an ISO date (YYYY-MM-DD), got {raw!r}")
+    out = entry
+    for field_name in ("price_as_of", "price_valid_until"):
+        raw = out.get(field_name)
+        if raw is None or (isinstance(raw, date) and not isinstance(raw, datetime)):
+            continue
+        if isinstance(raw, datetime):
+            out = {**out, field_name: raw.date()}
+            continue
+        if isinstance(raw, str):
+            try:
+                out = {**out, field_name: date.fromisoformat(raw.strip())}
+                continue
+            except ValueError as exc:
+                raise ValueError(
+                    f"{field_name} must be an ISO date (YYYY-MM-DD), got {raw!r}"
+                ) from exc
+        raise ValueError(
+            f"{field_name} must be an ISO date (YYYY-MM-DD), got {raw!r}"
+        )
+    return out
 
 
 @dataclass
