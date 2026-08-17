@@ -221,3 +221,46 @@ def test_findings_are_escaped_not_injected(tmp_path, nightstand):
     text = (index.parent / "escaped" / "index.html").read_text(encoding="utf-8")
     assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;" in text
+
+
+# ---------------------------------------------------------------------------
+# Browsability
+# ---------------------------------------------------------------------------
+
+
+def test_the_index_is_a_masonry_column_layout(site):
+    """A bed is a wide picture and a nightstand a tall one; rows would pad."""
+    css = site.read_text(encoding="utf-8")
+    assert ".cards { columns:" in css
+    assert "break-inside: avoid" in css
+
+
+def test_the_whole_card_is_the_link(site):
+    """A card that looks clickable everywhere must be clickable everywhere."""
+    text = site.read_text(encoding="utf-8")
+    assert '<a class="card" href="mysa-nightstand/index.html">' in text
+    # The title is inside that link rather than being a second, nested one.
+    assert "<h3><a " not in text
+
+
+def test_a_card_says_what_clicking_it_gets_you(site):
+    assert "Cut list, stock layouts and checks" in site.read_text(encoding="utf-8")
+
+
+def test_the_render_opens_full_size(site):
+    text = (site.parent / "mysa-nightstand" / "index.html").read_text(encoding="utf-8")
+    assert '<a href="views.png"><img src="views.png"' in text
+
+
+def test_the_single_file_build_gets_the_same_cards(tmp_path, nightstand):
+    index = build_gallery(
+        [nightstand], outdir=tmp_path, dpi=60, single_file=True,
+        generated="2026-01-01",
+    )
+    plt.close("all")
+    text = index.read_text(encoding="utf-8")
+    # Cards jump to the section rather than to a file that is not there.
+    assert '<a class="card" href="#mysa-nightstand">' in text
+    assert 'id="mysa-nightstand"' in text
+    # And no card links to a page the single file does not carry.
+    assert 'href="mysa-nightstand/index.html"' not in text

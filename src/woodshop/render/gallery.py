@@ -42,7 +42,7 @@ from woodshop.inventory import Inventory
 from woodshop.lumber import mm_to_fractional_inch
 from woodshop.project import ProjectSpec, discover_projects
 from woodshop.render.export import export_assembly
-from woodshop.render.model3d import STANDARD_VIEWS, render_assembly
+from woodshop.render.model3d import STANDARD_VIEWS, View, render_assembly
 from woodshop.render.sheets import (
     cut_sequence,
     render_board_diagram,
@@ -308,10 +308,13 @@ def _write_assets(
     # A card wants one picture of the furniture, not a four-up drawing sheet:
     # at card size the orthographic views are too small to read and only make
     # the card tall enough to push everything else off the screen.
+    hero_view = STANDARD_VIEWS[0]
     render_assembly(
         built.assembly,
         output_png=directory / "hero.png",
-        views=STANDARD_VIEWS[:1],
+        # Nameless: a card is already labelled with the project's name, and
+        # "Isometric" over the top of it is a caption for nobody.
+        views=(View("", hero_view.elev, hero_view.azim),),
         figsize=(6.0, 5.0),
     )
     assets["hero"] = "hero.png"
@@ -410,18 +413,35 @@ h2 { margin: 2.5rem 0 .75rem; font-size: 1.25rem; letter-spacing: -.01em; }
 h3 { margin: 1.5rem 0 .5rem; font-size: 1rem; }
 a { color: var(--accent); }
 p.lede, .muted { color: var(--muted); }
-.cards {
-  display: grid; gap: 1.25rem; margin-top: 1.75rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
-}
+/* Masonry, not a grid. A bed is a wide picture and a nightstand is a tall one;
+   a row-aligned grid pads every card to the tallest in its row and the page
+   fills with empty card. CSS columns let each card take the height it needs. */
+.cards { columns: 21rem auto; column-gap: 1.25rem; margin-top: 1.75rem; }
 .card {
   background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
-  overflow: hidden; display: flex; flex-direction: column;
+  overflow: hidden; display: block; margin: 0 0 1.25rem;
+  /* Without this a card is sliced in half across a column boundary. */
+  break-inside: avoid; -webkit-column-break-inside: avoid;
+  color: inherit; text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease;
 }
+/* The whole card is the link, not just the title — a card that looks
+   clickable everywhere and is clickable only on six words is worse than one
+   that does not look clickable at all. */
+a.card:hover, a.card:focus-visible {
+  border-color: var(--accent); transform: translateY(-2px);
+}
+a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card img { width: 100%; height: auto; display: block; background: #fff; }
 .card .body { padding: .9rem 1rem 1.1rem; }
-.card h3 { margin: 0 0 .3rem; }
+.card h3 { margin: 0 0 .3rem; color: var(--accent); }
 .card p { margin: .25rem 0 .6rem; font-size: .92rem; color: var(--muted); }
+.card .more { font-size: .82rem; color: var(--accent); display: block;
+              margin-top: .55rem; }
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  a.card:hover, a.card:focus-visible { transform: none; }
+}
 .stats { display: flex; flex-wrap: wrap; gap: .4rem; font-size: .78rem; }
 .stat {
   border: 1px solid var(--rule); border-radius: 999px; padding: .1rem .55rem;
@@ -531,20 +551,11 @@ def _render_index(
     stamp: str,
 ) -> str:
     """Render the index page."""
-    cards = []
-    for built, assets in pages:
-        slug = built.spec.slug
-        cards.append(
-            f'<article class="card">'
-            f'<a href="{slug}/index.html">'
-            f'<img src="{slug}/{assets["hero"]}" alt="{html.escape(built.spec.name)}" '
-            f'loading="lazy"></a>'
-            f'<div class="body"><h3><a href="{slug}/index.html">'
-            f"{html.escape(built.spec.name)}</a></h3>"
-            f"<p>{html.escape(built.spec.summary)}</p>"
-            f'<div class="stats">{_card_stats(built, show_costs)}'
-            f"{_severity_badges(built)}</div></div></article>"
-        )
+    cards = [
+        _card(built, f"{built.spec.slug}/index.html", f"{built.spec.slug}/", assets,
+              show_costs)
+        for built, assets in pages
+    ]
 
     caveat = "" if show_costs else _no_cost_note()
     body = (
@@ -552,12 +563,39 @@ def _render_index(
         '<p class="lede">Parametric furniture, cut lists that describe what you '
         "buy, and design checks that run before anything is cut. Every page "
         "below is generated from the model — the pictures and the numbers "
-        "cannot disagree.</p></header>"
+        "cannot disagree. Pick a piece to see its cut list, stock layouts and "
+        "design checks.</p></header>"
         f"{_cost_caveat() if show_costs else caveat}"
         f'<div class="cards">{"".join(cards)}</div>'
         f"{_footer(stamp)}"
     )
     return _page("Woodshop gallery", body)
+
+
+def _card(
+    built: ProjectBuild,
+    href: str,
+    image_prefix: str,
+    assets: dict[str, Any],
+    show_costs: bool,
+) -> str:
+    """Render one index card, clickable over its whole area.
+
+    *image_prefix* is prepended to the hero filename, and is empty when the
+    image is already an inlined ``data:`` URI.
+    """
+    hero = assets["hero"]
+    src = hero if hero.startswith("data:") else f"{image_prefix}{hero}"
+    return (
+        f'<a class="card" href="{href}">'
+        f'<img src="{src}" alt="{html.escape(built.spec.name)}" loading="lazy">'
+        f'<div class="body"><h3>{html.escape(built.spec.name)}</h3>'
+        f"<p>{html.escape(built.spec.summary)}</p>"
+        f'<div class="stats">{_card_stats(built, show_costs)}'
+        f"{_severity_badges(built)}</div>"
+        f'<span class="more">Cut list, stock layouts and checks &rarr;</span>'
+        f"</div></a>"
+    )
 
 
 def _render_single_file(
@@ -566,6 +604,12 @@ def _render_single_file(
     stamp: str,
 ) -> str:
     """Render every project into one self-contained document."""
+    # Even in one document the cards earn their place: they are the contents
+    # page, and each jumps to its section instead of to another file.
+    cards = [
+        _card(built, f"#{built.spec.slug}", "", assets, show_costs)
+        for built, assets in pages
+    ]
     sections = [
         _render_project_body(built, assets, show_costs, heading_level=2)
         for built, assets in pages
@@ -576,6 +620,7 @@ def _render_single_file(
         "lists, nesting layouts and design checks, all generated from the "
         "models.</p></header>"
         f"{_cost_caveat() if show_costs else _no_cost_note()}"
+        f'<div class="cards">{"".join(cards)}</div>'
         f"{''.join(sections)}"
         f"{_footer(stamp)}"
     )
@@ -626,9 +671,17 @@ def _render_project_body(
     if spec.notes:
         out.append(f'<p class="muted">{html.escape(spec.notes)}</p>')
 
+    views = assets["views"]
+    img = (
+        f'<img src="{views}" alt="{html.escape(spec.name)} — four views" '
+        f'loading="lazy">'
+    )
+    # Click the drawing to see it at full size — unless it is already inlined,
+    # in which case there is no separate file to open.
+    if not views.startswith("data:"):
+        img = f'<a href="{views}">{img}</a>'
     out.append(
-        f'<figure><img src="{assets["views"]}" '
-        f'alt="{html.escape(spec.name)} — four views" loading="lazy">'
+        f"<figure>{img}"
         f"<figcaption>{html.escape(PLAN_VIEW_CAVEAT)}</figcaption></figure>"
     )
 
