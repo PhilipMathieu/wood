@@ -197,13 +197,22 @@ sheet a part actually fits on rather than guessing from thickness.
 Every price in `stock.yaml` carries its own provenance:
 
 ```yaml
-- species: cherry
-  thickness_quarter: "4/4"
-  price_per_bf: 12.50
-  price_as_of: 2026-08-16              # ISO date, required whenever a price is set
-  price_source: "O'Brien Hardwoods, phone quote"
-  price_url: "https://obrienhardwoods.com/"
+- species: white_cedar
+  nominal: "1x6"
+  grade: STK
+  profile: rough sawn
+  price_per_lineal_ft: 2.30
+  price_as_of: 2026-08-17              # ISO date, required whenever a price is set
+  price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+  price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
 ```
+
+Softwood is quoted per piece by some yards and per lineal foot by others, so
+an entry carries `price_per_piece` (with `price_length_ft`, because a price
+per stick means nothing without the length) **or** `price_per_lineal_ft` —
+whichever the supplier printed, never both. `grade` and `profile` are what
+separate two entries of the same nominal size at very different prices: a
+rough sawn 1x6 in STK is $2.30/LF and the same board in low grade is $1.30.
 
 A price with no `price_as_of` is *unverified*, not trusted:
 `check_price_provenance` reports it as an `ERROR`, and every total built from
@@ -225,12 +234,21 @@ total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
                excludes unpriced plywood_birch 3/4 (48" x 96")), 47% yield
 ```
 
-**Every price in `stock.yaml` today is still an invented placeholder**, and
-deliberately undated so that it reads as one. O'Brien Hardwoods publishes no
-prices; the sizes, grades and thicknesses in that file are real, and only the
-money is not. Quantities, board feet, and yields are real; dollar totals are
-not, and will not be until somebody phones (207) 536-7860 and writes the
-numbers down with the date attached. Issue #3 lists exactly what to ask for.
+### Which prices are real
+
+| Stock | Prices | Source |
+| --- | --- | --- |
+| white cedar (28 profiles/grades) | **real**, per lineal foot | [Lumbery's published pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
+| cherry 4/4–10/4 | placeholder, undated | O'Brien publishes none — needs a call |
+| cherry and Baltic birch plywood | placeholder, undated | as above |
+| birch plywood, pine, poplar | no price | — |
+
+The cherry and plywood numbers are invented and deliberately undated, so
+`check_price_provenance` reports every one of them as an `ERROR` and any total
+they reach is marked unverified. The sizes, grades and thicknesses in that
+file are real; only that money is not, and it will not be until somebody
+phones O'Brien Hardwoods on (207) 536-7860 and writes the numbers down with
+the date attached. Issue #3 lists exactly what to ask for.
 
 ## Known limitation of the 3-D views
 

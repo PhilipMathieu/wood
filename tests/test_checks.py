@@ -357,11 +357,20 @@ def test_with_no_parts_the_whole_inventory_is_audited(inv):
 
 
 def test_the_shipped_stock_file_is_honest_about_its_prices(inv):
-    """Nothing in stock.yaml is dated yet, so nothing in it may look researched."""
+    """Real prices report as real; the placeholders report as invented."""
     findings = check_price_provenance(inv, today=_TODAY)
-    assert not any(f.severity is Severity.INFO for f in findings)
+    assert findings
+
+    # Cedar is quoted from a published guide, so it reads as researched.
+    assert any(
+        f.severity is Severity.INFO and "white_cedar" in f.message for f in findings
+    )
+    # Cherry and the plywood are not, and every one of them says so.
     assert all(
         f.severity is Severity.ERROR
         for f in findings
         if "carries no price_as_of" in f.message
+    )
+    assert not any(
+        f.severity is Severity.INFO and "cherry" in f.message for f in findings
     )

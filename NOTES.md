@@ -300,6 +300,10 @@ from small family sawmills — white cedar, premium pine, reclaimed stock. A
 genuinely interesting supplier, but softwood-focused: no cherry, no hardwood
 plywood. Worth remembering for a different project; nothing here to model.
 
+(That last sentence aged badly, in the best way. Lumbery publishes a complete
+white cedar price list, and a fence is exactly the different project. See the
+addendum on the first real prices.)
+
 ## Addendum: drawing the model
 
 Everything above measures the bed. Nothing had ever *drawn* it, which meant
@@ -794,3 +798,72 @@ of the price in the same species and thickness, and they yield differently —
 `typical_width_in` is really a grade assumption with no grade attached. A single
 `price_per_bf` on an entry is a price *and* an unstated grade, which is worth
 modelling once there is a real quote to hang it on.
+
+## Addendum: the first real prices, which are cedar
+
+Three sources went looking for real numbers. One of them had them.
+
+**Lumbery** publishes a complete [White Cedar Lumber Pricing
+Guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/) —
+28 board profiles and grades, priced per lineal foot. Read on 2026-08-17 and
+recorded, every entry dated and linked to the page it came from. These are the
+first prices in `stock.yaml` that anybody could stand behind, and they arrive
+just in time for a fence.
+
+**O'Brien Hardwoods** still publishes none. Their `/specials` page does post a
+few each month — as a PNG, which this session's egress policy would not fetch,
+and which nothing here could read if it had. Their product pages give sizes and
+thicknesses only; the cherry page confirms 4/4 through 12/4 with 16/4 to order,
+which is what `stock.yaml` already claimed. A photograph of the price board is
+still the thing that settles it.
+
+**Atlantic Hardwoods** is blocked outright by the egress policy
+(`www.atlantichardwoods.com`, 403 at the proxy). Not retried, not routed
+around; recorded here and in `stock.yaml` so the next person knows the page
+exists and this session simply could not open it.
+
+### What real data asked of the schema
+
+Recording an actual price list, rather than imagining one, immediately broke
+three assumptions:
+
+- **A price per piece is not the only unit.** Lumbery quotes per lineal foot;
+  O'Brien quotes hardwood per board foot; a big-box shelf tag quotes per stick.
+  `DimensionalStock` now carries `price_per_piece` *or* `price_per_lineal_ft`,
+  never both — converting one into the other would have meant storing a number
+  the supplier never printed, which is the whole failure this work exists to
+  stop. The one per-piece entry in the file is the 2 ft dressed cutoff at
+  $1.00 each, which really is sold that way.
+- **Nominal size does not identify stock.** A rough sawn 1x6 in STK grade is
+  $2.30/LF and the same board in low grade is $1.30 — a 77% difference under
+  one label. `grade` and `profile` are now fields, and they appear in
+  `stock_label`, so the provenance report names `white_cedar 1x6 rough sawn
+  (STK)` rather than a `white_cedar 1x6` that could be either. The same gap is
+  still open on hardwood, where FAS versus #1 Common is the equivalent split.
+- **A published price does not imply a published length.** The guide prices
+  every profile and lists no lengths at all, so those entries carry
+  `lengths_ft: []`. That is enough to estimate a fence by the foot and not
+  enough to lay out a cut list, and saying so in the data beats inventing an
+  8 ft default that would quietly become a cut list nobody could buy.
+
+`lumber.NOMINAL_TO_ACTUAL` gained 5/4x3, 5/4x4, 5/4x6 and 6x6 to match what
+cedar is actually sold in. Worth writing down: that table holds *dressed*
+sizes, and rough sawn stock is close to full dimension — a rough 1x6 is about
+a full 1" x 6". Half the cedar list is rough sawn, so the table does not
+describe it. Nothing depends on that yet; it will the first time a rough-sawn
+fence wants a cut list.
+
+### What did not need to change
+
+Nothing in `pricing.py`, and nothing in the checks. A dated price flows through
+the machinery built for the placeholders and comes out the other end as
+`$166 (as of 2026-08-17)` instead of `$166 (unverified)`; the gallery's warning
+block drops itself when a page's rates are all dated. That was the point of
+making provenance a type rather than a lint rule, and it is pleasant to have it
+demonstrated by real data on the first try.
+
+The volume discounts on the guide — 5% over $5,000, 10% over $7,500, 15% over
+$10,000 — are recorded in the file's header and not modelled. So are the cedar
+shakes ($155/bundle clear, $85 wall, $20 low) and the 4x8 lattice sheets ($250
+each, thickness unpublished): a bundle is not a unit this schema has, and a
+sheet whose thickness nobody states is not a `SheetStock`.

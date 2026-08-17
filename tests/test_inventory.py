@@ -6,7 +6,7 @@ import datetime
 
 import pytest
 
-from woodshop.inventory import Inventory, SheetStock
+from woodshop.inventory import DimensionalStock, Inventory, SheetStock
 
 
 @pytest.fixture(scope="module")
@@ -125,12 +125,68 @@ def test_oversize_part_fits_no_orientation():
 # ---------------------------------------------------------------------------
 
 
-def test_every_price_in_stock_yaml_is_still_undated(inv):
-    """The placeholders stay visible as placeholders until somebody calls."""
+def test_a_price_in_stock_yaml_is_either_dated_or_labelled_a_placeholder(inv):
+    """No third state: a number with neither a date nor a warning is the bug."""
     priced = [s for s in inv.all_stock() if s.price is not None]
     assert priced
-    assert not any(s.price_is_verified for s in priced)
-    assert all("PLACEHOLDER" in s.price_source for s in priced)
+    for stock in priced:
+        if stock.price_is_verified:
+            assert stock.price_source and "PLACEHOLDER" not in stock.price_source
+        else:
+            assert "PLACEHOLDER" in stock.price_source
+
+
+def test_the_cherry_and_plywood_prices_are_still_undated_placeholders(inv):
+    """O'Brien publishes no prices; these stay visibly invented until they do."""
+    undated = [s for s in inv.all_stock() if s.price is not None
+               and not s.price_is_verified]
+    assert {s.stock_label.split()[0] for s in undated} == {
+        "cherry", "plywood_cherry", "plywood_baltic_birch"
+    }
+
+
+def test_the_cedar_prices_are_real_dated_and_sourced(inv):
+    """Lumbery publishes a full guide, so this is the one supplier we can cite."""
+    cedar = [d for d in inv.dimensional if d.species == "white_cedar"]
+    assert len(cedar) > 20
+    for entry in cedar:
+        assert entry.price_is_verified
+        assert entry.price_as_of == datetime.date(2026, 8, 17)
+        assert entry.price_source.startswith("Lumbery")
+        assert entry.price_url.startswith("https://lumbery-me.com/")
+
+
+def test_cedar_is_priced_by_the_lineal_foot_as_the_guide_quotes_it(inv):
+    """The guide's unit, kept as published rather than converted."""
+    board = next(
+        d for d in inv.dimensional
+        if d.species == "white_cedar" and d.nominal == "1x6"
+        and d.profile == "rough sawn" and d.grade == "STK"
+    )
+    assert board.price_unit == "lineal ft"
+    assert board.price == pytest.approx(2.30)
+    # 12 boards of 6 ft: the rate multiplies feet, not sticks.
+    assert board.price_line(72).amount == pytest.approx(165.60)
+
+
+def test_grade_and_profile_separate_two_prices_for_the_same_size(inv):
+    """A rough 1x6 in STK and in low grade are different products."""
+    ones = [
+        d for d in inv.dimensional
+        if d.species == "white_cedar" and d.nominal == "1x6"
+        and d.profile == "rough sawn"
+    ]
+    assert {d.grade for d in ones} == {"STK", "low"}
+    assert len({d.stock_label for d in ones}) == 2
+    assert "white_cedar 1x6 rough sawn (STK)" in {d.stock_label for d in ones}
+
+
+def test_an_entry_cannot_be_priced_two_ways_at_once():
+    with pytest.raises(ValueError, match="not both"):
+        DimensionalStock(
+            species="white_cedar", nominal="1x6", lengths_ft=[8],
+            price_per_piece=18.40, price_per_lineal_ft=2.30,
+        )
 
 
 def test_an_iso_date_string_loads_as_a_date():

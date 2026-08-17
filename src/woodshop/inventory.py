@@ -156,34 +156,64 @@ class DimensionalStock(PricedStock):
     nominal : str
         Nominal size string, e.g. ``"2x4"``.
     lengths_ft : list[float]
-        Available lengths in feet.
+        Available lengths in feet.  Empty when the supplier publishes a price
+        but not a length list — the rate is still usable, the cut plan is not.
     qty : int
         Pieces on hand (per length, as stocked).
+    grade : str, optional
+        Grade as the supplier names it, e.g. ``"STK"``, ``"low"``.  Free text,
+        because every yard grades softwood by its own vocabulary.
+    profile : str, optional
+        How the stock is worked — ``"rough sawn"``, ``"dressed"``,
+        ``"tongue & groove"``, ``"shiplap"``.  With *grade*, this is what
+        separates two entries of the same nominal size and very different
+        prices.
     price_per_piece : float or None, optional
-        Cost of one piece, if known.  Dimensional lumber is sold by the stick
-        rather than by the board foot, so the price is per piece — of the
-        length in *price_length_ft*.
+        Cost of one piece, if that is how it is sold — of the length in
+        *price_length_ft*.
     price_length_ft : float or None, optional
         Which stocked length *price_per_piece* refers to.  Defaults to the
         shortest length stocked, because a price per piece means nothing
         without the length attached to it.
+    price_per_lineal_ft : float or None, optional
+        Cost per lineal foot, if that is how it is sold.  Softwood is quoted
+        both ways and the unit is not interchangeable, so recording the one
+        the supplier printed beats converting to a house unit.
     price_as_of : datetime.date or None, optional
         The day the price was true.  ``None`` marks the price unverified.
     price_source : str, optional
         Where the price came from.
     price_url : str, optional
         A link to that source, where one exists.
+
+    Raises
+    ------
+    ValueError
+        If both *price_per_piece* and *price_per_lineal_ft* are set.  One
+        entry, one rate: two would silently disagree the moment a supplier
+        changed either.
     """
 
     species: str
     nominal: str
     lengths_ft: list[float]
     qty: int = 0
+    grade: str = ""
+    profile: str = ""
     price_per_piece: float | None = None
     price_length_ft: float | None = None
+    price_per_lineal_ft: float | None = None
     price_as_of: date | None = None
     price_source: str = ""
     price_url: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject an entry priced two ways at once."""
+        if self.price_per_piece is not None and self.price_per_lineal_ft is not None:
+            raise ValueError(
+                f"{self.species} {self.nominal}: set price_per_piece or "
+                "price_per_lineal_ft, not both"
+            )
 
     @property
     def lengths_mm(self) -> list[float]:
@@ -192,8 +222,10 @@ class DimensionalStock(PricedStock):
 
     @property
     def price(self) -> float | None:
-        """Cost of one piece, if known."""
-        return self.price_per_piece
+        """Cost of one :attr:`price_unit`, if known."""
+        if self.price_per_piece is not None:
+            return self.price_per_piece
+        return self.price_per_lineal_ft
 
     @property
     def priced_length_ft(self) -> float | None:
@@ -204,14 +236,21 @@ class DimensionalStock(PricedStock):
 
     @property
     def price_unit(self) -> str:
-        """Unit the price is quoted in, e.g. ``'8 ft piece'``."""
+        """Unit the price is quoted in, e.g. ``'8 ft piece'`` or ``'lineal ft'``."""
+        if self.price_per_piece is None and self.price_per_lineal_ft is not None:
+            return "lineal ft"
         length = self.priced_length_ft
         return "piece" if length is None else f"{length:g} ft piece"
 
     @property
     def stock_label(self) -> str:
-        """Human-readable entry name, e.g. ``'pine 2x4'``."""
-        return f"{self.species} {self.nominal}"
+        """Human-readable entry name, e.g. ``'cedar 1x6 rough sawn (STK)'``."""
+        label = f"{self.species} {self.nominal}"
+        if self.profile:
+            label = f"{label} {self.profile}"
+        if self.grade:
+            label = f"{label} ({self.grade})"
+        return label
 
 
 @dataclass(frozen=True)

@@ -19,19 +19,35 @@
 #                 tag. Shown alongside the figure wherever it is published.
 #   price_url:    a link to that source, when one exists.
 #
-# EVERY PRICE BELOW IS STILL AN UNVERIFIED PLACEHOLDER, and is deliberately
-# left undated so that it reads as one. O'Brien does not publish prices;
-# none of these came from a quote. They exist so the cost machinery has
-# something to multiply. Quantities and yields are real; dollar totals are
-# not. Replace them — number, date, and source together — after a phone call
-# or a visit, before trusting any cost figure.
+# Which prices are real, as of 2026-08-17:
+#
+#   white cedar   REAL. Lumbery's published pricing guide, read 2026-08-17,
+#                 quoted per lineal foot. See the block above those entries.
+#   cherry        PLACEHOLDER. Undated, therefore unverified.
+#   plywood       PLACEHOLDER (cherry, Baltic birch); birch has no price at
+#                 all.
+#   pine, poplar  no price.
+#
+# EVERY PLACEHOLDER IS DELIBERATELY LEFT UNDATED so that it reads as one.
+# O'Brien does not publish prices — their /specials page posts a few each
+# month, but as an image, and their product pages give sizes and thicknesses
+# only. None of the cherry or plywood numbers came from a quote; they exist
+# so the cost machinery has something to multiply. Quantities and yields are
+# real; those dollar totals are not. Replace them — number, date, and source
+# together — after a phone call or a visit.
 #
 # Prices still to collect (see issue #3): cherry $/bd ft in 4/4 through 10/4
 # and whether it is quoted rough, S2S or S4S and by grade; cherry ply 3/4"
 # 4x8; Baltic birch 3/4" in both 5x5 and 4x8, which are different products
 # and should not be assumed to track; birch ply 3/4" and 1/2"; and any sheet
-# minimums or cut charges. Dimensional softwood is unpriced too — it takes
-# `price_per_piece` with a `price_length_ft` saying which length that buys.
+# minimums or cut charges. O'Brien Hardwoods, (207) 536-7860 — a photograph
+# of the price board would settle all of it. Atlantic Hardwoods publishes
+# specials at atlantichardwoods.com/specials, which this session could not
+# reach.
+#
+# Softwood carries either `price_per_piece` (with `price_length_ft` saying
+# which length that buys) or `price_per_lineal_ft`, whichever the supplier
+# printed — never both.
 
 dimensional:
   - species: pine
@@ -58,6 +74,364 @@ dimensional:
     nominal: "1x3"
     lengths_ft: [8]
     qty: 2
+
+  # ---------------------------------------------------------------------
+  # Northern white cedar — Lumbery, 287 Ocean House Rd, Cape Elizabeth ME
+  # (207) 835-7023. Prices read from their published White Cedar Lumber
+  # Pricing Guide on 2026-08-17; the page prints no effective date of its
+  # own, so price_as_of is the day it was read.
+  #
+  # These are the first real prices in this file. They are quoted per
+  # LINEAL FOOT, not per piece and not per board foot — the guide's own
+  # unit, kept as published rather than converted into a house unit.
+  #
+  # `lengths_ft` is empty on every entry: the guide prices the stock but
+  # does not say what lengths are carried. That is enough to estimate a
+  # fence and not enough to lay out a cut list; ask when ordering.
+  #
+  # Nominal sizes for rough sawn stock are close to full dimension — a
+  # rough 1x6 is about a full 1" x 6" — so `lumber.NOMINAL_TO_ACTUAL`,
+  # which holds dressed sizes, does not describe those entries.
+  #
+  # Not recorded here, for want of a unit the schema can express: cedar
+  # shakes 3/8" at $155.00/bundle (clear), $85.00 (wall), $20.00 (low),
+  # and 4x8 lattice sheets at $250 each, whose thickness the guide does
+  # not give. Volume discounts are not modelled either: 5% over $5,000,
+  # 10% over $7,500, 15% over $10,000.
+  # ---------------------------------------------------------------------
+  - species: white_cedar
+    nominal: "1x3"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 1.10
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 1.95
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.35
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 2.35
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # Sold by the piece rather than by the foot — a 2 ft dressed cutoff.
+  - species: white_cedar
+    nominal: "1x4"
+    lengths_ft: [2]
+    qty: 0
+    grade: STK
+    profile: dressed cutoff
+    price_per_piece: 1.00
+    price_length_ft: 2
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: dressed
+    price_per_lineal_ft: 1.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # The fence board: rough sawn 1x6 in two grades, and the gap between
+  # them is most of what a fence costs.
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 2.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: rough sawn
+    price_per_lineal_ft: 1.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    profile: clapboard
+    price_per_lineal_ft: 2.15
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: mid
+    profile: drop siding, tongue & groove
+    price_per_lineal_ft: 1.80
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: nickel gap shiplap, dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: shiplap (standard), dressed
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 3.60
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: tongue & groove, dressed
+    price_per_lineal_ft: 1.45
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: dressed
+    price_per_lineal_ft: 2.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "1x8"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 3.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x3"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.30
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 1.85
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: eased edge decking
+    price_per_lineal_ft: 2.25
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: eased edge decking
+    price_per_lineal_ft: 3.75
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "5/4x6"
+    lengths_ft: []
+    qty: 0
+    grade: low
+    profile: eased edge decking
+    price_per_lineal_ft: 2.50
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 3.20
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 2.55
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.90
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "2x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 4.10
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  # Fence posts, in both faces.
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: dressed
+    price_per_lineal_ft: 5.22
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 4.40
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "6x6"
+    lengths_ft: []
+    qty: 0
+    grade: STK
+    profile: rough sawn
+    price_per_lineal_ft: 9.45
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
 
 # Hardwood is sold rough, in random widths, and priced by the board foot, so
 # width is an outcome of milling rather than a property of the stock.

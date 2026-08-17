@@ -25,6 +25,11 @@ KERF_MM: Final[float] = 3.175
 
 # Mapping of nominal size string → (thickness_in, width_in) as fractions of inches.
 # Covers the most common dimensional lumber sizes.
+#
+# These are *dressed* dimensions. Rough sawn stock is close to its nominal
+# size — a rough 1x6 cedar board is about a full 1" x 6" — so an entry whose
+# `profile` says "rough sawn" is not described by this table. Nothing depends
+# on that yet; it will the first time a rough-sawn fence gets a cut list.
 _NOMINAL_TO_ACTUAL_IN: dict[str, tuple[float, float]] = {
     # fmt: off
     "1x2":  (0.75,  1.5),
@@ -34,6 +39,10 @@ _NOMINAL_TO_ACTUAL_IN: dict[str, tuple[float, float]] = {
     "1x8":  (0.75,  7.25),
     "1x10": (0.75,  9.25),
     "1x12": (0.75, 11.25),
+    # 5/4 stock dresses to a full inch, which is why decking is sold in it.
+    "5/4x3": (1.0,  2.5),
+    "5/4x4": (1.0,  3.5),
+    "5/4x6": (1.0,  5.5),
     "2x2":  (1.5,   1.5),
     "2x3":  (1.5,   2.5),
     "2x4":  (1.5,   3.5),
@@ -43,6 +52,7 @@ _NOMINAL_TO_ACTUAL_IN: dict[str, tuple[float, float]] = {
     "2x12": (1.5,  11.25),
     "4x4":  (3.5,   3.5),
     "4x6":  (3.5,   5.5),
+    "6x6":  (5.5,   5.5),
     # fmt: on
 }
 
