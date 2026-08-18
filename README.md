@@ -83,13 +83,22 @@ uv run python scripts/build_gallery.py --outdir gallery
 open gallery/index.html
 ```
 
+`--single-file` inlines every image into one HTML document; `--fragment` writes
+that same document without a shell — a title, a stylesheet and the content — for
+a host that supplies its own `<html>`, which is what publishing the gallery as a
+web artifact or dropping it into a CMS needs.
+
 One command builds every registered project, renders it, nests its stock, runs
 its checks, and writes a static site: an index of cards and a page per project
 with the four views, the cut list, the nesting layouts, the check report styled
 by severity, and the STEP/STL/CSV to download. The pages are self-contained —
 no CDN, no external stylesheet — so they work from a file:// URL, from a USB
 stick, or from GitHub Pages. `--single-file` inlines every image into one HTML
-document you can mail to somebody.
+document you can mail to somebody, and `--fragment` writes that document without
+its shell for a host that has one of its own.
+
+The palette resolves in all three states a reader can be in: system light,
+system dark, and an explicit choice that has to beat the system either way.
 
 Costs are **omitted by default**, because the prices in `stock.yaml` are
 invented. `--with-costs` puts them back — each amount tagged with the date its

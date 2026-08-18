@@ -273,6 +273,7 @@ def build_gallery(
     dpi: int = 110,
     show_costs: bool = False,
     single_file: bool = False,
+    fragment: bool = False,
     downloads: bool = True,
     generated: str | None = None,
 ) -> Path:
@@ -296,6 +297,12 @@ def build_gallery(
         Write one self-contained ``index.html`` with every image inlined as a
         ``data:`` URI and no per-project pages, default ``False``.  Useful for
         sending someone the whole thing as one file; large, and no downloads.
+    fragment : bool, optional
+        Write that same one file as an HTML *fragment* — a title, a stylesheet
+        and the content, with no document shell of its own — for a host that
+        supplies one: a published artifact, a CMS, a page template.  Implies
+        *single_file*, because a fragment that referenced sibling files would
+        be a fragment nobody could paste anywhere.
     downloads : bool, optional
         Write STEP, STL, and CSV alongside each page, default ``True``.
         Ignored when *single_file* is set.
@@ -331,16 +338,17 @@ def build_gallery(
             built,
             root / spec.slug,
             dpi=dpi,
-            downloads=downloads and not single_file,
+            downloads=downloads and not (single_file or fragment),
         )
         pages.append((built, assets))
 
-    if single_file:
+    if single_file or fragment:
         for _, assets in pages:
             _inline_images(assets, root)
         index = root / "index.html"
         index.write_text(
-            _render_single_file(pages, show_costs, stamp), encoding="utf-8"
+            _render_single_file(pages, show_costs, stamp, fragment=fragment),
+            encoding="utf-8",
         )
         return index
 
@@ -460,6 +468,24 @@ def _data_uri(path: Path) -> str:
 # HTML
 # ---------------------------------------------------------------------------
 
+#: The dark palette, written once and applied in the two ways a host can ask
+#: for it.
+#:
+#: A reader has three states and not two: an explicit choice stamps
+#: ``data-theme`` on the root element, and the usual "follow the system"
+#: setting stamps nothing at all.  So the media query is guarded — an explicit
+#: light choice has to beat a dark operating system — and the stamped dark case
+#: is spelled out separately, or a toggle to dark on a light machine would do
+#: nothing.  Every colour is a token; none is declared inside these blocks and
+#: nowhere else, which is the bug that renders one theme's text on the other
+#: theme's ground.
+_DARK_TOKENS = """
+  --bg: #1a1613; --card: #241f1a; --ink: #ede5db; --muted: #a2948a;
+  --rule: #3b332c; --accent: #d08a63;
+  --info: #8fb3d4; --warn: #e0b661; --error: #e88a78;
+  --info-bg: #1e2831; --warn-bg: #2e2617; --error-bg: #2f1d1a;
+"""
+
 _CSS = """
 :root {
   --bg: #fbf8f4; --card: #fff; --ink: #241c16; --muted: #6b5d52;
@@ -468,13 +494,9 @@ _CSS = """
   --info-bg: #eef3f8; --warn-bg: #fbf3e0; --error-bg: #fbeceb;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1a1613; --card: #241f1a; --ink: #ede5db; --muted: #a2948a;
-    --rule: #3b332c; --accent: #d08a63;
-    --info: #8fb3d4; --warn: #e0b661; --error: #e88a78;
-    --info-bg: #1e2831; --warn-bg: #2e2617; --error-bg: #2f1d1a;
-  }
+  :root:not([data-theme="light"]) {__DARK__}
 }
+:root[data-theme="dark"] {__DARK__}
 * { box-sizing: border-box; }
 body {
   margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--ink);
@@ -567,14 +589,40 @@ footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--rul
 """
 
 
-def _page(title: str, body: str) -> str:
-    """Wrap *body* in a complete, self-contained HTML document."""
+_CSS = _CSS.replace("__DARK__", _DARK_TOKENS)
+
+
+def _page(title: str, body: str, fragment: bool = False) -> str:
+    """Wrap *body* in a self-contained HTML document, or in nothing much.
+
+    Parameters
+    ----------
+    title : str
+        Page title.
+    body : str
+        The content.
+    fragment : bool, optional
+        Emit a *fragment* rather than a document: the title, the stylesheet and
+        the content, with no ``<html>``, ``<head>`` or ``<body>`` of its own.
+        For a host that supplies its own document shell and would otherwise
+        find itself with two — a published artifact, a CMS, a page template.
+
+    Returns
+    -------
+    str
+        The rendered HTML.
+    """
+    head = (
+        f"<title>{html.escape(title)}</title>\n"
+        f"<style>{_CSS}</style>\n"
+    )
+    if fragment:
+        return f'{head}<div class="wrap">\n{body}\n</div>\n'
     return (
         "<!doctype html>\n<html lang=\"en\">\n<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{html.escape(title)}</title>\n"
-        f"<style>{_CSS}</style>\n</head>\n<body>\n"
+        f"{head}</head>\n<body>\n"
         f'<div class="wrap">\n{body}\n</div>\n</body>\n</html>\n'
     )
 
@@ -682,8 +730,9 @@ def _render_single_file(
     pages: list[tuple[ProjectBuild, dict[str, Any]]],
     show_costs: bool,
     stamp: str,
+    fragment: bool = False,
 ) -> str:
-    """Render every project into one self-contained document."""
+    """Render every project into one self-contained document, or fragment."""
     # Even in one document the cards earn their place: they are the contents
     # page, and each jumps to its section instead of to another file.
     cards = [
@@ -704,7 +753,7 @@ def _render_single_file(
         f"{''.join(sections)}"
         f"{_footer(stamp)}"
     )
-    return _page("Woodshop gallery", body)
+    return _page("Woodshop gallery", body, fragment=fragment)
 
 
 def _render_project_page(

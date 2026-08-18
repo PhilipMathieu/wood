@@ -367,3 +367,46 @@ def test_the_page_publishes_the_footage_and_the_offcut_allowance(fence, tmp_path
     assert "lineal ft" in page
     assert "offcuts" in page
     assert "as of 2026-08-17" in page
+
+
+# ---------------------------------------------------------------------------
+# One file, and one file with no document shell
+# ---------------------------------------------------------------------------
+
+
+def test_single_file_is_a_whole_document(fence, tmp_path):
+    index = build_gallery([fence], outdir=tmp_path, single_file=True)
+    page = index.read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>")
+    assert "<body>" in page
+    assert "data:image/png;base64," in page
+
+
+def test_a_fragment_brings_its_style_and_leaves_the_shell_to_its_host(fence, tmp_path):
+    index = build_gallery([fence], outdir=tmp_path, fragment=True)
+    page = index.read_text(encoding="utf-8")
+    for shell in ("<!doctype", "<html", "<head>", "<body>"):
+        assert shell not in page.lower()
+    assert page.startswith("<title>")
+    assert "<style>" in page
+    # Still self-contained: a fragment that pointed at sibling files could not
+    # be pasted anywhere.
+    assert "data:image/png;base64," in page
+    assert 'src="views.png"' not in page
+
+
+def test_a_fragment_needs_no_second_flag(fence, tmp_path):
+    """`--fragment` implies `--single-file`; asking for both is not required."""
+    index = build_gallery([fence], outdir=tmp_path, fragment=True)
+    assert not (tmp_path / fence.slug / "index.html").exists()
+    assert index.name == "index.html"
+
+
+def test_the_theme_resolves_in_all_three_states(fence, tmp_path):
+    """System-dark, explicitly dark, and explicitly light on a dark machine."""
+    page = build_gallery([fence], outdir=tmp_path, fragment=True).read_text()
+    assert '@media (prefers-color-scheme: dark)' in page
+    assert ':root:not([data-theme="light"])' in page
+    assert ':root[data-theme="dark"]' in page
+    # And the body paints its own ground rather than borrowing the host's.
+    assert "background: var(--bg)" in page
