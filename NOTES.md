@@ -932,3 +932,366 @@ staleness is now in place, and something has to actually go and look. The
 first version proposed there does not even parse the sign: it notices the
 image changed and shows it to a human, because a scraper that launders a bad
 parse into a dated price would undo everything #3 built.
+
+## Addendum: the media console, where the plywood decides the dimensions
+
+The first piece in this repo that is not a reproduction. The brief is prose:
+80" x 24" x 13" in cherry plywood, five record bays 15" wide and 13-1/2" tall,
+a shallower 8" row above for CDs, a clear top for the turntable, solid cherry
+front edges, dados, clear finish. Everything below came out of trying to make
+all of those numbers true at once, which they are not.
+
+### The brief is over-specified by 3/8" and an eighth of an inch
+
+Add it up. Five 15" bays and six 3/4" panels is 79-1/2", not 80". The two
+openings and three 3/4" panels come to 23-3/4" of the 24". The brief is
+internally inconsistent at exactly the scale that nobody notices on paper and
+everybody notices at the saw.
+
+Then the plywood moves both numbers again, in the *same* direction. `3/4"`
+cherry plywood measures 45/64", so six verticals take 4-7/32" instead of 4-1/2"
+and three horizontals take 2-3/32" instead of 2-1/4". The design's whole job is
+deciding where that slack goes:
+
+- **Across the width**: into the bays. They come out 15-5/32" clear, an eighth
+  over the brief. The alternative is a case 79-1/32" wide, and the envelope is
+  the number a room cares about.
+- **Up the height**: into the floor. The openings are held at 13-1/2" and 8"
+  exactly, and the 25/64" left over becomes a **toe reveal** — the bay bottoms
+  are housed that far off the floor and the case stands on its six panel ends.
+
+The second one is the better decision of the two. A 3/8" reveal is too small to
+read as a plinth, so it does not pretend to be one; what it does is keep a
+plywood bottom off a floor that is never flat, and give the piece a shadow line
+where it meets it. `check_envelope` confirms all three published dimensions to
+the sixteenth, which they only are because the openings were held and the bays
+were not.
+
+### The five bays are not a structural number — **and the check says so**
+
+`check_shelf_deflection` is new: the same simply-supported beam under a UDL
+that `check_slat_deflection` already used, factored out into
+`_udl_deflection_mm` and asked a different question.
+
+The difference is not cosmetic. A slat's load is *fixed* — 250 kg of mattress
+and people, however many slats there are — so its deflection goes as 1/n and
+the remedy is more slats. A shelf's load **comes with its length**: twice the
+shelf holds twice the records. So sag goes as the fourth power of the span, and
+the remedy is a divider. Two functions, because the two remedies are different
+sentences.
+
+What it found is the useful part. A full bay bottom — 75 records, 19 kg over a
+15-5/32" span — sags **0.1 mm**, span/2686. Undivided, the same bottom at the
+same load per foot sags **100 mm**, and the check reports that three bays would
+be enough to meet span/360.
+
+So the five bays are not holding the plywood up. They are there because a run
+of records much over 15" leans, slumps and bends the sleeves at the ends of it,
+which is a fact about records and not about stiffness — and the report now says
+both, in order, instead of leaving a reader to assume the dividers are
+structural.
+
+Shelves are held to span/360, not the span/240 the bed deck gets. Sag this side
+of collapse is an appearance problem, and appearance is stricter than
+serviceability.
+
+### `check_clearance` was telling a bookcase about its mattress
+
+Reusing it for the finger's room above a record sleeve turned up a hard-coded
+`"tight, mattress may bind"` in a general-purpose check. The band is general;
+what being outside it *costs* is not, and only the caller knows. `tight_note`
+and `loose_note` are now parameters, and the bed passes its own mattress
+wording. One call site made it look like a style choice; the second made it a
+bug.
+
+### The renderer was clipping the console and saying nothing
+
+The front elevation lost its right-hand end. mplot3d honours the *ratio* of
+`set_box_aspect` and not the size, so a long, low plot box runs past the axes
+and is silently cropped — a failure mode with no error, no warning, and a
+plausible-looking picture. `_fit_zoom` zooms out in proportion to how far the
+longest span exceeds its share of the diagonal: 1.0 for anything roughly cubic,
+so the bed and the nightstand render exactly as before, and 0.85 for an 80" x
+13" x 24" console.
+
+This is the second time the views have caught something no dimension check
+could. It is worth repeating that the renderer earns its keep as a *check*, not
+as decoration — and that a renderer which crops instead of failing is worse
+than one that draws nothing.
+
+### Dados, cut rather than described
+
+Every other project in the repo models parts that meet; this one models parts
+that are *housed*, and `woodshop.joinery.Dado` had been sitting unused since it
+was written. The verticals are housed 1/4" into the underside of the top (a
+rabbet at each end, a dado at each divider) and the shelves 1/4" into the
+verticals — twenty-six housings in all, four in every divider and two in each
+end panel — and every one of them is a real boolean followed by `retag`.
+
+The cut is what makes `test_the_housings_are_really_cut_away` possible: the
+intersection of a divider and the shelf running into it has zero volume. Model
+the joint as a note and the shelf ends sit inside solid plywood, which no
+dimension check would ever notice and every dry fit would.
+
+### What the cut list says, and one thing it overstates
+
+Two sheets of 4x8 cherry plywood at 52% yield, and a single 4/4 cherry board
+for the edging. The yield number is honest and unflattering: the parts total
+about 1.05 sheets of area, so the second sheet is mostly offcut — enough for a
+shorter second case, or for a back if the piece ever wants one.
+
+The overstatement is the edging. It is 31 lineal feet of 1/4"-wide strip milled
+to the plywood's 45/64", and `nest_hardwood` buys 4/4 stock for it and bills the
+full board thickness. Resawn, one 4/4 board yields two or three times what the
+plan assumes. The nester has no idea a part can be *cut out of the thickness*
+of a board rather than off its width, and that is the next real gap in it.
+
+## Addendum: the console became a kit, and then a second console
+
+The dado version above lasted about an hour. Asked to make it modular *like the
+original*, I went and found out what the original actually is — and it is not a
+case at all.
+
+### What the Grid System turned out to be
+
+`luccahouse.com` is blocked from this machine, so nothing here is measured off
+it and no photograph was read; what follows is from search results, and it is
+recorded that way in the module docstring too. **(Superseded — the domain was
+opened up later the same day and the photographs contradicted this section on
+one point. See "the pictures were right and the model was wrong, again", at the
+end.)** Lucca House's **Grid System** is
+prefinished maple plywood panels **notched to slide together**: no tools, no
+glue, no hardware, assembled or taken apart in under a minute, named by the
+grid they make (`5x1`, `4x2`, `5x4`), with three part sizes producing six
+products and resizing done by swapping the long parts.
+
+That is a different animal from a glued case, and copying the *look* of it
+without the joinery would have been the wrong answer to the question.
+
+### One decision does all the work
+
+Every crossing is a half-lap: the shelf notched half its depth from the **back**
+edge, the upright half its depth from the **front**, sliding together front to
+back until each fills the other. Four consequences fall straight out of it, and
+none of them had to be designed separately:
+
+- **The parts collapse to three.** Six uprights, two shelves, a top. The
+  bottom shelf and the CD shelf are the same part; so are all six uprights,
+  end panels included, because a slot open at an edge is symmetrical and
+  therefore not handed. The dado version had ten shelves in two labels, four
+  dividers and two sides.
+- **The front edging reverses.** Where a shelf crosses an upright, the front of
+  the case *is* the shelf — there is no upright material there to glue a strip
+  to. So the horizontals' edging runs unbroken and the uprights' is in one
+  piece per row, which is the opposite of the glued version and was not a
+  styling choice.
+- **A 25/64" problem appeared at the floor.** Below the bottom shelf each
+  upright shows a foot of toe reveal, too little to edge and too much to leave
+  bare. The fix is the base rail: the bottom shelf's edging deepened to 1-1/32"
+  so it covers the shelf and the feet together, stopping a sixteenth short of
+  the floor so the uprights still carry the piece and can still be shimmed.
+- **The slot tolerance stops being cosmetic.** A dado 1/32" wide of the panel
+  is a glue line. A *slot* 1/32" wide of it, in a case with no glue anywhere,
+  is a wobble — so `check_thickness_substitution`'s warning is now joined by a
+  `kit` warning that says to cut one test slot in an offcut first.
+
+`test_at_a_crossing_each_part_has_only_its_own_half` is the whole design in one
+assertion: probe the front half of the depth at a crossing and the upright has
+no material there; probe the back half and the shelf has none. They interlock
+and never intersect, which a bounding-box test cannot tell you.
+
+### The painted build, which is not the same piece in cheaper clothes
+
+Then: a plain painted plywood build with a solid wood top. That is a variant in
+the repo's usual sense — same grid, same openings, same envelope — but almost
+every derived number moves, and *that is the point of deriving them*:
+
+| | cherry | painted |
+| --- | --- | --- |
+| sheet | cherry ply, **45/64"** | paint-grade birch, **23/32"** |
+| bays | 15-5/32" | **14-15/16"** |
+| toe reveal | 25/64" | 5/16" |
+| front edges | solid cherry, 15 strips | none — filled and painted |
+| top | a member of the grid | solid cherry, 3/4", overhanging 1/2" each end |
+| pieces | 9 panels + 15 strips | 8 panels + 1 board |
+
+Two things worth writing down:
+
+**The overhang pays for the thicker sheet.** A solid top that projects past the
+ends takes its overhang out of the *case*, not out of the room: the console is
+80" wide either way, the grid under it is 79", and the bays land at 14-15/16" —
+within a sixteenth of the 15" the brief asked for and closer than the cherry
+build gets. Birch ply being thicker than cherry ply would have pushed them the
+other way; the overhang more than cancels it.
+
+**A plywood case does not move and a solid top always does.** Hence
+`check_wood_movement`, which is new: tangential shrinkage from the Wood
+Handbook, a six-point seasonal moisture swing, and the answer for this piece is
+**3/16" across 13" of cherry**. That is not a rounding error, and it decides a
+joint: the top's housings run front to back, the same way it moves, so nothing
+restrains it and the slab simply lies on the grid under its own weight. Screws
+up through the shelves would be the one mistake that splits it — pass
+`allowance_mm=0.0` and the check says so in as many words.
+
+The check earns its keep beyond this piece. Every other check in the module
+asks whether a design *can be built*; this one asks whether it will still be
+built the same way in February.
+
+### And one thing the renderer nearly hid
+
+The 80" console was being cropped in the front and plan elevations — mplot3d
+honours the *ratio* of `set_box_aspect` and not the size, so a long, low plot
+box runs off the axes and is cropped with no error and no warning. `_fit_zoom`
+scales the drawing back by how far the longest span exceeds its share of the
+diagonal: 1.0 for anything roughly cubic, so the bed and the nightstand are
+untouched, and 0.85 for this. A renderer that crops silently is worse than one
+that fails, because the picture still looks plausible — and the picture is what
+this repo uses to catch the mistakes no dimension check can.
+
+## Addendum: the pictures were right and the model was wrong, again
+
+The console was designed from prose, because `luccahouse.com` was blocked by
+the egress proxy. Then `cdn.shopify.com` and the site itself were allowlisted,
+the manufacturer's own images could be read, and they contradicted the model.
+
+This is the second time in this repo. The bed was built from a listing's prose
+and rebuilt from the 360 viewer; the console was built from search snippets and
+corrected from tearsheets. **Prose describes what a thing is for. Pictures
+describe what it is.** Worth writing on the wall.
+
+### Correction 1: the slot direction was backwards
+
+The model had the shelves notched from the back and the uprights from the
+front, so the horizontals ran unbroken across the front of the case. Every
+consequence of that — the edging arrangement, the base rail — followed from it,
+and it is wrong.
+
+The evidence is a photograph of a single crossing with red edge banding
+(`4x2_color_swatch_red.jpg` on their CDN). At the crossing the **vertical**
+band runs through unbroken and the **horizontal** band butts into it on both
+sides. The member visible at the front owns the front half-depth. So:
+
+- uprights are slotted from the **back**, and keep their front half;
+- shelves are slotted from the **front**.
+
+Flipping it took two lines and deleted a part. With the uprights unbroken at
+the front, each one's edging is a single strip from the floor to the underside
+of the top — which covers the 25/64" of foot that the base rail was invented to
+hide. The rail, its `base_rail_float_in` parameter and its test are gone, and
+the front now reads as six verticals with shelf edges between them.
+
+The lesson is not "check the reference" — it is that a design decision with
+four consequences hanging off it deserves a source, and "it looked better to me
+that way" was doing the work of one.
+
+### Correction 2: the radius was more than twice too big
+
+The first radius was 2", picked by eye. Their tearsheets are dimensioned
+orthographic drawings, and they self-calibrate: the parts in the 4x2 sheet
+measure exactly 11-1/2" x 23-1/2" and 11-1/2" x 47-1/2", which gives 17.1 px/in
+directly off the image. Thresholding the panel colour and measuring where each
+panel's top row starts against its leftmost column gives the radius without
+any curve fitting:
+
+```
+4x2 tearsheet   long parts  197 x 803 px, r = 13-14 px   ->  0.76-0.82"
+4x2 tearsheet   short parts 403 x 197 px, r = 14-18 px   ->  0.82-1.05"
+1x1 tearsheet   parts       279 x 279 px, r = 19-26 px   ->  0.78-1.07"
+```
+
+Call it **0.8", and 0.07 of the panel's width** — which is the number that
+travels, because their panels are 11-1/2" wide and this console's are 12-3/4".
+`REFERENCE_RADIUS_RATIO` holds the ratio and `reference_corner_radius`
+multiplies it out: **7/8"** here. Rendered beside the old 2", the difference is
+not subtle — 2" reads as a rounded box, 7/8" as a square panel with the corners
+taken off, which is what the photographs show.
+
+### What was deliberately not adopted
+
+Their stock is **1/2"** plywood at **11-1/2"** deep, and their members overrun
+every crossing — the horizontals run past the end uprights and the uprights
+stand proud above and below. That is a shelf that wants to look like a grid.
+This is a console that has to hold 200 lb of records at browsing height inside
+a published 80" x 24" x 13", so it keeps 3/4"-class stock, a closed envelope,
+and a top that caps the uprights rather than letting them through.
+
+Both facts are recorded in the module docstring under *Where the joinery came
+from*, along with which two things are measured and which are borrowed. The
+distinction is the whole point: this piece is not a reproduction, and the file
+should never be able to be mistaken for one.
+
+### Correction 3: everything overruns, and that is the whole look
+
+The two corrections above were about *where* material sits at a joint. This one
+is about whether the joint is a joint at all.
+
+In the reference, **every member runs past its outermost crossing** — the
+horizontals past the end uprights, the uprights above the top shelf and below
+the bottom one, which is also what they stand on. So every joint is a
+full-width lap with stock on both sides of it, and nothing terminates at a
+joint. The console had the end uprights flush with the ends, which turns the
+four crossings there into corner notches and the top's outer housings into
+rabbets. That is why it kept reading as a box with a grid drawn on it.
+
+The parts drawings give the number without any perspective to argue with,
+because the slots are dimensioned by their own positions:
+
+```
+23-1/2" parts (4 slots)   0.44"*  4.03"          19.44"  23.06"*
+47-1/2" parts (6 slots)   0.38"*  4.03"  15.00"  31.87"  42.85"  46.44"*
+                          * = the corner radius, not a slot
+```
+
+So the outer slots sit **4.03" from one end and 4.06"/4.4" from the other** —
+a constant ~4" overrun on an 11-1/2" panel, **0.35 of the panel's width**, the
+same in both directions. `REFERENCE_OVERHANG_RATIO` holds it and
+`end_overhang` multiplies it out: **4-7/16"** on this console's 12-3/4" panels.
+
+**It is bought out of the bays, and the report says so.** The envelope is
+published at 80", so 8-7/8" of overrun takes 1-25/32" off every opening: bays
+of **13-3/8"** instead of 15-5/32", which leaves 1" beside a 12-3/8" sleeve
+rather than 2-3/4". `end_overhang_in=0` takes the old bays back along with the
+corner notches, and both numbers are printed either way.
+
+Two consequences worth stating rather than discovering later:
+
+- **An ear is a ledge, not a bay.** There is no upright beyond it, so records
+  in the outer 4-7/16" have nothing to lean against. It is somewhere to put a
+  record down while the other side plays, and the check says so as a `WARN`
+  rather than leaving it to be found out.
+- **The uprights cannot overrun.** The reference stands them ~4" proud top and
+  bottom; a 24" envelope with 13-1/2" and 8" openings has 25/64" left over
+  once three panels have had theirs. The toe reveal is what survives of that
+  idea. Matching it would mean a 33" console or shorter rows, and the brief
+  says 24".
+
+That last one is the honest limit of borrowing a system for a piece it was not
+drawn for. The horizontal half of the language fits inside the brief; the
+vertical half does not, and pretending otherwise would mean quietly changing
+what the piece is for.
+
+### Shipped: both proportions on by default, and the ears got a job
+
+`corner_radius_in` and `end_overhang_in` both now default to `None`, meaning
+*the maker's proportion* — 7/8" of radius and 4-7/16" of overrun on these
+12-3/4" panels. Passing `0` to either goes back to square corners or flush
+ends. Holding them as ratios rather than inches is what makes that work: the
+painted build's panels are 13" wide, so it takes 0.91" and 4-9/16" without
+anybody restating the numbers.
+
+The ears turned out to be the point rather than the price. They are the only
+surfaces on the piece at a height you look *at* rather than down on, and they
+are for a plant or something small — so the report now weighs them as ledges:
+5 kg on the very tip of one deflects it 0.02 mm, ear/4539, which says the limit
+is what will sit still on a 4-7/16" shelf and not the plywood under it. Two
+warnings keep their company, because a ledge that is good for a plant is bad
+for two other things:
+
+- **Not a bay.** Nothing stands beyond an ear, so records put there walk off
+  the end.
+- **Water.** A pot of damp soil on end grain and edge veneer is the one place
+  on this piece where a ring is likely — saucer and cork mat, and on the
+  painted build's plywood edge a ring is swelling, not a stain.
+
+That is the sort of thing a check is for: the design got a new use, and the
+consequences of that use are now printed next to it rather than remembered.

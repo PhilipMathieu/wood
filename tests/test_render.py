@@ -157,6 +157,19 @@ def test_render_assembly_draws_one_axes_per_view(bed):
     plt.close(fig)
 
 
+def test_a_long_low_assembly_is_zoomed_out_to_fit():
+    """Regression: the 80" console lost its right-hand end in the elevations.
+
+    mplot3d honours the ratio of the spans and not their size, so a long thin
+    plot box runs off the axes and is clipped without a word.
+    """
+    from woodshop.render.model3d import _fit_zoom
+
+    assert _fit_zoom((600.0, 600.0, 600.0)) == 1.0
+    assert _fit_zoom((2210.0, 1626.0, 1016.0)) == 1.0, "the bed already fitted"
+    assert _fit_zoom((2032.0, 330.2, 609.6)) < 0.9
+
+
 def test_render_assembly_rejects_an_empty_assembly():
     from build123d import Box, Compound
 

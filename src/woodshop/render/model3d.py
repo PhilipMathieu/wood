@@ -17,6 +17,7 @@ Example
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
@@ -95,6 +96,45 @@ def _shade(
     )
     factor = 0.55 + 0.45 * lit
     return tuple(min(1.0, channel * factor) for channel in base)  # type: ignore[return-value]
+
+
+#: How much of the plot box's diagonal the longest dimension may occupy before
+#: the drawing is zoomed out to fit.
+#:
+#: mplot3d scales the plot box to a fixed norm, so the *ratio* of the spans is
+#: honoured and the overall size is not: a long, low assembly gets a box wider
+#: than the axes can show, and matplotlib clips it silently.  A cube sits at
+#: 0.577 of its own diagonal and needs no help; an 80" x 13" x 24" console sits
+#: at 0.95 and loses its right-hand end in the front elevation.
+_FIT_FRACTION: float = 0.80
+
+
+def _fit_zoom(spans: tuple[float, float, float]) -> float:
+    """Return the zoom that keeps a long assembly inside its axes.
+
+    Parameters
+    ----------
+    spans : tuple of float
+        Bounding-box size in X, Y and Z.
+
+    Returns
+    -------
+    float
+        ``1.0`` for anything roughly cubic — the shapes that already fit — and
+        less for anything longer, in proportion to how much longer.
+
+    Examples
+    --------
+    >>> _fit_zoom((100.0, 100.0, 100.0))
+    1.0
+    >>> round(_fit_zoom((2032.0, 330.2, 609.6)), 3)
+    0.845
+    """
+    longest = max(spans)
+    diagonal = math.dist((0.0, 0.0, 0.0), spans)
+    if longest <= 0 or diagonal <= 0:
+        return 1.0
+    return min(1.0, _FIT_FRACTION * diagonal / longest)
 
 
 def _iter_leaf_parts(node: Any) -> Iterator[Any]:
@@ -207,7 +247,7 @@ def render_assembly(
         ax.set_xlim(bb.min.X, bb.max.X)
         ax.set_ylim(bb.min.Y, bb.max.Y)
         ax.set_zlim(bb.min.Z, bb.max.Z)
-        ax.set_box_aspect(spans)
+        ax.set_box_aspect(spans, zoom=_fit_zoom(spans))
         ax.view_init(elev=view.elev, azim=view.azim)
         ax.set_title(view.name, fontsize=10)
         ax.set_axis_off()

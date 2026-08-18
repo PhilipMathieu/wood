@@ -15,8 +15,9 @@ src/woodshop/
                       each price carrying the date and source behind it
   pricing.py          PriceLine and CostSummary — a total that cannot print
                       without saying how old its rates are
-  checks.py           design checks (envelope, fit, thickness, deflection,
-                      material, tipping, price provenance)
+  checks.py           design checks (envelope, fit, thickness, slat and shelf
+                      deflection, material, wood movement, tipping, price
+                      provenance)
   project.py          the registry that makes projects discoverable
   cutlist/
     extract.py        walk an assembly into a consolidated list of CutParts
@@ -35,6 +36,9 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
+  media_console.py    80" console as a slide-together grid: five record bays,
+                      a CD row, half-lapped panels, no glue. Cherry-plywood
+                      and painted-birch/solid-top builds
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -49,6 +53,7 @@ uv sync
 uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
+uv run python projects/media_console.py --variant both --outdir build
 ```
 
 That writes to `build/`:
@@ -177,6 +182,38 @@ ERROR [price]     cherry 4/4 is priced per bd ft but carries no price_as_of:
 WARN  [price]     plywood_birch 3/4 (48" x 96") has no price in stock.yaml —
                   any total that includes it is a total with a hole in it
 ```
+
+`check_slat_deflection` and `check_shelf_deflection` are the same beam asked
+different questions, which is why they are two functions and not one. A slat is
+one of many under a load that is fixed however many there are, so the remedy is
+*more slats*. A shelf is on its own and its load **comes with its length** —
+twice the shelf holds twice the records — so its sag goes as the fourth power
+of the span and the remedy is *a divider*:
+
+```
+WARN  [deflection] the same bottom undivided in plywood_cherry, 78-5/8" span
+                   carrying 93.8 kg: 99.9 mm midspan sag (span/20; limit
+                   span/360 = 5.5 mm) — 38-1/8" is the longest span that meets
+                   it, or 1-27/32" stock at this span; 3 bays across a 78-5/8"
+                   run
+```
+
+Shelves are held to span/360 rather than the span/240 a bed deck gets: sag this
+side of collapse is an appearance problem, and appearance is stricter.
+
+`check_wood_movement` exists for designs that mix the two kinds of material.
+Plywood does not move and solid wood always does, so a solid top on a plywood
+case has to be *held so that it can*:
+
+```
+INFO  [movement] the solid top, across its depth: 13" of cherry across the
+                 grain moves about 3/16" (4.7 mm) over a 6-point moisture
+                 swing — it has to be held so that it can, which means no glue
+                 and no fixing across its width
+```
+
+Pass `allowance_mm` to ask what a part is being asked to survive: `0.0` is a
+top screwed down across the grain, and the finding says what that costs.
 
 Most checks compare a number against a number. `check_material_suitability`
 compares a **material against an operation**, which is the question a cut list
