@@ -66,6 +66,9 @@ MATERIAL_COLORS: dict[str, str] = {
     # Fresh northern white cedar is pale straw; left outside it silvers within
     # a season or two, which is why nobody stains a fence twice.
     "white_cedar": "#d8c9a3",
+    # Black PVC over galvanised wire: near-black, and not quite, because a
+    # true black reads as a hole in a shaded render.
+    "steel_mesh_black": "#2f3234",
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",

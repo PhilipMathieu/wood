@@ -140,10 +140,17 @@ class LinealPlan:
         Parts that could not be matched to an entry, each with the reason.
         Reported rather than raised: a design that mixes cedar with plywood
         should still get a cedar plan.
+    excluded : list[str]
+        Labels of stock this plan is the wrong plan for — material that is
+        stocked, and stocked by the roll or the bundle rather than by the
+        foot.  They are carried through to :attr:`cost_summary` so that a
+        total which leaves them out says which they are: mesh omitted from a
+        fence total is exactly as wrong as an unpriced board omitted from one.
     """
 
     groups: list[StockGroup] = field(default_factory=list)
     unmatched: list[tuple[CutPart, str]] = field(default_factory=list)
+    excluded: list[str] = field(default_factory=list)
 
     @property
     def lineal_ft(self) -> float:
@@ -174,7 +181,8 @@ class LinealPlan:
         lines = [g.price_line for g in self.groups]
         return CostSummary.of(
             (line for line in lines if line is not None),
-            (g.label for g, line in zip(self.groups, lines) if line is None),
+            [g.label for g, line in zip(self.groups, lines) if line is None]
+            + list(self.excluded),
         )
 
     @property
@@ -203,7 +211,11 @@ class LinealPlan:
                 f"({g.measured_ft:.0f} LF cut + "
                 f"{g.allowance * 100:.0f}% offcuts{cost})"
             )
+        seen: set[str] = set()
         for part, reason in self.unmatched:
+            if reason in seen:
+                continue
+            seen.add(reason)
             lines.append(f"  (!) {part.label}: {reason}")
         summary = self.cost_summary
         for label in summary.unpriced:
@@ -253,8 +265,25 @@ def plan_dimensional(
 
     groups: dict[str, StockGroup] = {}
     unmatched: list[tuple[CutPart, str]] = []
+    excluded: list[str] = []
 
     for part in parts:
+        # Some materials are stocked and are simply not lumber: mesh comes off
+        # a roll, shakes come in a bundle. Saying "no nominal size" about a
+        # roll of wire would be true and useless.
+        unit = inventory.unit_stock_for(part.material)
+        if unit is not None:
+            if unit.stock_label not in excluded:
+                excluded.append(unit.stock_label)
+            unmatched.append(
+                (
+                    part,
+                    f"{unit.stock_label} is bought by the {unit.unit}, not by "
+                    "the foot — it is priced where it is stocked, under "
+                    "unit_goods",
+                )
+            )
+            continue
         if not part.nominal:
             unmatched.append(
                 (
@@ -283,4 +312,5 @@ def plan_dimensional(
     return LinealPlan(
         groups=[groups[key] for key in sorted(groups)],
         unmatched=unmatched,
+        excluded=excluded,
     )

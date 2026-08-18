@@ -897,7 +897,13 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
                 f"{group.allowance * 100:.0f}% offcuts)"
                 f"{html.escape(cost)}</li>"
             )
+        # One material, one line: the same reason repeated once per part reads
+        # as three problems where there is one.
+        seen: set[str] = set()
         for part, reason in built.lineal.unmatched:
+            if reason in seen:
+                continue
+            seen.add(reason)
             rows.append(
                 f"<li>{html.escape(part.label)}: {html.escape(reason)}</li>"
             )

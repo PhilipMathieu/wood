@@ -8,8 +8,8 @@ optimisation, and design checks that run before anything gets cut.
 
 ```
 src/woodshop/
-  parts.py            Board, Panel, Disc, Turning, ShapedBoard — solids that
-                      carry cut-list metadata
+  parts.py            Board, Panel, Disc, Turning, Pole, ShapedBoard — solids
+                      that carry cut-list metadata
   lumber.py           nominal -> actual dimension tables, kerf, fraction formatting
   inventory.py        loads stock.yaml: dimensional, hardwood, and sheet stock,
                       each price carrying the date and source behind it
@@ -37,8 +37,9 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
-  cedar_fence.py      38 ft of white cedar fence at 4 ft, in three styles,
-                      plus two 10 ft gated sections — real prices, by the foot
+  cedar_fence.py      38 ft of white cedar fence at 4 ft, in four styles —
+                      picket, board-on-board, horizontal, and peeled logs with
+                      black coated mesh — plus two 10 ft gated sections
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -117,6 +118,15 @@ parts (`Disc`, `Turning`) are built about the **lathe axis, which runs along
 with its **height** along X, because that is the way the grain runs. Cut dimensions are stored on the part rather than measured back off its
 bounding box, so they survive being placed.
 
+### Round stock: bought round, or made round
+
+`Turning` is a spindle: a square blank with most of it turned away, priced as
+the square. `Pole` is a log: you buy the round thing by the foot, and the only
+work done to it is a cut at each end. They draw identically and could not be
+less alike on an order, so they are different classes and different `shape`
+values — and `estimate_mass_kg` knows a solid of revolution is π/4 of the box
+it sits in, which is 27% of a fence post.
+
 ### Rough sawn versus dressed, and what a board covers
 
 `NOMINAL_TO_ACTUAL` holds *dressed* sizes: a 1x6 is 3/4" x 5-1/2". Rough sawn
@@ -174,6 +184,7 @@ All internal geometry is in millimetres. Inches are a presentation format —
 | Dimensional lumber, lengths unpublished | `plan_dimensional` | a rate per lineal foot buys material; it does not buy sticks |
 | Hardwood | `nest_hardwood` | random widths; parts are ripped across the board too |
 | Sheet goods | `pack_by_material` | per-material sheet sizes and grain |
+| Sold by the roll or the bundle | neither | it is not lumber; `plan_dimensional` names it and hands it back |
 
 `plan_dimensional` is the answer to a supplier who prices twenty-eight cedar
 profiles and lists no lengths at all. It groups the cut list by the *entry each
@@ -298,6 +309,14 @@ uv run python projects/cedar_fence.py --variants
 prices the same 58 ft of fence in every cedar variant Lumbery stocks — $1,708 in
 low-grade rough 1x6 up to $3,540 in 5/4x4 decking — and lists what the guide
 sells that a fence cannot use, with the reason.
+
+Two materials in that table have **no price at all**, and the file says so
+rather than filling them in: peeled round cedar, which Lumbery's guide does not
+cover because the guide is sawn stock only, and the black coated welded wire the
+log fence is built around, whose retail price is published on pages this
+environment's egress proxy blocks. Both are recorded with sizes, sources and a
+plain statement of what is missing, so every total that touches them prints as
+partial and names what it left out.
 
 `projects/cedar_fence.py` is the project built entirely on the real ones: every
 line of its total is dated, and the same guide that prices the stock publishes

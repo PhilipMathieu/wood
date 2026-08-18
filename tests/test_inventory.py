@@ -147,13 +147,33 @@ def test_the_cherry_and_plywood_prices_are_still_undated_placeholders(inv):
 
 def test_the_cedar_prices_are_real_dated_and_sourced(inv):
     """Lumbery publishes a full guide, so this is the one supplier we can cite."""
-    cedar = [d for d in inv.dimensional if d.species == "white_cedar"]
-    assert len(cedar) > 20
-    for entry in cedar:
+    sawn = [
+        d for d in inv.dimensional
+        if d.species == "white_cedar" and d.profile != "peeled log"
+    ]
+    assert len(sawn) > 20
+    for entry in sawn:
         assert entry.price_is_verified
         assert entry.price_as_of == datetime.date(2026, 8, 17)
         assert entry.price_source.startswith("Lumbery")
         assert entry.price_url.startswith("https://lumbery-me.com/")
+
+
+def test_the_round_stock_is_deliberately_unpriced(inv):
+    """The guide is sawn stock only, and a fence that wants logs should be told."""
+    logs = [d for d in inv.dimensional if d.profile == "peeled log"]
+    assert logs
+    for entry in logs:
+        assert entry.price is None
+        assert entry.price_source.startswith("NOT PRICED")
+
+
+def test_the_mesh_is_unpriced_and_says_why(inv):
+    """A number copied out of a search snippet is the price this file refuses."""
+    mesh = next(u for u in inv.unit_goods if u.species == "steel")
+    assert mesh.price is None
+    assert "blocked" in mesh.price_source
+    assert mesh.coverage_sqft == pytest.approx(400)   # 4 ft x 100 ft, arithmetic
 
 
 def test_cedar_is_priced_by_the_lineal_foot_as_the_guide_quotes_it(inv):

@@ -102,8 +102,8 @@ from woodshop.lumber import (
     mm_to_fractional_inch,
     rough_dimensions_mm,
 )
-from woodshop.parts import Board
-from woodshop.pricing import format_money
+from woodshop.parts import Board, Panel, Pole
+from woodshop.pricing import CostSummary, PriceLine, format_money
 from woodshop.project import ProjectSpec
 from woodshop.render import export_assembly, render_assembly, render_cut_list
 
@@ -111,7 +111,15 @@ IN = 25.4
 FT = 304.8
 
 #: The infill styles this project builds.
-STYLES: tuple[str, ...] = ("picket", "board_on_board", "horizontal")
+STYLES: tuple[str, ...] = (
+    "picket",
+    "board_on_board",
+    "horizontal",
+    "log_and_mesh",
+)
+
+#: Styles whose infill is boards rather than something bought by the roll.
+BOARD_STYLES: tuple[str, ...] = ("picket", "board_on_board", "horizontal")
 
 #: Orientation of a part standing upright in the fence plane: length up +Z,
 #: width along the run (+X), thickness across it (+Y).
@@ -122,6 +130,10 @@ ALONG_RUN = Rotation(90, 0, 0)
 
 #: Orientation of a post: square section, length up +Z.
 UPRIGHT_POST = Rotation(0, 90, 0)
+
+#: Orientation of a pole lying along the run: its axis, which is +Z as built,
+#: swung onto +X.
+POLE_ALONG_RUN = Rotation(0, 90, 0)
 
 #: Frost depth in southern Maine, in inches.  A post whose bottom sits above
 #: this is a post that gets jacked out of the ground a little every spring.
@@ -197,12 +209,20 @@ class StockChoice:
     Parameters
     ----------
     nominal : str
-        Nominal size, e.g. ``"1x6"``.
+        Nominal size, e.g. ``"1x6"``, or the size label of round stock, e.g.
+        ``"log 5"``.
     grade : str, optional
-        Grade as the supplier names it, default ``"STK"``.
+        Grade as the supplier names it, default ``"STK"``.  Round stock is
+        usually ungraded, so an empty string is normal there.
     profile : str, optional
         How the stock is worked, exactly as ``stock.yaml`` spells it, default
         ``"rough sawn"``.
+    diameter_in : float or None, optional
+        Diameter of round stock, in inches.  Setting it makes this a **pole**:
+        sized from the diameter rather than from a nominal-size table, bought
+        by the foot as the round thing it is, and modelled as a cylinder.
+        Round stock is graded in ranges — a "4 to 5 inch" post — so this is
+        the size to design to and not a promise about any one stick.
 
     Raises
     ------
@@ -213,6 +233,12 @@ class StockChoice:
     nominal: str
     grade: str = "STK"
     profile: str = "rough sawn"
+    diameter_in: float | None = None
+
+    @property
+    def round(self) -> bool:
+        """``True`` if this is round stock bought round."""
+        return self.diameter_in is not None
 
     @property
     def rough(self) -> bool:
@@ -277,6 +303,10 @@ class StockChoice:
 
     def _dims(self) -> tuple[float, float]:
         """Return (thickness, width) in mm, from the table this profile lives in."""
+        if self.diameter_in is not None:
+            # A log has no nominal-size table to look up: it is as round as it
+            # is, and the square it fits inside is the diameter both ways.
+            return inches(self.diameter_in), inches(self.diameter_in)
         sizes = rough_dimensions_mm if self.rough else actual_dimensions_mm
         try:
             thickness, width = sizes(self.nominal)
@@ -369,6 +399,139 @@ class BoardRun:
         return self.count - 1 if self.last_width is not None else self.count
 
 
+#: What fills each role when the caller does not say, by style.
+#:
+#: A log fence is a different set of materials, not a different arrangement of
+#: the same ones, which is why this is a table rather than four more defaults
+#: with conditionals hung off them.  The gate frame stays sawn in every style:
+#: see :meth:`CedarFence._leaf`.
+DEFAULT_STOCK: dict[str, StockChoice] = {
+    "board": StockChoice("1x6"),
+    "rail": StockChoice("2x4"),
+    "post": StockChoice("4x4"),
+    "gate_post": StockChoice("6x6"),
+    "gate_frame": StockChoice("2x4"),
+}
+
+#: What a log fence uses instead.  Peeled round cedar, ungraded, by the foot.
+LOG_STOCK: dict[str, StockChoice] = {
+    "post": StockChoice("log 5", grade="", profile="peeled log", diameter_in=5.0),
+    "rail": StockChoice("log 4", grade="", profile="peeled log", diameter_in=4.0),
+    "gate_post": StockChoice(
+        "log 6", grade="", profile="peeled log", diameter_in=6.0
+    ),
+}
+
+#: The mesh a log fence is built around: the material key its parts carry, and
+#: the key ``stock.yaml`` files the roll under.
+MESH_MATERIAL: str = "steel_mesh_black"
+
+#: Thickness the mesh is modelled at, mm (1/8").
+#:
+#: A 2" x 4" mesh is 90% air, and drawing every wire would be four hundred
+#: solids a bay for a picture that reads as a grey haze anyway.  It is modelled
+#: as a thin sheet standing in for the mesh, which is honest about the
+#: envelope and silent about the pattern — see the finding that says so.
+MESH_THICKNESS_MM: float = 3.175
+
+
+@dataclass(frozen=True)
+class MeshPlan:
+    """What mesh a fence needs, in the unit mesh is actually sold in.
+
+    Mesh is not lumber and it is not sheet goods: it comes off a roll of a
+    fixed height, and the only question is how many feet of fence there are to
+    cover.  Area is the wrong unit to buy in — a 400 sq ft roll does not cover
+    400 sq ft of a 4 ft fence in any useful sense unless it is exactly 4 ft
+    tall, which is the assumption this plan checks rather than makes.
+
+    Parameters
+    ----------
+    stock : UnitStock or None
+        The inventory entry, or ``None`` if nothing matching is stocked.
+    run_ft : float
+        Lineal feet of fence to cover, before allowance.
+    allowance : float
+        Fraction added for trimming and for the wrap onto each post.
+    height : float
+        Height of mesh on the fence, mm.
+    roll_height : float
+        Height of the roll it comes off, mm.
+    """
+
+    stock: Any
+    run_ft: float
+    height: float
+    roll_height: float
+    allowance: float = 0.05
+
+    @property
+    def buy_ft(self) -> float:
+        """Lineal feet of mesh to buy."""
+        return self.run_ft * (1.0 + self.allowance)
+
+    @property
+    def roll_length_ft(self) -> float | None:
+        """How long one roll is, from its area and the height it is sold at.
+
+        ``None`` when the entry publishes no coverage — which is a fact about
+        the entry, not a reason to guess a hundred feet.
+        """
+        if self.stock is None or self.stock.coverage_sqft is None:
+            return None
+        return self.stock.coverage_sqft / (self.roll_height / FT)
+
+    @property
+    def rolls(self) -> int | None:
+        """Rolls to buy, or ``None`` if the roll length is unpublished."""
+        length = self.roll_length_ft
+        if not length:
+            return None
+        return int(-(-self.buy_ft // length))  # ceil
+
+    @property
+    def price_line(self) -> PriceLine | None:
+        """Rolls times the rate, with its provenance — ``None`` if unpriced."""
+        if self.stock is None or self.stock.price is None or self.rolls is None:
+            return None
+        return self.stock.price_line(self.rolls)
+
+    @property
+    def cost_summary(self) -> CostSummary:
+        """The mesh line, or the reason there is not one."""
+        line = self.price_line
+        if line is not None:
+            return CostSummary.of([line])
+        label = "mesh" if self.stock is None else self.stock.stock_label
+        return CostSummary.of((), [label])
+
+    def to_text(self) -> str:
+        """Render the plan as a couple of lines of plain text."""
+        if self.stock is None:
+            return (
+                f"  (!) {self.run_ft:.0f} ft of fence wants mesh, and no mesh "
+                "is stocked in stock.yaml"
+            )
+        rolls = (
+            "roll length not published, so this is feet and not rolls"
+            if self.rolls is None
+            else f"{self.rolls} roll(s) of {self.roll_length_ft:.0f} ft"
+        )
+        cost = "" if self.price_line is None else f", {self.price_line.to_text()}"
+        lines = [
+            f"  {self.stock.stock_label:<52s} {self.buy_ft:>6.0f} LF  "
+            f"({self.run_ft:.0f} LF of fence + "
+            f"{self.allowance * 100:.0f}% trim and wrap){cost}",
+            f"  {'':<52s} {rolls}",
+        ]
+        if self.price_line is None:
+            lines.append(
+                f"  (!) {self.stock.stock_label} has no price in stock.yaml — "
+                "it is missing from the total, not free"
+            )
+        return "\n".join(lines)
+
+
 @dataclass
 class CedarFence:
     """A parametric cedar fence: a run, some gates, and one of three infills.
@@ -414,13 +577,25 @@ class CedarFence:
         ``board_on_board`` style, default 1.
     horizontal_gap_in : float, optional
         Target gap between courses in the ``horizontal`` style, default 0.5.
-    board, rail, post, gate_post : StockChoice, optional
-        Which inventory entry fills each role, default rough sawn STK in
-        1x6, 2x4, 4x4 and 6x6.  A choice names a grade and a profile as well
-        as a size, and that is not decoration: rough sawn 1x6 in STK is
-        $2.30/LF and the same board in low grade is $1.30, so a design that
-        does not name them cannot be priced to better than 77%.  See
-        :func:`board_variants` for every entry that will serve.
+    board, rail, post, gate_post, gate_frame : StockChoice, optional
+        Which inventory entry fills each role.  ``None`` takes the default for
+        the style — rough sawn STK in 1x6, 2x4, 4x4 and 6x6 for the board
+        styles, peeled logs for ``log_and_mesh``.  A choice names a grade and
+        a profile as well as a size, and that is not decoration: rough sawn
+        1x6 in STK is $2.30/LF and the same board in low grade is $1.30, so a
+        design that does not name them cannot be priced to better than 77%.
+        See :func:`variants` for every entry that will serve.
+    log_rails : int, optional
+        How many rails a log-and-mesh bay carries, default 3.  The mesh is
+        stapled to them, so this is a question about how much unsupported
+        mesh is acceptable rather than about strength.
+    tenon_in, tenon_diameter_in : float, optional
+        Length and diameter of the round tenon on each end of a log rail,
+        default 3" long and 2" across, into a bored post.
+    mesh_roll_height_in : float, optional
+        Height of the roll the mesh comes off, default 48.
+    mesh_material : str, optional
+        Material key for the mesh, default :data:`MESH_MATERIAL`.
     species : str, optional
         Species, default ``"white_cedar"``.
     inventory : Inventory, optional
@@ -452,23 +627,42 @@ class CedarFence:
     horizontal_gap_in: float = 0.5
     hinge_gap_in: float = 0.375
     leaf_gap_in: float = 0.75
-    board: StockChoice = field(default_factory=lambda: StockChoice("1x6"))
-    rail: StockChoice = field(default_factory=lambda: StockChoice("2x4"))
-    post: StockChoice = field(default_factory=lambda: StockChoice("4x4"))
-    gate_post: StockChoice = field(default_factory=lambda: StockChoice("6x6"))
+    board: StockChoice | None = None
+    rail: StockChoice | None = None
+    post: StockChoice | None = None
+    gate_post: StockChoice | None = None
+    gate_frame: StockChoice | None = None
+    log_rails: int = 3
+    tenon_in: float = 3.0
+    tenon_diameter_in: float = 2.0
+    mesh_roll_height_in: float = 48.0
+    mesh_material: str = MESH_MATERIAL
     species: str = "white_cedar"
     inventory: Inventory = field(default_factory=Inventory.load)
 
     def __post_init__(self) -> None:
-        """Reject a fence that cannot be built as described."""
+        """Fill in the stock this style implies, and reject what cannot be built."""
         if self.style not in STYLES:
             raise ValueError(f"style must be one of {STYLES}, got {self.style!r}")
+        defaults = dict(DEFAULT_STOCK)
+        if self.style == "log_and_mesh":
+            defaults.update(LOG_STOCK)
+        for role, choice in defaults.items():
+            if getattr(self, role) is None:
+                setattr(self, role, choice)
+        if self.style == "log_and_mesh" and self.log_rails < 2:
+            raise ValueError(
+                "a log-and-mesh bay needs at least a top and a bottom rail to "
+                f"staple the mesh to, got log_rails={self.log_rails!r}"
+            )
         if self.gate_leaves not in (1, 2):
             raise ValueError(
                 f"gate_leaves must be 1 or 2, got {self.gate_leaves!r}: a gate "
                 "with three leaves is a folding screen"
             )
-        if self.board.milled and self.style == "board_on_board":
+        if self.board is not None and self.board.milled and (
+            self.style == "board_on_board"
+        ):
             raise ValueError(
                 f"{self.board.label} interlocks, so it cannot be laid board on "
                 "board — there is nothing to lap over, and the second course "
@@ -514,8 +708,22 @@ class CedarFence:
         return self.rail.width
 
     @property
+    def frame_t(self) -> float:
+        """Gate frame thickness, mm — across the leaf."""
+        return self.gate_frame.thickness
+
+    @property
+    def frame_w(self) -> float:
+        """Gate frame width, mm — in the plane of the leaf."""
+        return self.gate_frame.width
+
+    @property
     def post_size(self) -> float:
-        """Line post face dimension, mm."""
+        """Line post face dimension, mm.
+
+        The diameter for a log, which is the square it fits inside — the right
+        answer for where the boards stop and the wrong one for what it costs.
+        """
         return self.post.width
 
     @property
@@ -576,6 +784,11 @@ class CedarFence:
     def gate_post_length(self) -> float:
         """Length of a gate post, mm."""
         return self.post_length + inches(self.gate_post_extra_in)
+
+    @property
+    def mesh_height(self) -> float:
+        """Height of mesh on the fence, mm — ground clearance to the top."""
+        return self.height - inches(self.ground_clearance_in)
 
     @property
     def board_length(self) -> float:
@@ -887,28 +1100,56 @@ class CedarFence:
         out: list[object] = []
         for post in self.posts():
             choice = self.gate_post if post.is_gate_post else self.post
-            board = Board(
-                length_mm=post.length,
-                label="gate_post" if post.is_gate_post else "line_post",
-                notes=(
-                    f"{post.embedment / IN:.0f}\" in the ground, "
-                    f"{(post.length - post.embedment) / IN:.0f}\" above grade"
-                    + (
-                        "; set in a gravel-drained hole and plumbed twice — a "
-                        "gate post that leans 1° drops its latch 1\""
-                        if post.is_gate_post
-                        else ""
-                    )
-                ),
-                **self._stock(choice),
+            notes = (
+                f"{post.embedment / IN:.0f}\" in the ground, "
+                f"{(post.length - post.embedment) / IN:.0f}\" above grade"
+                + (
+                    "; set in a gravel-drained hole and plumbed twice — a "
+                    "gate post that leans 1° drops its latch 1\""
+                    if post.is_gate_post
+                    else ""
+                )
             )
+            label = "gate_post" if post.is_gate_post else "line_post"
+            solid = self._post_solid(choice, post.length, label, notes)
             z = post.length / 2 - post.embedment
-            out.append(Pos(post.x, -post.size / 2, z) * UPRIGHT_POST * board)
+            out.append(Pos(post.x, -post.size / 2, z) * solid)
         return out
 
+    def _post_solid(
+        self, choice: StockChoice, length: float, label: str, notes: str
+    ) -> object:
+        """Return one post standing on its own axis, round or square as it is.
+
+        The two kinds of stock arrive at +Z from opposite directions.  A
+        :class:`~woodshop.parts.Pole` is *born* on the +Z axis, because that is
+        where a turned part's axis lives; a :class:`Board` is born along +X and
+        has to be stood up.  Returning both upright keeps that difference here
+        rather than in the caller.
+        """
+        if choice.round:
+            return Pole(
+                length_mm=length,
+                diameter_mm=choice.width,
+                material=self.species,
+                label=label,
+                nominal=choice.nominal,
+                grade=choice.grade,
+                stock_profile=choice.profile,
+                notes=notes,
+            )
+        return UPRIGHT_POST * Board(
+            length_mm=length,
+            label=label,
+            notes=notes,
+            **self._stock(choice),
+        )
+
     def _panel_group(self, group: list[Span]) -> list[object]:
-        """Return the rails and boards filling a run of panels."""
+        """Return the rails and infill filling a run of panels."""
         out: list[object] = []
+        if self.style == "log_and_mesh":
+            return self._log_and_mesh(group)
         if self.style == "horizontal":
             out.extend(self._horizontal_courses(group))
             return out
@@ -982,6 +1223,88 @@ class CedarFence:
             f"{mm_to_fractional_inch(run.gap, 32)} gap, "
             f"{self.ground_clearance_in:g}\" off the ground"
         )
+
+    def _log_and_mesh(self, group: list[Span]) -> list[object]:
+        """Return the log rails and the mesh filling a run of panels.
+
+        Each bay is its own frame and its own sheet of mesh: a log rail is
+        tenoned into the post it lands on, and mesh is stapled to the rails
+        rather than run past them.  Nothing here crosses a post, which is the
+        opposite of every board style in this file.
+        """
+        out: list[object] = []
+        posts = {round(p.x, 6): p for p in self.posts()}
+        for span in group:
+            left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
+            clear = span.length - left.size / 2 - right.size / 2
+            centre = (span.x0 + span.x1) / 2
+            rail_y = -self.post_size / 2
+
+            for z, where in self._log_rail_heights():
+                out.append(
+                    Pos(centre, rail_y, z)
+                    * POLE_ALONG_RUN
+                    * Pole(
+                        # A log rail is tenoned into a hole bored in the post,
+                        # so the stick is longer than the gap it crosses.
+                        length_mm=clear + 2 * inches(self.tenon_in),
+                        diameter_mm=self.rail.width,
+                        material=self.species,
+                        label="log_rail",
+                        nominal=self.rail.nominal,
+                        grade=self.rail.grade,
+                        stock_profile=self.rail.profile,
+                        notes=(
+                            f"{where} rail; each end turned down to a "
+                            f"{self.tenon_diameter_in:g}\" round tenon "
+                            f"{self.tenon_in:g}\" long, into a bored post — "
+                            "bore the holes before the posts go in the ground"
+                        ),
+                    )
+                )
+
+            # The mesh goes on the far face of the rails, so the fence shows
+            # its logs from the front and the mesh is what the dog meets.
+            out.append(
+                Pos(
+                    centre,
+                    rail_y - self.rail.width / 2 - MESH_THICKNESS_MM / 2,
+                    inches(self.ground_clearance_in) + self.mesh_height / 2,
+                )
+                * ALONG_RUN
+                * Panel(
+                    length_mm=clear,
+                    width_mm=self.mesh_height,
+                    thickness_mm=MESH_THICKNESS_MM,
+                    material=self.mesh_material,
+                    label="mesh",
+                    grain_direction="none",
+                    notes=(
+                        f"{mm_to_fractional_inch(self.mesh_height)} off a "
+                        f"{self.mesh_roll_height_in:g}\" roll, stapled to the "
+                        "far face of every rail and trapped under a batten at "
+                        "the posts, so the logs show from the front; drawn as "
+                        "a sheet, and it is 2\" x 4\" mesh"
+                    ),
+                )
+            )
+        return out
+
+    def _log_rail_heights(self) -> list[tuple[float, str]]:
+        """Return the centre height and name of each log rail, bottom up.
+
+        The top and bottom rails sit where the mesh ends, because their job is
+        to give it an edge to be stapled to.  Anything between them is there
+        to stop the middle of the sheet bellying out when a dog leans on it.
+        """
+        radius = self.rail.width / 2
+        bottom = inches(self.ground_clearance_in) + radius
+        top = self.height - radius
+        if self.log_rails == 2:
+            return [(bottom, "bottom"), (top, "top")]
+        step = (top - bottom) / (self.log_rails - 1)
+        names = ["bottom"] + ["middle"] * (self.log_rails - 2) + ["top"]
+        return [(bottom + i * step, names[i]) for i in range(self.log_rails)]
 
     def _rails(self, group: list[Span]) -> list[object]:
         """Return the two rails in each bay of *group*."""
@@ -1069,7 +1392,7 @@ class CedarFence:
         out: list[object] = []
         z0 = inches(self.gate_clearance_in)
         height = self.leaf_height
-        stile_w, stile_t = self.rail_w, self.rail_t
+        stile_w, stile_t = self.frame_w, self.frame_t
 
         for side in (0, 1):
             out.append(
@@ -1079,7 +1402,7 @@ class CedarFence:
                     length_mm=height,
                     label="gate_stile",
                     notes="hinge stile" if side == 0 else "latch stile",
-                    **self._stock(self.rail),
+                    **self._stock(self.gate_frame),
                 )
             )
 
@@ -1095,7 +1418,7 @@ class CedarFence:
                     length_mm=rail_length,
                     label="gate_rail",
                     notes=f"{where} rail, half-lapped into the stiles",
-                    **self._stock(self.rail),
+                    **self._stock(self.gate_frame),
                 )
             )
 
@@ -1117,7 +1440,7 @@ class CedarFence:
                     f"{'hinge' if hinged_left else 'latch'} side, in "
                     "compression; mitre both ends to the frame"
                 ),
-                **self._stock(self.rail),
+                **self._stock(self.gate_frame),
             )
         )
 
@@ -1127,8 +1450,27 @@ class CedarFence:
     def _leaf_infill(
         self, x0: float, width: float, z0: float, height: float
     ) -> list[object]:
-        """Return the boards on the face of one leaf."""
+        """Return the infill on the face of one leaf."""
         out: list[object] = []
+        if self.style == "log_and_mesh":
+            return [
+                Pos(x0 + width / 2, -self.frame_t / 2 - MESH_THICKNESS_MM / 2,
+                    z0 + height / 2)
+                * ALONG_RUN
+                * Panel(
+                    length_mm=width,
+                    width_mm=height,
+                    thickness_mm=MESH_THICKNESS_MM,
+                    material=self.mesh_material,
+                    label="gate_mesh",
+                    grain_direction="none",
+                    notes=(
+                        "stapled to the leaf and trapped under a batten all "
+                        "round — a cut mesh edge at hand height on a gate is "
+                        "the one place this fence can draw blood"
+                    ),
+                )
+            ]
         if self.style == "horizontal":
             rows = self.board_run(height, self.target_gap)
             pitch = self.board_w + rows.gap
@@ -1208,8 +1550,42 @@ class CedarFence:
     # ------------------------------------------------------------------
 
     def plan(self, parts: list[CutPart]) -> LinealPlan:
-        """Return the lineal-foot buying plan for *parts*."""
-        return plan_dimensional(parts, self.inventory)
+        """Return the lineal-foot buying plan for the *timber* in *parts*.
+
+        Mesh is bought by the roll and priced by the roll, so it is not in
+        here: see :meth:`mesh_plan`, and see :meth:`cost_summary`, which is
+        what adds the two together and names what neither of them could price.
+        """
+        timber = [p for p in parts if p.material == self.species]
+        return plan_dimensional(timber, self.inventory)
+
+    def mesh_stock(self) -> Any:
+        """Return the mesh entry from ``stock.yaml``, or ``None`` if absent.
+
+        Found by the material key the parts carry rather than by name, which
+        is what makes the mesh a material this project *specifies* rather than
+        one it hard-codes.
+        """
+        return self.inventory.unit_stock_for(self.mesh_material)
+
+    def mesh_plan(self, parts: list[CutPart]) -> MeshPlan | None:
+        """Return the mesh buying plan, or ``None`` for a fence with no mesh."""
+        mesh = [p for p in parts if p.material == self.mesh_material]
+        if not mesh:
+            return None
+        run_ft = sum(p.length_mm * p.qty for p in mesh) / FT
+        return MeshPlan(
+            stock=self.mesh_stock(),
+            run_ft=run_ft,
+            height=self.mesh_height,
+            roll_height=inches(self.mesh_roll_height_in),
+        )
+
+    def cost_summary(self, parts: list[CutPart]) -> CostSummary:
+        """Return timber and mesh together, with every gap in the total named."""
+        summary = self.plan(parts).cost_summary
+        mesh = self.mesh_plan(parts)
+        return summary if mesh is None else summary + mesh.cost_summary
 
     # ------------------------------------------------------------------
     # Checks
@@ -1244,10 +1620,11 @@ class CedarFence:
             )
         )
         report.extend(self._check_layout())
-        report.extend(self._check_infill())
+        report.extend(self._check_infill(parts))
         report.extend(self._check_structure(parts))
         report.extend(self._check_posts())
         report.extend(self._check_gates(parts))
+        report.extend(self._check_fasteners())
         report.extend(check_material_suitability(parts, self.inventory))
         return report
 
@@ -1286,9 +1663,11 @@ class CedarFence:
             )
         return findings
 
-    def _check_infill(self) -> list[Finding]:
-        """Report the board layout: gaps, laps, and what happens as it dries."""
+    def _check_infill(self, parts: list[CutPart] | None = None) -> list[Finding]:
+        """Report the infill: gaps, laps, rolls, and what time does to them."""
         findings: list[Finding] = []
+        if self.style == "log_and_mesh":
+            return self._check_mesh(parts or [])
         if self.board.milled:
             findings.append(
                 Finding(
@@ -1389,6 +1768,121 @@ class CedarFence:
                 )
         return findings
 
+    def _check_mesh(self, parts: list[CutPart]) -> list[Finding]:
+        """Check the mesh: how much, how tall, and what it does and does not stop."""
+        findings: list[Finding] = []
+        plan = self.mesh_plan(parts)
+
+        if self.mesh_height > inches(self.mesh_roll_height_in) + 1e-6:
+            findings.append(
+                Finding(
+                    Severity.ERROR,
+                    "mesh",
+                    f"the fence wants {mm_to_fractional_inch(self.mesh_height)} "
+                    f"of mesh off a {self.mesh_roll_height_in:g}\" roll — mesh "
+                    "cannot be stretched, and a seam across a fence is a line "
+                    "everybody sees",
+                )
+            )
+        else:
+            spare = inches(self.mesh_roll_height_in) - self.mesh_height
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "mesh",
+                    f"{mm_to_fractional_inch(self.mesh_height)} of mesh on a "
+                    f"{self.mesh_roll_height_in:g}\" roll leaves "
+                    f"{mm_to_fractional_inch(spare)} spare — run the roll's "
+                    "own selvedge at the top where it shows, and trim the "
+                    "bottom",
+                )
+            )
+
+        if plan is not None:
+            rolls = (
+                "the roll length is not published, so this is feet and not "
+                "rolls"
+                if plan.rolls is None
+                else f"{plan.rolls} roll(s) of {plan.roll_length_ft:.0f} ft"
+            )
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "mesh",
+                    f"{plan.run_ft:.0f} ft of fence to cover, "
+                    f"{plan.buy_ft:.0f} ft to buy with "
+                    f"{plan.allowance * 100:.0f}% for trim and the wrap onto "
+                    f"each post — {rolls}",
+                )
+            )
+            if plan.price_line is None:
+                findings.append(
+                    Finding(
+                        Severity.WARN,
+                        "price",
+                        "the mesh carries no price, so every total this "
+                        "project prints for it is timber only. It is a "
+                        "stocked retail product with published prices; the "
+                        "retail domains are blocked from this environment, so "
+                        "nothing could be read from a page and nothing was "
+                        "invented. One dated line in stock.yaml closes it",
+                    )
+                )
+
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "mesh",
+                "2\" x 4\" mesh keeps a dog in and a deer out and stops "
+                "nothing smaller: a rabbit walks through it and a chick falls "
+                "through it — if that matters, line the bottom 18\" with 1\" "
+                "hex and bury an apron of it, because a dog digs where the "
+                "fence meets the ground",
+            )
+        )
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "mesh",
+                "drawn as a thin sheet, not as wires: the model is honest "
+                "about where the mesh is and says nothing about the pattern. "
+                "The mass estimate uses the mesh's own areal weight, not a "
+                "sheet of steel",
+            )
+        )
+        return findings
+
+    def _check_fasteners(self) -> list[Finding]:
+        """Report what cedar does to the wrong fastener.
+
+        Every style has this problem and no cut list can show it: cedar's own
+        extractives corrode plain steel, and the wood around each fastener
+        goes black within a season.  On a mesh fence there are several hundred
+        staples, which makes it several hundred black marks.
+        """
+        finding = [
+            Finding(
+                Severity.WARN,
+                "fasteners",
+                "cedar's extractives eat plain steel and stain the wood black "
+                "around every fastener — hot-dip galvanised, stainless or "
+                "polymer-coated only, throughout, including the staples and "
+                "the hinge screws",
+            )
+        ]
+        if self.style == "log_and_mesh":
+            finding.append(
+                Finding(
+                    Severity.INFO,
+                    "fasteners",
+                    "the mesh's black coating is what stops it rusting, and "
+                    "every cut end is a place it is not coated — cut into the "
+                    "line wire where you can, and touch the ends in with black "
+                    "paint where you cannot",
+                )
+            )
+        return finding
+
     def _check_structure(self, parts: list[CutPart]) -> list[Finding]:
         """Check the members that span: rails, or the boards that replace them."""
         e_mpa = ELASTIC_MODULUS_MPA[self.species]
@@ -1396,6 +1890,9 @@ class CedarFence:
         if not panels:
             return []
         span = max(s.length for s in panels) - self.post_size
+
+        if self.style == "log_and_mesh":
+            return self._check_log_rails(e_mpa, span)
 
         if self.style == "horizontal":
             # Nothing spans but the boards themselves, one bay at a time,
@@ -1456,6 +1953,54 @@ class CedarFence:
                 "4\" face against the boards, which is fourteen times the "
                 "stiffness of the same stick laid flat",
             )
+        ]
+
+    def _check_log_rails(self, e_mpa: float, span: float) -> list[Finding]:
+        """Check a round rail, which is stiffer than the square it fits in.
+
+        :func:`~woodshop.checks.beam_deflection_mm` bends a rectangle, and a
+        log is a circle: its second moment is ``pi d^4 / 64`` where a square's
+        is ``d^4 / 12``, so a round rail is 59% of the square it fits inside
+        rather than 100%.  Passing the diameter as both dimensions would
+        overstate a log rail's stiffness by 70%, which is the sort of error
+        that only shows up as a sagging fence.
+        """
+        diameter = self.rail.width
+        equivalent_breadth = 12.0 * math.pi / 64.0 * diameter
+        # The rails carry the mesh, which weighs almost nothing, and then
+        # whatever leans on it.  200 lb of somebody is the load worth asking
+        # about; the mesh itself is a rounding error.
+        lean_kg = 90.0
+        deflection = beam_deflection_mm(
+            e_mpa=e_mpa,
+            span_mm=span,
+            breadth_mm=equivalent_breadth,
+            depth_mm=diameter,
+            load_kg=lean_kg / max(self.log_rails, 1),
+        )
+        limit = span / 240.0
+        return [
+            Finding(
+                Severity.INFO if deflection <= limit else Severity.WARN,
+                "deflection",
+                f"{self.log_rails} log rails of "
+                f"{mm_to_fractional_inch(diameter)} over the longest bay "
+                f"({mm_to_fractional_inch(span)} clear): "
+                f"{lean_kg:.0f} kg of somebody leaning on the mesh puts "
+                f"{deflection:.1f} mm into the rail carrying it "
+                f"(limit span/240 = {limit:.1f} mm) — a round rail is 59% as "
+                "stiff as the square it fits inside, which is worth knowing "
+                "before swapping a 4\" log for a 4x4",
+            ),
+            Finding(
+                Severity.INFO,
+                "joinery",
+                f"each rail is tenoned {self.tenon_in:g}\" into a "
+                f"{self.tenon_diameter_in:g}\" hole bored in the post, which "
+                "is the joint this fence has instead of a bracket: bore every "
+                "hole before the posts are set, because a brace and bit is no "
+                "use against a post already in the ground",
+            ),
         ]
 
     def _check_posts(self) -> list[Finding]:
@@ -1530,6 +2075,18 @@ class CedarFence:
                 "cup around it",
             )
         )
+        if self.post.round:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "durability",
+                    "a peeled log keeps the tree's sapwood band as its outer "
+                    "skin, and that skin is the whole of what touches soil — "
+                    "a sawn 4x4 out of the middle of the same log shows "
+                    "heartwood on all four faces. Round posts are the look "
+                    "and the cheaper stick; they are not the more durable one",
+                )
+            )
         findings.append(
             Finding(
                 Severity.INFO,
@@ -1556,6 +2113,7 @@ class CedarFence:
             "gate_board",
             "gate_over_board",
             "gate_course",
+            "gate_mesh",
         }
         leaf_parts = [p for p in parts if p.label in leaf_labels]
         # Everything gate-shaped in the cut list, divided by how many leaves
@@ -1599,6 +2157,19 @@ class CedarFence:
                 ),
             )
         )
+        if self.style == "log_and_mesh":
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "gate",
+                    "the leaves are a sawn 2x4 frame with the same mesh in "
+                    "them, not logs: a round rail cannot be half-lapped into a "
+                    "round stile, and a gate with nothing but tenons in it "
+                    "racks the first time somebody swings on it",
+                )
+            )
+            return findings + self._gate_common(leaf_kg, width)
+
         leaf_run = self.leaf_infill(span)
         if self.style == "horizontal":
             # Courses stack to the same height everywhere, so there is one
@@ -1632,6 +2203,20 @@ class CedarFence:
                     ),
                 )
             )
+        return findings + self._gate_common(leaf_kg, width)
+
+    def _gate_common(self, leaf_kg: float, width: float) -> list[Finding]:
+        """Return the findings every gate gets, whatever fills its frame.
+
+        Parameters
+        ----------
+        leaf_kg : float
+            Mass of one leaf.
+        width : float
+            Width of one leaf, mm.
+        """
+        n_leaves = len(self.gate_openings) * self.gate_leaves
+        findings: list[Finding] = []
         findings.append(
             Finding(
                 Severity.INFO,
@@ -1657,19 +2242,38 @@ class CedarFence:
             Finding(
                 Severity.WARN,
                 "hardware",
-                "hinges, latch, drop rod, rail brackets and ring-shank nails "
-                "are not in stock.yaml and are not in any total this project "
-                "prints — budget them separately; on "
+                "hinges, latch, drop rod, "
+                + (
+                    "and a keg of galvanised staples "
+                    if self.style == "log_and_mesh"
+                    else "rail brackets and ring-shank nails "
+                )
+                + "are not in stock.yaml and are not in any total this "
+                "project prints — budget them separately; on "
                 f"{n_leaves} leaves of {mm_to_fractional_inch(width)} the "
                 "hardware is not a rounding error",
             )
         )
         return findings
 
-    def check_prices(self, plan: LinealPlan) -> CheckReport:
-        """Return the price-provenance findings for the stock *plan* buys."""
+    def check_prices(
+        self, plan: LinealPlan, mesh: "MeshPlan | None" = None
+    ) -> CheckReport:
+        """Return the price-provenance findings for everything a fence buys.
+
+        Parameters
+        ----------
+        plan : LinealPlan
+            The timber plan.
+        mesh : MeshPlan, optional
+            The mesh plan, where there is mesh.  Its entry is audited with the
+            timber rather than beside it: a fence buys one order.
+        """
+        stock = list(plan.stock_used)
+        if mesh is not None and mesh.stock is not None:
+            stock.append(mesh.stock)
         return CheckReport().extend(
-            check_price_provenance(self.inventory, stock=plan.stock_used)
+            check_price_provenance(self.inventory, stock=stock)
         )
 
     def check_stock_lengths(self, plan: LinealPlan) -> list[Finding]:
@@ -1677,15 +2281,20 @@ class CedarFence:
         findings: list[Finding] = []
         for group in plan.groups:
             if not group.stock.lengths_ft:
+                priced = (
+                    "is priced per lineal foot and stocked"
+                    if group.stock.price is not None
+                    else "is stocked"
+                )
                 findings.append(
                     Finding(
                         Severity.WARN,
                         "stock",
-                        f"{group.stock.stock_label} is priced per lineal foot "
-                        "and stocked in lengths nobody has published, so this "
-                        f"is {group.lineal_ft:.0f} LF to buy and not a cut "
-                        "list — ask the yard what lengths they carry, then "
-                        "run --assume-lengths against the answer",
+                        f"{group.stock.stock_label} {priced} in lengths nobody "
+                        f"has published, so this is {group.lineal_ft:.0f} LF "
+                        "to buy and not a cut list — ask the yard what lengths "
+                        "they carry, then run --assume-lengths against the "
+                        "answer",
                     )
                 )
         return findings
@@ -1706,6 +2315,12 @@ RAIL_NOMINALS: frozenset[str] = frozenset({"2x4", "2x6"})
 #: Nominal sizes that will serve as posts.
 POST_NOMINALS: frozenset[str] = frozenset({"4x4", "6x6"})
 
+#: How ``stock.yaml`` spells round stock.
+LOG_PROFILE: str = "peeled log"
+
+#: Smallest log worth a post rather than a rail, in inches.
+LOG_POST_DIAMETER_IN: float = 5.0
+
 
 @dataclass(frozen=True)
 class Variant:
@@ -1713,20 +2328,27 @@ class Variant:
 
     Parameters
     ----------
-    choice : StockChoice
-        The entry, as a design would name it.
+    choice : StockChoice or None
+        The entry, as a design would name it.  ``None`` for stock that is not
+        lumber and cannot fill a lumber role — the mesh, which is bought by
+        the roll.
     role : str
-        ``"board"``, ``"rail"`` or ``"post"``.
-    stock : DimensionalStock
+        ``"board"``, ``"rail"``, ``"post"`` or ``"mesh"``.
+    stock : DimensionalStock or UnitStock
         The inventory entry itself, for its rate and provenance.
     note : str, optional
         What is worth knowing before choosing it.
+    requires_style : str or None, optional
+        The style this entry can only be built in.  Logs and mesh belong to
+        ``"log_and_mesh"`` and to nothing else: a log is not a picket and a
+        roll of wire is not a board.
     """
 
-    choice: StockChoice
+    choice: StockChoice | None
     role: str
     stock: Any
     note: str = ""
+    requires_style: str | None = None
 
     @property
     def rate(self) -> float | None:
@@ -1765,6 +2387,9 @@ def variants(
     for entry in inventory.dimensional:
         if entry.species != species:
             continue
+        if entry.profile == LOG_PROFILE:
+            usable.append(_log_variant(entry))
+            continue
         choice = StockChoice(entry.nominal, entry.grade, entry.profile)
         if entry.price_per_piece is not None:
             unusable.append(
@@ -1795,12 +2420,27 @@ def variants(
             unusable.append((entry.stock_label, "no role in this fence"))
 
     for entry in inventory.unit_goods:
+        if entry.material == MESH_MATERIAL:
+            usable.append(
+                Variant(
+                    choice=None,
+                    role="mesh",
+                    stock=entry,
+                    note=(
+                        "bought by the roll and cut to the bay; the infill of "
+                        "the log fence and of nothing else here"
+                    ),
+                    requires_style="log_and_mesh",
+                )
+            )
+            continue
         if entry.species != species:
             continue
         unusable.append(
             (
                 entry.stock_label,
-                f"sold by the {entry.unit}, and this fence is built of boards"
+                f"sold by the {entry.unit}, and nothing in these designs is "
+                "laid up that way"
                 + (
                     ""
                     if entry.coverage_sqft is not None
@@ -1809,9 +2449,32 @@ def variants(
             )
         )
 
-    order = {"board": 0, "rail": 1, "post": 2}
+    order = {"board": 0, "rail": 1, "post": 2, "mesh": 3}
     usable.sort(key=lambda v: (order[v.role], v.rate or 0.0))
     return usable, unusable
+
+
+def _log_variant(entry: Any) -> Variant:
+    """Return the :class:`Variant` for one round-stock entry.
+
+    Its diameter is in its size label — ``"log 5"`` is a five inch post — and
+    the diameter is what decides whether it is a post or a rail.  Nothing else
+    in the entry says: round stock has no nominal-size table to consult.
+    """
+    diameter = float(entry.nominal.split()[-1])
+    role = "post" if diameter >= LOG_POST_DIAMETER_IN else "rail"
+    return Variant(
+        choice=StockChoice(
+            entry.nominal, entry.grade, entry.profile, diameter_in=diameter
+        ),
+        role=role,
+        stock=entry,
+        note=(
+            f"{diameter:g}\" peeled round, bought by the foot; "
+            + ("posts and gate posts" if role == "post" else "rails")
+        ),
+        requires_style="log_and_mesh",
+    )
 
 
 def style_for(choice: StockChoice, style: str) -> str:
@@ -1826,12 +2489,60 @@ def style_for(choice: StockChoice, style: str) -> str:
     return style
 
 
+@dataclass(frozen=True)
+class PricedVariant:
+    """One variant, the fence built from it, and what that fence costs.
+
+    Parameters
+    ----------
+    variant : Variant
+        The entry and its role.
+    fence : CedarFence
+        The fence built with it.
+    parts : list[CutPart]
+        That fence's cut list.
+    plan : LinealPlan
+        Its timber buying plan.
+    """
+
+    variant: Variant
+    fence: CedarFence
+    parts: list[CutPart]
+    plan: LinealPlan
+
+    @property
+    def summary(self) -> CostSummary:
+        """Timber and mesh together, with every gap named."""
+        return self.fence.cost_summary(self.parts)
+
+    @property
+    def total(self) -> float | None:
+        """What is priced, or ``None`` when nothing in it is."""
+        return self.summary.total
+
+    @property
+    def complete(self) -> bool:
+        """``True`` when the total leaves nothing out."""
+        return self.summary.complete
+
+    @property
+    def lineal_ft(self) -> float:
+        """Lineal feet of timber."""
+        return self.plan.lineal_ft
+
+    def total_text(self) -> str:
+        """Render the total, or say why there is not one."""
+        if self.total is None:
+            return "unpriced"
+        return format_money(self.total) + ("" if self.complete else " part")
+
+
 def price_variants(
     role: str,
     inventory: Inventory | None = None,
     style: str = "board_on_board",
     **fence_kwargs: Any,
-) -> list[tuple[Variant, CedarFence, LinealPlan]]:
+) -> list[PricedVariant]:
     """Build and price the same fence in every entry that fills *role*.
 
     Parameters
@@ -1841,28 +2552,40 @@ def price_variants(
     inventory : Inventory, optional
         Stock to price against.  ``None`` loads ``stock.yaml``.
     style : str, optional
-        Style to build, default ``"board_on_board"``.  Adjusted per variant by
-        :func:`style_for`.
+        Style to build, default ``"board_on_board"``.  Overridden per variant
+        by :attr:`Variant.requires_style`, and adjusted by :func:`style_for`.
     **fence_kwargs
         Passed through to :class:`CedarFence`.
 
     Returns
     -------
-    list of (Variant, CedarFence, LinealPlan)
-        One entry per variant, in price order.
+    list[PricedVariant]
+        One entry per variant that can fill the role: complete totals first,
+        cheapest to dearest, then the partial ones, then anything with no
+        price at all.  A partial total is not a cheap one, and sorting the two
+        kinds together would put the fence nobody has priced at the top of a
+        price table.
     """
     inv = inventory or Inventory.load()
-    out = []
-    for variant in (v for v in variants(inv)[0] if v.role == role):
+    out: list[PricedVariant] = []
+    for variant in variants(inv)[0]:
+        if variant.role != role or variant.choice is None:
+            continue
         kwargs = dict(fence_kwargs)
         kwargs[role] = variant.choice
-        # A gate post has to be the big one whatever the line posts are.
-        fence = CedarFence(
-            style=style_for(variant.choice, style), inventory=inv, **kwargs
-        )
-        plan = fence.plan(extract(fence.build()))
-        out.append((variant, fence, plan))
-    return sorted(out, key=lambda row: row[2].cost or 0.0)
+        # Varying the rail varies the gate frame with it; they are the same
+        # stick in every design here, and a table that changed one without the
+        # other would price a fence nobody would build.
+        if role == "rail" and variant.requires_style is None:
+            kwargs["gate_frame"] = variant.choice
+        built = variant.requires_style or style_for(variant.choice, style)
+        fence = CedarFence(style=built, inventory=inv, **kwargs)
+        parts = extract(fence.build())
+        out.append(PricedVariant(variant, fence, parts, fence.plan(parts)))
+    return sorted(
+        out,
+        key=lambda row: (not row.complete, row.total is None, row.total or 0.0),
+    )
 
 
 def discount_note(total: float, inventory: Inventory, supplier: str = "Lumbery") -> str:
@@ -1924,7 +2647,6 @@ def catalogue(
     """
     inv = inventory or Inventory.load()
     lines: list[str] = []
-    baseline = None
 
     for role, title in (
         ("board", "INFILL — 38 ft of fence and two gates, boards varied"),
@@ -1935,18 +2657,38 @@ def catalogue(
         lines.append(
             f"  {'stock':<38s}{'$/LF':>7s}{'lineal ft':>11s}{'total':>10s}  notes"
         )
-        for variant, fence, plan in price_variants(role, inv, style):
-            total = plan.cost
-            if baseline is None:
-                baseline = total
-            built = style_for(variant.choice, style)
+        for row in price_variants(role, inv, style):
+            variant = row.variant
+            built = variant.requires_style or style_for(variant.choice, style)
             note = variant.note
             if built != style:
                 note = f"built as {built}; {note}" if note else f"built as {built}"
+            rate = "     —" if variant.rate is None else f"{variant.rate:>6.2f}"
             lines.append(
                 f"  {variant.choice.label:<38s}"
-                f"{variant.rate or 0.0:>7.2f}{plan.lineal_ft:>11.0f}"
-                f"{format_money(total or 0.0):>10s}  {note}"
+                f" {rate}{row.lineal_ft:>11.0f}"
+                f"{row.total_text():>10s}  {note}"
+            )
+
+    mesh = [v for v in variants(inv)[0] if v.role == "mesh"]
+    if mesh:
+        lines.append("\nMESH — the infill of the log fence, bought by the roll")
+        lines.append(
+            f"  {'stock':<38s}{'$/roll':>7s}{'covers':>11s}{'':>10s}  notes"
+        )
+        for variant in mesh:
+            rate = "     —" if variant.rate is None else f"{variant.rate:>6.2f}"
+            covers = (
+                "unpublished"
+                if variant.stock.coverage_sqft is None
+                else f"{variant.stock.coverage_sqft:g} sq ft"
+            )
+            # This label is longer than the column, and truncating the one
+            # entry that says what the mesh actually is would be the wrong
+            # economy: it gets its own line.
+            lines.append(f"  {variant.stock.stock_label}")
+            lines.append(
+                f"  {'':<38s} {rate}{covers:>11s}{'':>10s}  {variant.note}"
             )
 
     lines.append("\nSOLD BY LUMBERY, NOT USABLE HERE")
@@ -1954,10 +2696,14 @@ def catalogue(
         lines.append(f"  {label:<38s} {reason}")
 
     default = CedarFence(style=style, inventory=inv)
-    default_total = default.plan(extract(default.build())).cost or 0.0
+    default_parts = extract(default.build())
+    default_total = default.cost_summary(default_parts).total or 0.0
     lines.append(
-        f"\nEvery rate above is per lineal foot, quoted 2026-08-17, and every "
-        f"total is lumber only.\nOn the default build: {discount_note(default_total, inv)}."
+        "\nRates are per lineal foot unless the column says otherwise, quoted "
+        "2026-08-17, and every total is materials only.\nA dash is an entry "
+        "nobody has priced: 'unpriced' means the whole fence rests on one, "
+        "'part' means the total leaves one out."
+        f"\nOn the default build: {discount_note(default_total, inv)}."
     )
     return "\n".join(lines)
 
@@ -2017,10 +2763,17 @@ def run(
     print(plan.to_text())
     print(CheckReport().extend(fence.check_stock_lengths(plan)).to_text())
 
+    mesh = fence.mesh_plan(parts)
+    if mesh is not None:
+        print(f"\n-- mesh to buy {'-' * 63}")
+        print(mesh.to_text())
+        print(f"\n  everything together: {fence.cost_summary(parts).to_text()}")
+
     print(f"\n-- prices {'-' * 68}")
-    print(fence.check_prices(plan).to_text())
-    if plan.cost is not None:
-        print(f"      {discount_note(plan.cost, fence.inventory)}")
+    print(fence.check_prices(plan, mesh).to_text())
+    total = fence.cost_summary(parts).total
+    if total is not None:
+        print(f"      {discount_note(total, fence.inventory)}")
 
     if assume_lengths_ft:
         print(f"\n-- cut plan against ASSUMED lengths {'-' * 42}")
@@ -2117,7 +2870,7 @@ def compare(styles: tuple[str, ...] = STYLES) -> str:
         rows.append(
             f"  {style:<16s}{sum(p.qty for p in parts):>7d}"
             f"{plan.lineal_ft:>11.0f}{estimate_mass_kg(parts):>8.0f}kg  "
-            f"{plan.cost_summary.to_text()}"
+            f"{fence.cost_summary(parts).to_text()}"
         )
     return "\n".join(rows)
 
@@ -2128,6 +2881,7 @@ def _spec(
     slug: str | None = None,
     name: str | None = None,
     summary: str | None = None,
+    **fence_kwargs: Any,
 ) -> ProjectSpec:
     """Return the gallery entry for one style, optionally in a chosen board.
 
@@ -2141,8 +2895,12 @@ def _spec(
         Override the defaults derived from *style*, for a variant that is not
         just a style — a solid tongue and groove fence is built as a picket
         and looks nothing like one.
+    **fence_kwargs
+        Anything else :class:`CedarFence` takes.
     """
-    fence = CedarFence(style=style, **({"board": board} if board else {}))
+    fence = CedarFence(
+        style=style, **({"board": board} if board else {}), **fence_kwargs
+    )
     summaries = {
         "picket": (
             "1x6 rough sawn cedar boards spaced 1-3/4\" apart on 2x4 rails — "
@@ -2155,6 +2913,11 @@ def _spec(
         "horizontal": (
             "1x6 rough sawn cedar run horizontally between 4x4 posts, no "
             "rails — the modern look, on shorter bays."
+        ),
+        "log_and_mesh": (
+            "Peeled round cedar posts and rails with black coated welded wire "
+            "stretched between them: the fence you can see through, and the "
+            "one that keeps a dog in and a deer out."
         ),
     }
     return ProjectSpec(
@@ -2186,6 +2949,17 @@ def _spec(
 #: :func:`catalogue`.
 PROJECTS: list[ProjectSpec] = [
     *(_spec(style) for style in STYLES),
+    _spec(
+        "log_and_mesh",
+        slug="cedar-fence-log-and-mesh-two-rail",
+        name="Cedar fence — log and mesh, two rail",
+        summary=(
+            "The same peeled logs and black mesh with the middle rail left "
+            "out: cheaper, more open, and a sheet of mesh with nothing in the "
+            "middle of it to lean on."
+        ),
+        log_rails=2,
+    ),
     _spec(
         "picket",
         board=StockChoice("1x6", "STK", "tongue & groove, dressed"),

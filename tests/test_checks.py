@@ -507,3 +507,26 @@ def test_without_it_a_softwood_part_widens_to_the_whole_species(inv):
     )
     wide = check_price_provenance(inv, [part], today=date(2026, 8, 20))
     assert len(wide) > 20
+
+
+def test_a_log_weighs_what_a_cylinder_weighs():
+    """Not what the square it fits inside weighs, which is 27% more."""
+    log = CutPart(
+        "log_post", "white_cedar", "length", 2438.4, 127.0, 127.0, qty=1,
+        shape="pole", finished_area_each_mm2=2438.4 * 127.0,
+    )
+    square = CutPart(
+        "sawn_post", "white_cedar", "length", 2438.4, 127.0, 127.0, qty=1,
+    )
+    assert estimate_mass_kg([log]) / estimate_mass_kg([square]) == pytest.approx(
+        math.pi / 4, rel=1e-6
+    )
+
+
+def test_a_pole_in_sheet_goods_is_an_error(inv):
+    part = CutPart(
+        "post", "plywood_birch", "length", 2438.4, 127.0, 127.0, shape="pole",
+    )
+    findings = check_material_suitability([part], inv)
+    assert findings[0].severity is Severity.ERROR
+    assert "not sold as poles" in findings[0].message

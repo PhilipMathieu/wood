@@ -1133,3 +1133,119 @@ available, which is the same failure as an undated price.
 The cheapest way to build this fence is 2.1x cheaper than the dearest, and
 every number in that range is real and dated. What is *not* in any of them is
 still the same list: hardware, stone, labour, and the lengths.
+
+## Addendum: a log fence, and the two prices nobody would sell me
+
+The fourth style is peeled round cedar posts and rails with black coated welded
+wire between them — the fence you can see through, and the one that keeps a dog
+in. It is the first design here whose *total refuses to be a total*, and that
+turned out to be the most useful thing about it.
+
+### A log is not a turning
+
+`Turning` already described round parts, and it describes them as a **square
+blank with the corners turned away**: largest diameter plus a blank margin,
+plus an inch of length for the drive centre. That is exactly right for a
+nightstand leg and exactly wrong for a fence post. You buy a log round, by the
+foot, and the only work anybody does to it is a cut at each end.
+
+So `Pole` exists, with `shape="pole"`, and its stock dimensions are the round
+thing itself. The two classes draw identically and could not be less alike on
+an order — which is the same distinction this repository keeps making, between
+what a part *is* and what somebody has to buy for it.
+
+Two consequences fell out:
+
+- `estimate_mass_kg` was treating every solid of revolution as the prism its
+  side view implies, which makes a 5" log 27% heavier than it is. It now scales
+  turnings and poles by π/4. The nightstand's legs got lighter and its tipping
+  finding got slightly more honest.
+- `check_material_suitability` gained one line: a pole in sheet goods is an
+  `ERROR`, because nothing you can do to a sheet makes a log.
+
+`beam_deflection_mm` bends rectangles, and a rail is a circle. A circle's
+second moment is `πd⁴/64` where the square it fits inside has `d⁴/12`, so a
+round rail is **59%** of that square — passing the diameter as both dimensions
+would have overstated a log rail by 70%. The check now passes an equivalent
+breadth and says so in the finding, because "a 4" log is not a 4x4" is exactly
+the sort of thing somebody substitutes on site.
+
+### Mesh is neither lumber nor sheet goods
+
+It comes off a roll of a fixed height, and the only question is how many feet
+of fence there are to cover. Area is the wrong unit: 400 sq ft of roll does not
+cover 400 sq ft of a 4 ft fence unless the roll is 4 ft tall, which is a thing
+to *check* rather than assume — so `MeshPlan` checks it and reports an `ERROR`
+when the fence is taller than the roll, because mesh cannot be stretched and a
+horizontal seam across a fence is a line everybody sees.
+
+`plan_dimensional` had to learn the same thing from the other side. Handed a
+sheet of mesh it used to say "no nominal size — dimensional stock is bought by
+nominal size", which is true and useless. It now recognises material that is
+stocked *by the roll or the bundle*, names it, and carries it into the total's
+excluded list, so a fence total that leaves the mesh out says which mesh it
+left out. `UnitStock` gained a `material` key to make that link.
+
+### The two prices this environment could not get
+
+Neither material is priced, and the reasons are different and both worth
+recording:
+
+- **Peeled round cedar.** Lumbery's guide is thirty lines of sawn stock and not
+  one round one. Round posts are a real and common Maine product; what is
+  missing is a published number. The entries carry sizes and no price.
+- **Black coated welded wire.** This one is a stocked retail product with
+  published prices — a search puts the 4 ft × 100 ft 14 ga PVC-coated roll at
+  about $160 — and **every retailer domain is blocked by this environment's
+  egress proxy**: homedepot.com, tractorsupply.com, themillstores.com,
+  tridentfence.com, all refused. So the number was never read off a page.
+
+Copying $159.99 out of a search snippet was the tempting move and would have
+been the worst one available: undated, unread, and indistinguishable in print
+from a price somebody checked. That is the precise failure this file has spent
+three addenda learning to refuse. It stays unpriced, the finding says why, and
+one dated line closes it.
+
+What the machinery does with that is the payoff. The log fence prints:
+
+```
+total 299 LF, $231 (prices as of 2026-08-17; excludes unpriced white_cedar
+log 4 peeled log, white_cedar log 5 peeled log, white_cedar log 6 peeled log,
+steel welded wire mesh, 2x4, 14 ga, black PVC coated 4 ft x 100 ft)
+```
+
+$231 of sawn gate frames, and a total that says out loud it is four materials
+short. Nobody can mistake that for the price of a fence — which is the whole
+point, and it needed no new code to say it.
+
+`--variants` learned the same manners: a **partial** total now sorts *below*
+every complete one rather than by its number, because $231 of a fence is not
+cheaper than $2,269 of one, it is less of a total.
+
+### What this style is actually for
+
+- **2" × 4" mesh keeps a dog in and a deer out and stops nothing smaller.** A
+  rabbit walks through it. If that matters, the answer is 1" hex on the bottom
+  18" with a buried apron, because a dog digs where the fence meets the ground.
+- **The gates are sawn frames**, not logs, and the check says why: a round rail
+  cannot be half-lapped into a round stile, and a gate held together by tenons
+  alone racks the first time somebody swings on it.
+- **Cedar eats plain steel.** Its extractives corrode ordinary fasteners and
+  stain the wood black around every one of them — which on a mesh fence is
+  several hundred staples. That finding now runs in every style, not just this
+  one. And every cut end of the mesh is a place the black coating is not: cut
+  into the line wire where you can, paint the ends where you cannot.
+- **A peeled log keeps the tree's sapwood as its outer skin**, and that skin is
+  the whole of what touches soil. A sawn 4x4 out of the middle of the same log
+  shows heartwood on all four faces. Round posts are the look and the cheaper
+  stick; they are not the more durable one, and the check says so rather than
+  letting "cedar" stand in for "will last".
+
+### Still open
+
+The lengths, the hardware, the slope — unchanged from the last addendum. Plus
+one more: **the mesh is drawn as a thin sheet**, not as wires. Four hundred
+solids a bay would render as a grey haze and take an hour, so the model is
+honest about where the mesh is and silent about the pattern. The mass estimate
+uses the mesh's own areal weight (about 0.4 lb/ft²) rather than the density of
+steel, which would have been fourteen times out.

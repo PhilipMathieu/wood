@@ -14,6 +14,7 @@ from woodshop.parts import (
     Board,
     Disc,
     Panel,
+    Pole,
     Turning,
     retag,
     total_board_feet,
@@ -364,3 +365,58 @@ def test_covers_without_a_nominal_size_is_refused():
             length_mm=1000.0, thickness_mm=19.0, width_mm=140.0, covers_mm=130.0,
             material="white_cedar", label="board",
         )
+
+
+# ---------------------------------------------------------------------------
+# A log is bought round; a spindle is a square with its corners removed
+# ---------------------------------------------------------------------------
+
+
+def test_a_pole_buys_the_round_thing_itself():
+    post = Pole(
+        length_mm=2438.4, diameter_mm=127.0, material="white_cedar",
+        label="log_post",
+    )
+    assert post.stock_width_mm == pytest.approx(127.0)
+    assert post.stock_thickness_mm == pytest.approx(127.0)
+    assert post.stock_length_mm == pytest.approx(2438.4)
+    assert post.shape == "pole"
+
+
+def test_a_turning_of_the_same_size_buys_a_bigger_blank():
+    """The blank margin and the waste at the centres are what a lathe costs."""
+    pole = Pole(length_mm=1000.0, diameter_mm=100.0, material="cherry", label="a")
+    spindle = Turning(
+        length_mm=1000.0, diameter_mm=100.0, material="cherry", label="b"
+    )
+    assert spindle.stock_width_mm > pole.stock_width_mm
+    assert spindle.stock_length_mm > pole.stock_length_mm
+
+
+def test_a_pole_is_round_in_the_model_not_just_in_the_cut_list():
+    post = Pole(
+        length_mm=1000.0, diameter_mm=100.0, material="white_cedar", label="post"
+    )
+    bb = post.bounding_box()
+    assert bb.size.X == pytest.approx(100.0)
+    assert bb.size.Y == pytest.approx(100.0)
+    assert bb.size.Z == pytest.approx(1000.0)
+    # A cylinder is pi/4 of the box it sits in, and its volume says so.
+    assert post.volume == pytest.approx(math.pi / 4 * 100.0**2 * 1000.0, rel=1e-3)
+
+
+def test_a_tapered_pole_says_so_in_its_profile():
+    post = Pole(
+        length_mm=1000.0, diameter_mm=120.0, end_diameter_mm=100.0,
+        material="white_cedar", label="post",
+    )
+    assert "tapering" in post.profile
+
+
+def test_a_pole_carries_the_stock_it_is_ordered_by():
+    post = Pole(
+        length_mm=1000.0, diameter_mm=127.0, material="white_cedar", label="post",
+        nominal="log 5", stock_profile="peeled log",
+    )
+    part = extract(post)[0]
+    assert part.stock_spec == "log 5 peeled log"

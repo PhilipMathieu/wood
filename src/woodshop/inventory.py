@@ -556,6 +556,10 @@ class UnitStock(PricedStock):
         What the thing is, as the supplier names it, e.g. ``'shakes 3/8"'``.
     unit : str
         What one of them is sold as — ``"bundle"``, ``"sheet"``, ``"each"``.
+    material : str, optional
+        The material key a part made of this carries, e.g.
+        ``"steel_mesh_black"``.  Empty for stock nothing is modelled in yet,
+        which is most of it: a bundle of shakes has no part to be.
     grade : str, optional
         Grade as the supplier names it, e.g. ``"clear"``, ``"wall"``.
     qty : int, optional
@@ -586,6 +590,7 @@ class UnitStock(PricedStock):
     species: str
     item: str
     unit: str
+    material: str = ""
     grade: str = ""
     qty: int = 0
     size: str = ""
@@ -828,6 +833,22 @@ class Inventory:
             (u for u in self.unit_goods if u.species == species),
             key=lambda u: u.stock_label,
         )
+
+    def unit_stock_for(self, material: str) -> UnitStock | None:
+        """Return the unit-priced entry a part of *material* is bought as.
+
+        ``None`` when nothing matches, which is the usual answer: most
+        materials are lumber and are bought by the foot or the board foot.
+
+        Parameters
+        ----------
+        material : str
+            Material key from a part, e.g. ``"steel_mesh_black"``.
+        """
+        for entry in self.unit_goods:
+            if entry.material and entry.material == material:
+                return entry
+        return None
 
     def sheets_for(
         self, material: str, nominal_thickness: str | None = None

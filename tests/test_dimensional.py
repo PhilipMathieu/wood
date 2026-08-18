@@ -194,3 +194,36 @@ def test_board_feet_is_available_for_comparison_with_hardwood(inv):
     # One 46" x 6" x 1" board is 46 * 6 * 1 / 144 board feet.
     plan = plan_dimensional([picket(qty=1)], inv)
     assert plan.board_feet == pytest.approx(46 * 6 / 144, rel=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Material that is stocked, and is not lumber
+# ---------------------------------------------------------------------------
+
+
+def mesh_part() -> CutPart:
+    """Return a sheet of the fence's welded wire mesh."""
+    return CutPart("mesh", "steel_mesh_black", "none", 1803.4, 1168.4, 3.175, qty=6)
+
+
+def test_stock_bought_by_the_roll_is_named_not_mistaken_for_lumber(inv):
+    plan = plan_dimensional([mesh_part()], inv)
+    assert plan.groups == []
+    reason = plan.unmatched[0][1]
+    assert "bought by the roll" in reason
+    assert "unit_goods" in reason
+
+
+def test_it_is_excluded_from_the_total_by_name(inv):
+    """A total that quietly omits the mesh is worse than no total."""
+    plan = plan_dimensional([picket(qty=12), mesh_part()], inv)
+    summary = plan.cost_summary
+    assert summary.total is not None
+    assert not summary.complete
+    assert any("welded wire mesh" in label for label in summary.unpriced)
+
+
+def test_the_same_material_is_only_named_once(inv):
+    plan = plan_dimensional([mesh_part(), mesh_part()], inv)
+    assert len(plan.excluded) == 1
+    assert plan.to_text().count("bought by the roll") == 1

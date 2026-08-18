@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "projects"))
 from cedar_fence import (  # noqa: E402
     ASSUMED_COVERAGE_IN,
     IN,
+    MESH_THICKNESS_MM,
     STYLES,
     CedarFence,
+    MeshPlan,
     StockChoice,
     catalogue,
     discount_note,
@@ -394,19 +396,32 @@ def test_a_milled_board_covers_less_than_it_measures():
 
 def test_every_choice_resolves_to_one_inventory_entry(inv):
     for variant in variants(inv)[0]:
+        if variant.choice is None:      # the mesh, which is bought by the roll
+            continue
         entry = variant.choice.entry(inv)
-        assert entry.price is not None
-        assert entry.price_is_verified
+        assert entry is variant.stock
 
 
 def test_every_lumbery_cedar_entry_is_either_usable_or_explained(inv):
     usable, unusable = variants(inv)
-    accounted = {v.choice.entry(inv).stock_label for v in usable}
+    accounted = {v.stock.stock_label for v in usable}
     accounted |= {label for label, _ in unusable}
     everything = {
         d.stock_label for d in inv.dimensional if d.species == "white_cedar"
     } | {u.stock_label for u in inv.unit_goods if u.species == "white_cedar"}
-    assert accounted == everything
+    assert everything <= accounted
+
+
+def test_the_sawn_entries_are_priced_and_the_round_ones_are_not(inv):
+    """Which is a fact about the guide, not about the fence."""
+    for variant in variants(inv)[0]:
+        if variant.choice is None:
+            continue
+        entry = variant.choice.entry(inv)
+        if variant.requires_style == "log_and_mesh":
+            assert entry.price is None
+        else:
+            assert entry.price_is_verified
 
 
 def test_what_cannot_be_used_says_why(inv):
@@ -490,24 +505,38 @@ def test_the_catalogue_builds_it_as_a_picket_instead():
 def test_every_board_variant_builds_and_prices(inv):
     rows = price_variants("board", inv)
     assert len(rows) >= 20
-    for _variant, _fence, plan in rows:
-        assert plan.cost is not None
-        assert plan.cost_summary.verified
-        assert not plan.unmatched
+    for row in rows:
+        assert row.total is not None
+        assert row.summary.verified
+        assert row.complete
+        assert not row.plan.unmatched
 
 
 def test_low_grade_is_the_cheap_way_to_build_the_same_fence(inv):
-    rows = {v.choice.label: plan.cost for v, _f, plan in price_variants("board", inv)}
+    rows = {r.variant.choice.label: r.total for r in price_variants("board", inv)}
     assert rows["1x6 rough sawn (low)"] < rows["1x6 rough sawn (STK)"]
 
 
 def test_rails_and_posts_are_priced_too(inv):
-    assert {v.choice.nominal for v, _f, _p in price_variants("rail", inv)} == {
-        "2x4", "2x6",
+    assert {r.variant.choice.nominal for r in price_variants("rail", inv)} == {
+        "2x4", "2x6", "log 4",
     }
-    assert {v.choice.nominal for v, _f, _p in price_variants("post", inv)} == {
-        "4x4", "6x6",
+    assert {r.variant.choice.nominal for r in price_variants("post", inv)} == {
+        "4x4", "6x6", "log 5", "log 6",
     }
+
+
+def test_a_partial_total_sorts_below_every_complete_one(inv):
+    """$231 of a fence is not cheaper than $2,269 of one; it is less of a total."""
+    rows = price_variants("post", inv)
+    complete = [i for i, r in enumerate(rows) if r.complete]
+    partial = [i for i, r in enumerate(rows) if not r.complete]
+    assert complete and partial
+    assert max(complete) < min(partial)
+    logs = [r for r in rows if r.variant.requires_style == "log_and_mesh"]
+    assert logs and all(
+        "part" in r.total_text() or r.total_text() == "unpriced" for r in logs
+    )
 
 
 def test_the_catalogue_names_every_variant_and_what_it_costs(inv):
@@ -539,3 +568,211 @@ def test_a_bigger_order_says_what_it_saves(inv):
 
 def test_a_yard_with_no_terms_says_so(inv):
     assert "no volume discount" in discount_note(9_999, inv, "O'Brien Hardwoods")
+
+
+# ---------------------------------------------------------------------------
+# Logs and mesh: round stock, and infill sold by the roll
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def logs() -> CedarFence:
+    return CedarFence(style="log_and_mesh")
+
+
+@pytest.fixture(scope="module")
+def log_parts(logs: CedarFence) -> list:
+    return extract(logs.build())
+
+
+def test_the_log_style_brings_its_own_stock(logs):
+    """A log fence is different materials, not a different arrangement."""
+    assert logs.post.round and logs.rail.round and logs.gate_post.round
+    assert logs.post.diameter_in == 5.0
+    assert logs.rail.diameter_in == 4.0
+    # The gate frame stays sawn in every style, because a round stile cannot
+    # be half-lapped.
+    assert not logs.gate_frame.round
+
+
+def test_posts_and_rails_are_bought_round(log_parts):
+    for label in ("line_post", "gate_post", "log_rail"):
+        part = next(p for p in log_parts if p.label == label)
+        assert part.shape == "pole"
+        assert part.nominal.startswith("log")
+        assert "dia." in part.profile
+
+
+def test_a_pole_is_not_priced_as_a_square_blank(log_parts):
+    """Which is the whole difference between a log and a turning."""
+    post = next(p for p in log_parts if p.label == "line_post")
+    assert post.width_mm == pytest.approx(5 * IN)
+    assert post.thickness_mm == pytest.approx(5 * IN)
+    assert post.length_mm == pytest.approx(96 * IN)
+
+
+def test_a_rail_is_longer_than_the_gap_it_crosses(logs, log_parts):
+    """Because both ends are tenoned into a hole bored in the post."""
+    rails = [p for p in log_parts if p.label == "log_rail"]
+    bay = next(s for s in logs.spans() if s.kind == "panel")
+    clear = bay.length - logs.post_size / 2 - logs.gate_post_size / 2
+    lengths = {round(p.length_mm, 1) for p in rails}
+    assert any(
+        abs(length - (clear + 2 * logs.tenon_in * IN)) < 0.5 for length in lengths
+    )
+
+
+def test_every_bay_gets_its_own_sheet_of_mesh(logs, log_parts):
+    bays = len([s for s in logs.spans() if s.kind == "panel"])
+    mesh = [p for p in log_parts if p.label == "mesh"]
+    assert sum(p.qty for p in mesh) == bays
+    assert all(p.thickness_mm == pytest.approx(MESH_THICKNESS_MM) for p in mesh)
+
+
+def test_the_mesh_hangs_behind_the_logs(logs):
+    """So the fence shows cedar from the front and mesh to the dog."""
+    children = {c.label: c for c in logs.build().children}
+    rail = children["log_rail"].bounding_box()
+    mesh = children["mesh"].bounding_box()
+    assert mesh.max.Y <= rail.min.Y + 1e-6
+
+
+def test_the_mesh_stops_where_the_fence_does(logs, log_parts):
+    mesh = next(p for p in log_parts if p.label == "mesh")
+    assert mesh.width_mm == pytest.approx(46 * IN)   # 48" less the ground gap
+    assert logs.mesh_height <= logs.mesh_roll_height_in * IN
+
+
+def test_the_gates_are_sawn_frames_with_mesh_in_them(log_parts):
+    assert not [p for p in log_parts if p.label == "gate_board"]
+    stile = next(p for p in log_parts if p.label == "gate_stile")
+    assert stile.stock_spec == "2x4 rough sawn (STK)"
+    assert next(p for p in log_parts if p.label == "gate_mesh")
+
+
+def test_at_least_two_rails_or_the_mesh_has_no_edge():
+    with pytest.raises(ValueError, match="at least a top and a bottom"):
+        CedarFence(style="log_and_mesh", log_rails=1)
+
+
+def test_the_middle_rail_can_be_left_out():
+    two = CedarFence(style="log_and_mesh", log_rails=2)
+    heights = two._log_rail_heights()
+    assert [name for _z, name in heights] == ["bottom", "top"]
+    # The row count is the same — it is the rail *quantity* that drops.
+    rails = next(p for p in extract(two.build()) if p.label == "log_rail")
+    three = next(
+        p for p in extract(CedarFence(style="log_and_mesh").build())
+        if p.label == "log_rail"
+    )
+    assert rails.qty < three.qty
+
+
+# ---------------------------------------------------------------------------
+# Buying mesh, which is neither lumber nor sheet goods
+# ---------------------------------------------------------------------------
+
+
+def test_mesh_is_bought_by_the_roll_from_the_feet_of_fence(logs, log_parts):
+    plan = logs.mesh_plan(log_parts)
+    assert plan is not None
+    assert plan.roll_length_ft == pytest.approx(100.0)
+    assert plan.buy_ft == pytest.approx(plan.run_ft * 1.05)
+    assert plan.rolls == 1
+
+
+def test_a_longer_fence_needs_more_rolls(inv):
+    long_fence = CedarFence(style="log_and_mesh", run_ft=300.0, inventory=inv)
+    plan = long_fence.mesh_plan(extract(long_fence.build()))
+    assert plan.rolls >= 3
+
+
+def test_an_unstocked_roll_length_is_not_a_guessed_one():
+    plan = MeshPlan(stock=None, run_ft=54.0, height=1168.4, roll_height=1219.2)
+    assert plan.roll_length_ft is None
+    assert plan.rolls is None
+    assert "no mesh is stocked" in plan.to_text()
+
+
+def test_the_timber_plan_leaves_the_mesh_alone(logs, log_parts):
+    """Mesh is not lumber; a lineal-foot lumber plan has nothing to say to it."""
+    plan = logs.plan(log_parts)
+    assert not plan.unmatched
+    assert all(g.stock.species == "white_cedar" for g in plan.groups)
+
+
+def test_the_total_refuses_to_look_complete(logs, log_parts):
+    summary = logs.cost_summary(log_parts)
+    assert not summary.complete
+    assert any("log" in label for label in summary.unpriced)
+    assert any("mesh" in label for label in summary.unpriced)
+    assert "excludes unpriced" in summary.to_text()
+
+
+def test_the_unpriced_mesh_is_reported_as_a_gap_and_not_as_free(logs, log_parts):
+    report = logs.check(logs.build(), log_parts)
+    prices = [f for f in report.findings if f.code == "price"]
+    assert prices and prices[0].severity is Severity.WARN
+    assert "nothing was invented" in prices[0].message
+
+
+# ---------------------------------------------------------------------------
+# What the log-and-mesh checks catch
+# ---------------------------------------------------------------------------
+
+
+def test_mesh_taller_than_its_roll_is_an_error():
+    tall = CedarFence(style="log_and_mesh", height_in=72.0, mesh_roll_height_in=48.0)
+    parts = extract(tall.build())
+    mesh = [f for f in tall.check(tall.build(), parts).findings if f.code == "mesh"]
+    assert mesh[0].severity is Severity.ERROR
+    assert "cannot be stretched" in mesh[0].message
+
+
+def test_a_round_rail_is_not_the_square_it_fits_inside(logs, log_parts):
+    deflection = [
+        f for f in logs.check(logs.build(), log_parts).findings
+        if f.code == "deflection"
+    ]
+    assert deflection and "59%" in deflection[0].message
+
+
+def test_the_joint_is_a_bored_hole_and_it_has_to_be_bored_first(logs, log_parts):
+    joinery = [
+        f for f in logs.check(logs.build(), log_parts).findings
+        if f.code == "joinery"
+    ]
+    assert joinery and "before the posts are set" in joinery[0].message
+
+
+def test_a_peeled_post_is_flagged_for_what_its_skin_is(logs, log_parts):
+    durability = [
+        f for f in logs.check(logs.build(), log_parts).findings
+        if f.code == "durability"
+    ]
+    assert any("sapwood band as its outer skin" in f.message for f in durability)
+
+
+def test_cedar_and_plain_steel_are_flagged_in_every_style(fence, parts, logs,
+                                                          log_parts):
+    for design, cut in ((fence, parts), (logs, log_parts)):
+        fasteners = [
+            f for f in design.check(design.build(), cut).findings
+            if f.code == "fasteners"
+        ]
+        assert fasteners and fasteners[0].severity is Severity.WARN
+        assert "stain the wood black" in fasteners[0].message
+
+
+def test_the_mesh_says_what_it_does_not_stop(logs, log_parts):
+    mesh = [
+        f for f in logs.check(logs.build(), log_parts).findings if f.code == "mesh"
+    ]
+    assert any("rabbit" in f.message for f in mesh)
+
+
+def test_the_model_admits_it_drew_a_sheet_instead_of_wires(logs, log_parts):
+    mesh = [
+        f for f in logs.check(logs.build(), log_parts).findings if f.code == "mesh"
+    ]
+    assert any("not as wires" in f.message for f in mesh)

@@ -451,6 +451,47 @@ dimensional:
     price_source: "Lumbery, White Cedar Lumber Pricing Guide"
     price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
 
+  # ---------------------------------------------------------------------
+  # Round cedar — peeled logs, sold by the foot in diameter ranges.
+  #
+  # NOT PRICED, and not for want of asking the file. Lumbery's published
+  # guide is entirely sawn stock: thirty lines and not one of them round.
+  # Round cedar posts and rails are a real product and a common one in
+  # Maine; what is missing is a published number for them, so these
+  # entries carry sizes and no price. `check_price_provenance` reports
+  # them as WARN — a total that includes them is a total with a hole in
+  # it — which is the correct thing for a design to be told.
+  #
+  # Diameters are the size to design to rather than a promise: round
+  # stock is graded in ranges ("4 to 5 inch"), and every stick differs.
+  # ---------------------------------------------------------------------
+  - species: white_cedar
+    nominal: "log 5"
+    lengths_ft: []
+    qty: 0
+    grade: ""
+    profile: peeled log
+    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "log 4"
+    lengths_ft: []
+    qty: 0
+    grade: ""
+    profile: peeled log
+    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
+  - species: white_cedar
+    nominal: "log 6"
+    lengths_ft: []
+    qty: 0
+    grade: ""
+    profile: peeled log
+    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+
 # Hardwood is sold rough, in random widths, and priced by the board foot, so
 # width is an outcome of milling rather than a property of the stock.
 # `surfaced_thickness_in` is the number to design to.
@@ -728,6 +769,36 @@ unit_goods:
     notes: >-
       thickness not published, which is why this is not a SheetStock: nothing
       can check whether it fits a groove
+
+  # Black PVC/powder-coated welded wire, the mesh a log-and-mesh fence is
+  # built around. Sold by the roll, 48" tall to suit a 4 ft fence.
+  #
+  # NOT PRICED, and the reason is worth recording because it is not the
+  # usual one. This is a stocked retail product with published prices —
+  # search results quote $159.99 for the 4 ft x 100 ft 14 ga PVC-coated
+  # roll — but every retailer domain tried (homedepot.com,
+  # tractorsupply.com, themillstores.com, tridentfence.com) is blocked by
+  # this environment's egress proxy, so no page could be read. A number
+  # copied out of a search snippet is exactly the kind of price this file
+  # exists to refuse: undated, unread, and indistinguishable in print from
+  # one somebody checked. One line with a price and a date turns every
+  # log-and-mesh total below from partial into complete.
+  #
+  # `coverage_sqft` is the roll's area, which is real arithmetic (4 ft x
+  # 100 ft) rather than a coverage figure somebody would have to publish.
+  - species: steel
+    item: welded wire mesh, 2x4, 14 ga, black PVC coated
+    unit: roll
+    material: steel_mesh_black
+    size: "4 ft x 100 ft"
+    qty: 0
+    coverage_sqft: 400
+    price_source: "NOT PRICED — retail domains blocked by the egress proxy; read one and add it"
+    notes: >-
+      48" tall to suit a 4 ft fence; 2" x 4" mesh, 14 ga galvanised core
+      under the coating. Staple to the rails and cap the edges with a
+      batten — a cut mesh end at hand height is a scratch waiting to
+      happen.
 
 # Terms that apply to an order rather than to a board. A discount cannot live
 # on a stock entry because it changes every line at once or none of them.

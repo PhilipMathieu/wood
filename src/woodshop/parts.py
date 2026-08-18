@@ -28,6 +28,11 @@ ways:
     A flat part sawn to a profile rather than to a rectangle — a bandsawn leg,
     a curved rail, a crested headboard.
 
+``Pole``
+    Round stock that is *bought* round — a peeled cedar fence post, a rail, a
+    dowel.  The distinction from :class:`Turning` is the whole point: a spindle
+    is a square you turn most of away, and a log is a log.
+
 Stock size versus finished size
 -------------------------------
 A round part is the clearest case of a distinction that applies to everything:
@@ -107,6 +112,7 @@ __all__ = [
     "Panel",
     "Disc",
     "Turning",
+    "Pole",
     "StockPart",
     "ShapedPart",
     "ShapedBoard",
@@ -118,7 +124,14 @@ __all__ = [
 GRAIN_DIRECTIONS: frozenset[str] = frozenset({"length", "width", "none"})
 
 #: Shapes a part may take.  Drives blank sizing, yield, and material checks.
-SHAPES: frozenset[str] = frozenset({"rectangular", "round", "turned", "shaped"})
+#:
+#: ``"pole"`` is round stock bought round, as against ``"turned"``, which is
+#: round stock made by removing a square's corners.  They look identical in a
+#: drawing and could not be less alike on an order: one is a line item in
+#: lineal feet, the other is a blank and a lathe.
+SHAPES: frozenset[str] = frozenset(
+    {"rectangular", "round", "turned", "shaped", "pole"}
+)
 
 #: Extra width and length left round a round blank, in mm (1/4" total).
 #:
@@ -830,6 +843,133 @@ class Turning(ShapedPart):
         self.diameter_mm = float(diameter_mm)
         self.end_diameter_mm = float(end)
         self.max_diameter_mm = largest
+
+
+class Pole(ShapedPart):
+    """Round stock bought round: a peeled log post, a log rail, a dowel.
+
+    :class:`Turning` describes a spindle, and prices it as the square blank it
+    is cut from, because nobody sells a tapered cylinder.  A log is the other
+    case entirely — you buy the round thing, by the foot, and the only work
+    done to it is a saw cut at each end.  Sizing it as a square blank would
+    overstate what it costs by a third and describe an operation nobody
+    performs.
+
+    The axis runs along +Z, matching :class:`Turning`.  The stock dimensions
+    are the round stock itself: ``stock_width_mm`` and ``stock_thickness_mm``
+    are both the diameter, so anything measuring the part in a rectangular
+    world gets the circumscribing square, which is the right answer for
+    clearances and the wrong one for cost — hence the lineal-foot buying plan
+    in :mod:`woodshop.cutlist.dimensional`.
+
+    Parameters
+    ----------
+    length_mm : float
+        Length along the axis.
+    diameter_mm : float
+        Diameter.  Round stock is graded in ranges — a "4 to 5 inch" post — so
+        this is the size to design to and not a promise about any one stick.
+    material : str
+        Species.
+    label : str
+        Part name.
+    end_diameter_mm : float, optional
+        Diameter at the +Z end, for stock with noticeable taper.  Defaults to
+        ``diameter_mm``.
+    trim_allowance_mm : float, optional
+        Extra length on the cut, default ``0.0``.
+    grain_direction : str, optional
+        Default ``"length"``: a pole is long grain along its axis, and there
+        is no other kind.
+    qty, notes, rotation, align, mode
+        As :class:`StockPart`.
+
+    Raises
+    ------
+    ValueError
+        If a dimension is non-positive.
+
+    Examples
+    --------
+    >>> post = Pole(length_mm=2438.4, diameter_mm=127.0, material="white_cedar",
+    ...             label="log_post")
+    >>> post.stock_width_mm, post.stock_length_mm
+    (127.0, 2438.4)
+    >>> post.shape
+    'pole'
+    """
+
+    shape = "pole"
+
+    def __init__(
+        self,
+        length_mm: float,
+        diameter_mm: float,
+        *,
+        material: str,
+        label: str,
+        end_diameter_mm: float | None = None,
+        trim_allowance_mm: float = 0.0,
+        grain_direction: str = "length",
+        qty: int = 1,
+        notes: str = "",
+        nominal: str = "",
+        grade: str = "",
+        stock_profile: str = "",
+        rotation: RotationLike = (0, 0, 0),
+        align: Align | tuple[Align, Align, Align] = (
+            Align.CENTER,
+            Align.CENTER,
+            Align.CENTER,
+        ),
+        mode: Mode = Mode.ADD,
+    ) -> None:
+        end = diameter_mm if end_diameter_mm is None else end_diameter_mm
+        self._build_solid(
+            bottom_diameter_mm=diameter_mm,
+            top_diameter_mm=end,
+            height_mm=length_mm,
+            rotation=rotation,
+            align=align,
+            mode=mode,
+            label=label,
+        )
+
+        largest = max(float(diameter_mm), float(end))
+        smallest = min(float(diameter_mm), float(end))
+        profile = f"round, {mm_to_fractional_inch(largest)} dia."
+        if smallest != largest:
+            profile = (
+                f"round, {mm_to_fractional_inch(largest)} tapering to "
+                f"{mm_to_fractional_inch(smallest)}"
+            )
+        self._record(
+            label=label,
+            material=material,
+            grain_direction=grain_direction,
+            qty=qty,
+            notes=notes,
+            length_mm=length_mm,
+            width_mm=largest,
+            thickness_mm=largest,
+            stock_length_mm=float(length_mm) + float(trim_allowance_mm),
+            # The stock *is* the round thing: no blank, no margin, nothing to
+            # saw off the corners.
+            stock_width_mm=largest,
+            stock_thickness_mm=largest,
+            # Seen from the side, which is the only way a pole is ever drawn
+            # flat: a rectangle if it is parallel, a trapezium if it tapers.
+            finished_area_mm2=float(length_mm) * (largest + smallest) / 2.0,
+            profile=profile,
+            trim_allowance_mm=trim_allowance_mm,
+        )
+        self.diameter_mm = float(diameter_mm)
+        self.end_diameter_mm = float(end)
+        self.max_diameter_mm = largest
+        self.nominal = nominal
+        self.grade = grade
+        self.stock_profile = stock_profile
+        self.face_width_mm = largest
 
 
 class ShapedBoard(_StockMeta, BasePartObject):

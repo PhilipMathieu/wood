@@ -541,12 +541,26 @@ DENSITY_KG_M3: dict[str, float] = {
     "pine": 420.0,
     "poplar": 455.0,
     "white_cedar": 350.0,
+    # Welded wire mesh is 90% air, and its weight is quoted per square foot
+    # rather than per cubic anything: 2" x 4" mesh in 14 ga runs about
+    # 0.4 lb/ft² = 1.95 kg/m². Modelled as a 1/8" (3.175 mm) sheet, the density
+    # that makes that sheet weigh what the mesh weighs is 1.95 / 0.003175.
+    # Treating it as solid steel would be fourteen times out.
+    "steel_mesh_black": 614.0,
     "plywood_birch": 680.0,
     "plywood_cherry": 590.0,
     "plywood_baltic_birch": 690.0,
 }
 
 _DEFAULT_DENSITY_KG_M3 = 600.0
+
+#: Shapes whose finished area describes a side view rather than a face.
+#:
+#: A spindle and a log are solids of revolution: the rectangle (or trapezium)
+#: recorded as their finished area is the silhouette, and the solid inside it
+#: is pi/4 of the prism.  Treating a 5" log as a 5" square makes it 27%
+#: heavier than it is.
+_REVOLVED_SHAPES: frozenset[str] = frozenset({"turned", "pole"})
 
 
 def estimate_mass_kg(
@@ -576,11 +590,19 @@ def estimate_mass_kg(
     the hollow inside a frame and panel — so the figure runs a little high.
     That is the safe direction for a tipping calculation, where a heavier piece
     looks more stable than it is.
+
+    A part turned about an axis — a spindle, a log — records its *side view*
+    as its finished area, because that is the shape nesting cares about.  Its
+    volume is the solid of revolution, which is pi/4 of the prism that area
+    implies, so those shapes are scaled.  A :class:`~woodshop.parts.Disc`
+    is not: its finished area is already the circle.
     """
     total_kg = 0.0
     for p in parts:
         density = DENSITY_KG_M3.get(p.material, default_density_kg_m3)
         volume_m3 = p.finished_area_mm2 * p.thickness_mm / 1e9
+        if p.shape in _REVOLVED_SHAPES:
+            volume_m3 *= math.pi / 4.0
         total_kg += volume_m3 * density
     return total_kg
 
@@ -628,7 +650,17 @@ def check_material_suitability(
             continue
         seen.add(key)
 
-        if p.shape == "turned" and is_sheet(p.material):
+        if p.shape == "pole" and is_sheet(p.material):
+            findings.append(
+                Finding(
+                    Severity.ERROR,
+                    "material",
+                    f"{p.label} is round stock bought round but specified in "
+                    f"{p.material}: sheet goods are not sold as poles, and "
+                    "nothing you can do to a sheet makes one",
+                )
+            )
+        elif p.shape == "turned" and is_sheet(p.material):
             findings.append(
                 Finding(
                     Severity.ERROR,
