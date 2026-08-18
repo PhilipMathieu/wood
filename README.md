@@ -76,6 +76,12 @@ Look at the PNG. Everything else in this project *measures* the model; the
 views are the only step that would catch a part rotated about the wrong axis
 or buried inside another one.
 
+Anything that goes below `z = 0` is drawn with a transparent plane at grade, so
+a fence post reads as buried rather than as a stick hanging in space — and the
+buried third of it stays visible through the plane, which is the part nobody can
+inspect once the fence is built. Furniture, which stops at the floor, gets no
+plane; `render_assembly(..., ground=True)` overrides the guess either way.
+
 ## The gallery
 
 ```bash

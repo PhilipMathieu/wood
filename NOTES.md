@@ -1249,3 +1249,30 @@ solids a bay would render as a grey haze and take an hour, so the model is
 honest about where the mesh is and silent about the pattern. The mass estimate
 uses the mesh's own areal weight (about 0.4 lb/ft²) rather than the density of
 steel, which would have been fourteen times out.
+
+## Addendum: drawing the ground
+
+Every model in this repository used to stop at its own bounding box, which is
+fine for furniture and wrong for a fence: a third of every post is below grade,
+and the drawing showed it as a stick hanging in space with nothing to say where
+the ground was.
+
+`render_assembly` now draws a transparent plane at `z = 0` whenever the model
+goes below it. Three details earned their place:
+
+- **It is transparent on purpose.** What is under it is the part of the fence
+  nobody can inspect once it is built — the embedment the frost check argues
+  about — so hiding it behind an opaque slab would remove exactly the thing
+  worth looking at.
+- **It is split into a grid of quads** rather than being one big rectangle.
+  matplotlib sorts whole polygons by average depth, so one rectangle would pass
+  entirely in front of the fence or entirely behind it. Splitting it lets the
+  sort be local, which is as close to a depth buffer as this renderer gets.
+- **It reaches across the narrow axis.** A fence is 58 ft long and 8 inches
+  deep; a plane that only cleared the model would be a ribbon. Giving the short
+  axis a share of the long one puts some earth in front of the fence and some
+  behind it, which is what makes it read as ground rather than as a shelf.
+
+Furniture gets none of this, because it does not go below zero — the guess is
+"is any of this in the ground?", and `ground=True` or `ground=False` overrides
+it where the guess is wrong.

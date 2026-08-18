@@ -25,7 +25,14 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-__all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly"]
+__all__ = [
+    "View",
+    "STANDARD_VIEWS",
+    "MATERIAL_COLORS",
+    "GROUND_COLOR",
+    "GROUND_ALPHA",
+    "render_assembly",
+]
 
 
 @dataclass(frozen=True)
@@ -76,6 +83,35 @@ MATERIAL_COLORS: dict[str, str] = {
 
 _FALLBACK_COLOR = "#9e9e9e"
 
+#: Colour of the ground plane: a muted moss-grey that reads as ground without
+#: competing with the cedar in front of it.
+GROUND_COLOR: str = "#6f7d72"
+
+#: How opaque the ground is.  Transparent on purpose — what is under it is a
+#: third of the length of every post, and a solid plane would hide exactly the
+#: part of the drawing nobody can inspect once the fence is built.
+GROUND_ALPHA: float = 0.34
+
+#: How far the ground reaches past the model, as a fraction of its footprint.
+GROUND_MARGIN: float = 0.05
+
+#: How far it reaches across the *narrow* axis, as a fraction of the long one.
+#:
+#: A fence is 58 ft long and 8 inches deep, so a plane that only cleared the
+#: model would be a ribbon rather than ground.  Giving the short axis a share
+#: of the long one puts some earth in front of the fence and some behind it,
+#: which is what makes it read as the ground the posts are in.
+GROUND_ASPECT: float = 0.08
+
+#: How many quads the ground is split into, per axis.
+#:
+#: One big quad would be one polygon with one depth, and matplotlib sorts whole
+#: polygons: the ground would pass entirely in front of or entirely behind the
+#: fence rather than in front of the near posts and behind the far ones.
+#: Splitting it lets the sort be local, which is as close to a depth buffer as
+#: this renderer gets.
+GROUND_GRID: int = 12
+
 #: Direction the fake light comes from, so faces at different angles separate.
 _LIGHT = (0.35, -0.62, 0.70)
 
@@ -121,6 +157,51 @@ def _iter_leaf_parts(node: Any) -> Iterator[Any]:
         yield from _iter_leaf_parts(child)
 
 
+def _ground_faces(
+    bb: Any, grid: int = GROUND_GRID, margin: float = GROUND_MARGIN
+) -> tuple[list[list[tuple[float, float, float]]], list[tuple[float, ...]]]:
+    """Return the triangles and colours of a transparent plane at ``z = 0``.
+
+    Grade is ``z = 0`` in every outdoor model here, so the plane needs no
+    argument beyond the model's own footprint.
+
+    Parameters
+    ----------
+    bb : build123d.BoundBox
+        The assembly's bounding box.
+    grid : int, optional
+        Quads per axis, default :data:`GROUND_GRID`.
+    margin : float, optional
+        Overhang past the model as a fraction of its footprint, default
+        :data:`GROUND_MARGIN`.
+
+    Returns
+    -------
+    faces : list
+        Triangles, two per quad.
+    facecolors : list
+        One RGBA colour per triangle.
+    """
+    footprint = max(bb.size.X, bb.size.Y)
+    pad_x = max(bb.size.X * margin, footprint * GROUND_ASPECT, 25.0)
+    pad_y = max(bb.size.Y * margin, footprint * GROUND_ASPECT, 25.0)
+    x0, x1 = bb.min.X - pad_x, bb.max.X + pad_x
+    y0, y1 = bb.min.Y - pad_y, bb.max.Y + pad_y
+
+    faces: list[list[tuple[float, float, float]]] = []
+    colour = (*to_rgb(GROUND_COLOR), GROUND_ALPHA)
+    for i in range(grid):
+        xa = x0 + (x1 - x0) * i / grid
+        xb = x0 + (x1 - x0) * (i + 1) / grid
+        for j in range(grid):
+            ya = y0 + (y1 - y0) * j / grid
+            yb = y0 + (y1 - y0) * (j + 1) / grid
+            corners = [(xa, ya, 0.0), (xb, ya, 0.0), (xb, yb, 0.0), (xa, yb, 0.0)]
+            faces.append([corners[0], corners[1], corners[2]])
+            faces.append([corners[0], corners[2], corners[3]])
+    return faces, [colour] * len(faces)
+
+
 def render_assembly(
     assembly: Any,
     output_png: str | Path | None = None,
@@ -129,6 +210,7 @@ def render_assembly(
     tolerance: float = 0.5,
     title: str = "",
     figsize: tuple[float, float] = (14.0, 12.0),
+    ground: bool | None = None,
     close: bool = True,
 ) -> plt.Figure:
     """Draw *assembly* from several angles on one figure.
@@ -151,6 +233,12 @@ def render_assembly(
         Figure title.
     figsize : tuple, optional
         Figure size in inches.
+    ground : bool or None, optional
+        Draw a transparent plane at ``z = 0``.  ``None`` (default) draws one
+        when the model goes below zero, which is the same thing as saying "when
+        part of this is in the ground": a fence post four feet down is
+        otherwise a stick hanging in space, and a nightstand does not want a
+        slab through its feet.
     close : bool, optional
         Close the figure after saving, default ``True``.  Set ``False`` to keep
         it for interactive display — but then it is the caller's job to close
@@ -178,7 +266,7 @@ def render_assembly(
     # together — sorting per part draws the centre rail over the slats that
     # cover it.
     faces: list[list[tuple[float, float, float]]] = []
-    facecolors: list[tuple[float, float, float]] = []
+    facecolors: list[tuple[float, ...]] = []
     for part in parts:
         base = to_rgb(MATERIAL_COLORS.get(part.material, _FALLBACK_COLOR))
         vertices, triangles = part.tessellate(tolerance)
@@ -187,10 +275,26 @@ def render_assembly(
                 (vertices[i].X, vertices[i].Y, vertices[i].Z) for i in triangle
             ]
             faces.append(tri)
-            facecolors.append(_shade(base, tri))
+            # Opaque, and said so explicitly: a ragged mix of RGB and RGBA is
+            # not something matplotlib will accept in one list.
+            facecolors.append((*_shade(base, tri), 1.0))
 
     bb = assembly.bounding_box()
     spans = (bb.size.X, bb.size.Y, bb.size.Z)
+
+    below_grade = bb.min.Z < -tolerance
+    show_ground = below_grade if ground is None else ground
+    x_lim = (bb.min.X, bb.max.X)
+    y_lim = (bb.min.Y, bb.max.Y)
+    if show_ground:
+        ground_faces, ground_colors = _ground_faces(bb)
+        faces.extend(ground_faces)
+        facecolors.extend(ground_colors)
+        xs = [x for face in ground_faces for x, _y, _z in face]
+        ys = [y for face in ground_faces for _x, y, _z in face]
+        x_lim = (min(xs), max(xs))
+        y_lim = (min(ys), max(ys))
+        spans = (x_lim[1] - x_lim[0], y_lim[1] - y_lim[0], bb.size.Z)
 
     n = len(views)
     cols = 2 if n > 1 else 1
@@ -210,8 +314,8 @@ def render_assembly(
             )
         )
 
-        ax.set_xlim(bb.min.X, bb.max.X)
-        ax.set_ylim(bb.min.Y, bb.max.Y)
+        ax.set_xlim(*x_lim)
+        ax.set_ylim(*y_lim)
         ax.set_zlim(bb.min.Z, bb.max.Z)
         ax.set_box_aspect(spans)
         ax.view_init(elev=view.elev, azim=view.azim)

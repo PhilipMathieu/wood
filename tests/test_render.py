@@ -20,6 +20,7 @@ from woodshop.cutlist.hardwood import nest_hardwood  # noqa: E402
 from woodshop.cutlist.optimize_2d import optimize_2d  # noqa: E402
 from woodshop.inventory import Inventory  # noqa: E402
 from woodshop.render import (  # noqa: E402
+    STANDARD_VIEWS,
     export_assembly,
     render_assembly,
     render_board_diagram,
@@ -344,3 +345,77 @@ def test_the_stock_column_appears_only_when_a_part_names_its_nominal_size():
     # The width column is what it covers; the stock column is what to order,
     # and a shop given only the first would go looking for 5-1/8" boards.
     assert df["width"].iloc[0] == "5-1/8\""
+
+
+# ---------------------------------------------------------------------------
+# The ground, for the models that are in it
+# ---------------------------------------------------------------------------
+
+
+def _ground_polys(fig):
+    """Return the ground quads drawn on the first axes of *fig*, if any."""
+    from woodshop.render.model3d import GROUND_ALPHA
+
+    out = []
+    for ax in fig.axes:
+        for collection in ax.collections:
+            for colour in collection._facecolor3d:
+                if abs(float(colour[3]) - GROUND_ALPHA) < 1e-6:
+                    out.append(colour)
+    return out
+
+
+def test_a_model_that_goes_below_grade_gets_a_ground_plane():
+    """A post four feet down is otherwise a stick hanging in space."""
+    from build123d import Compound, Pos
+
+    from woodshop.parts import Board
+
+    post = Pos(0, 0, 0) * Board(
+        length_mm=2438.4, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    buried = Compound(children=[post], label="post")
+    assert buried.bounding_box().min.Z < 0
+    fig = render_assembly(buried, views=(STANDARD_VIEWS[0],), close=False)
+    try:
+        assert _ground_polys(fig)
+    finally:
+        plt.close(fig)
+
+
+def test_furniture_gets_no_slab_through_its_feet(bed):
+    fig = render_assembly(bed.build(), views=(STANDARD_VIEWS[0],), close=False)
+    try:
+        assert not _ground_polys(fig)
+    finally:
+        plt.close(fig)
+
+
+def test_the_ground_can_be_asked_for_or_refused(bed):
+    on = render_assembly(
+        bed.build(), views=(STANDARD_VIEWS[0],), ground=True, close=False
+    )
+    try:
+        assert _ground_polys(on)
+    finally:
+        plt.close(on)
+
+
+def test_the_ground_is_transparent_and_split_for_depth_sorting():
+    from woodshop.render.model3d import GROUND_ALPHA, GROUND_GRID, _ground_faces
+
+    class _BB:
+        min = type("p", (), {"X": 0.0, "Y": 0.0, "Z": -1219.2})()
+        max = type("p", (), {"X": 17678.4, "Y": 203.2, "Z": 1219.2})()
+        size = type("s", (), {"X": 17678.4, "Y": 203.2, "Z": 2438.4})()
+
+    faces, colours = _ground_faces(_BB())
+    # Two triangles per quad, and enough quads that the painter's algorithm
+    # sorts the ground locally rather than all at once.
+    assert len(faces) == 2 * GROUND_GRID**2
+    assert all(abs(c[3] - GROUND_ALPHA) < 1e-9 for c in colours)
+    # It lies flat at grade, and reaches past a long thin fence on both sides.
+    assert all(z == 0.0 for face in faces for _x, _y, z in face)
+    ys = [y for face in faces for _x, y, _z in face]
+    assert max(ys) - min(ys) > _BB.size.Y * 2
