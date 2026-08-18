@@ -393,6 +393,12 @@ class Board(StockPart):
         Finished thickness.  Required when ``nominal`` is not given.
     width_mm : float, optional
         Finished width.  Required when ``nominal`` is not given.
+    actual_mm : tuple[float, float], optional
+        The stock's real ``(thickness, width)`` in mm, for stock whose
+        supplier publishes the section.  Neither dimension table is consulted
+        then, and the ``nominal`` size is kept for ordering: a rail sold as
+        "2x3, milled 2 inches by 3" is a 2x3 on the invoice and a 2x3 in the
+        fence, which no table would have said.  Requires ``nominal``.
     rough : bool, optional
         Size the part from the *rough sawn* table rather than the dressed one:
         a rough 1x6 is about a full 1" x 6" where the dressed board of that
@@ -457,6 +463,7 @@ class Board(StockPart):
         thickness_mm: float | None = None,
         width_mm: float | None = None,
         rough: bool = False,
+        actual_mm: tuple[float, float] | None = None,
         covers_mm: float | None = None,
         grade: str = "",
         stock_profile: str = "",
@@ -468,13 +475,21 @@ class Board(StockPart):
                     f"{label!r}: pass either nominal= or thickness_mm=/width_mm=, "
                     "not both"
                 )
-            sizes = rough_dimensions_mm if rough else actual_dimensions_mm
-            thickness_q, width_q = sizes(nominal)
-            thickness_mm = float(thickness_q.magnitude)
-            width_mm = float(width_q.magnitude)
+            if actual_mm is not None:
+                thickness_mm, width_mm = (float(v) for v in actual_mm)
+            else:
+                sizes = rough_dimensions_mm if rough else actual_dimensions_mm
+                thickness_q, width_q = sizes(nominal)
+                thickness_mm = float(thickness_q.magnitude)
+                width_mm = float(width_q.magnitude)
         elif thickness_mm is None or width_mm is None:
             raise ValueError(
                 f"{label!r}: give nominal=, or both thickness_mm= and width_mm="
+            )
+        elif actual_mm is not None:
+            raise ValueError(
+                f"{label!r}: actual_mm states the section of a nominal size, "
+                "so it needs nominal= rather than explicit dimensions"
             )
         elif rough:
             raise ValueError(

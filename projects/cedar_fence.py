@@ -217,6 +217,12 @@ class StockChoice:
     profile : str, optional
         How the stock is worked, exactly as ``stock.yaml`` spells it, default
         ``"rough sawn"``.
+    actual_in : tuple[float, float] or None, optional
+        The stock's real (thickness, width) in inches, where the supplier
+        publishes it.  Neither table applies then: AVO's panel rail is "2" x
+        3" S2S", which is not the dressed answer for a 2x3 and not a rough
+        one either — it is simply what they mill it to, and a catalogue that
+        states the section should be believed over a table that guesses it.
     diameter_in : float or None, optional
         Diameter of round stock, in inches.  Setting it makes this a **pole**:
         sized from the diameter rather than from a nominal-size table, bought
@@ -233,6 +239,7 @@ class StockChoice:
     nominal: str
     grade: str = "STK"
     profile: str = "rough sawn"
+    actual_in: tuple[float, float] | None = None
     diameter_in: float | None = None
 
     @property
@@ -303,6 +310,8 @@ class StockChoice:
 
     def _dims(self) -> tuple[float, float]:
         """Return (thickness, width) in mm, from the table this profile lives in."""
+        if self.actual_in is not None:
+            return inches(self.actual_in[0]), inches(self.actual_in[1])
         if self.diameter_in is not None:
             # A log has no nominal-size table to look up: it is as round as it
             # is, and the square it fits inside is the diameter both ways.
@@ -415,10 +424,10 @@ DEFAULT_STOCK: dict[str, StockChoice] = {
 
 #: What a log fence uses instead.  Peeled round cedar, ungraded, by the foot.
 LOG_STOCK: dict[str, StockChoice] = {
-    "post": StockChoice("log 5", grade="", profile="peeled log", diameter_in=5.0),
-    "rail": StockChoice("log 4", grade="", profile="peeled log", diameter_in=4.0),
+    "post": StockChoice("log 5", grade="", profile="round post", diameter_in=5.0),
+    "rail": StockChoice("log 4", grade="", profile="round rail", diameter_in=4.0),
     "gate_post": StockChoice(
-        "log 6", grade="", profile="peeled log", diameter_in=6.0
+        "log 6", grade="", profile="round post", diameter_in=6.0
     ),
 }
 
@@ -2300,6 +2309,1194 @@ class CedarFence:
         return findings
 
 
+
+# ---------------------------------------------------------------------------
+# The panel catalogue: what The Lumbery actually sells over the counter
+# ---------------------------------------------------------------------------
+#
+# Everything above builds a fence out of sticks.  The Lumbery sells AVO's
+# pre-assembled panels, which is a different product and a different job: an
+# 8 ft panel hangs between two posts bored at the mill for its dowelled rail
+# ends, and nothing on site gets cut at all.
+#
+# Read from lumberystore.com/fence-panels-and-posts and its product pages,
+# 2026-08-18.  Board sizes, rail sections, grades, heights and the post
+# sizing table are theirs; the prices are not published in the page and are
+# recorded as missing.
+
+
+@dataclass(frozen=True)
+class PanelStyle:
+    """One style in AVO's panel line, as their catalogue describes it.
+
+    Parameters
+    ----------
+    key : str
+        Short name used on the command line.
+    name : str
+        Name as the catalogue prints it.
+    board_t_in, board_w_in : float
+        Board thickness and width in inches.  Their two board sizes are
+        7/8" x 2-7/8" (stockade and picket stock) and 3/4" x 3-1/2" (board
+        stock); the difference is a third of the wood in the fence.
+    infill : str
+        ``"solid"``, ``"spaced"``, ``"tongue_and_groove"`` or ``"baluster"``.
+    grades : tuple of str
+        Grades offered, in the catalogue's own words.
+    options : tuple of str
+        Custom options offered for this style.  Each is sold *per panel* and
+        its quantity has to match the panel count.
+    summary : str
+        What the catalogue says the style is for.
+    """
+
+    key: str
+    name: str
+    board_t_in: float
+    board_w_in: float
+    infill: str
+    grades: tuple[str, ...]
+    options: tuple[str, ...]
+    summary: str
+
+    @property
+    def board_t(self) -> float:
+        """Board thickness, mm."""
+        return inches(self.board_t_in)
+
+    @property
+    def board_w(self) -> float:
+        """Board width, mm."""
+        return inches(self.board_w_in)
+
+
+#: AVO's panel styles.  Every one comes 4, 5 and 6 ft high by 8 ft long.
+AVO_STYLES: dict[str, PanelStyle] = {
+    "stockade": PanelStyle(
+        key="stockade",
+        name="Stockade",
+        board_t_in=0.875,
+        board_w_in=2.875,
+        infill="solid",
+        grades=("Premium (#1)", "#2", "Economy (#3)"),
+        options=("scalloped", "board toppers", "cap strips"),
+        summary="privacy and security, boards butted tight",
+    ),
+    "privacy_board": PanelStyle(
+        key="privacy_board",
+        name="Privacy Board",
+        board_t_in=0.75,
+        board_w_in=3.5,
+        infill="solid",
+        grades=("Premium (#1)", "#2", "Economy (#3)"),
+        options=("scalloped", "capped"),
+        summary="the same privacy in a wider, thinner board",
+    ),
+    "spaced_picket": PanelStyle(
+        key="spaced_picket",
+        name="Spaced Picket",
+        board_t_in=0.875,
+        board_w_in=2.875,
+        infill="spaced",
+        grades=("Premium (#1)", "#2"),
+        options=("scalloped", "board toppers", "cap strips"),
+        summary="the classic open picket line",
+    ),
+    "spaced_board": PanelStyle(
+        key="spaced_board",
+        name="Spaced Board",
+        board_t_in=0.75,
+        board_w_in=3.5,
+        infill="spaced",
+        grades=("Premium (#1)", "#2"),
+        options=("scalloped", "board toppers", "cap strips"),
+        summary="spaced, in the wider board — airflow with more coverage",
+    ),
+    "universal": PanelStyle(
+        key="universal",
+        name="Universal",
+        board_t_in=0.75,
+        board_w_in=3.5,
+        infill="tongue_and_groove",
+        grades=("Premium (#1)", "#2"),
+        options=("scalloped", "reverse scalloped", "capped", "molded rails"),
+        summary=(
+            "the good-neighbour panel: 1x4 tongue and groove picture-framed "
+            "in 6/4x4, no backing rails, identical from both sides"
+        ),
+    ),
+    "chestnut_hill": PanelStyle(
+        key="chestnut_hill",
+        name="Chestnut Hill",
+        board_t_in=1.5,
+        board_w_in=1.5,
+        infill="baluster",
+        grades=("Premium", "Economy"),
+        options=("scalloped", "capped", "alternating", "molded rails"),
+        summary=(
+            "2x2 balusters between doubled rails — decorative, and the same "
+            "from both sides"
+        ),
+    ),
+}
+
+#: Panel heights the catalogue stocks, in feet.  Anything else is custom.
+AVO_PANEL_HEIGHTS_FT: tuple[float, ...] = (4.0, 5.0, 6.0)
+
+#: Panel length, in feet.  Every style, one length.
+AVO_PANEL_LENGTH_FT: float = 8.0
+
+#: Their post sizing table: fence height in feet -> (post length, burial).
+#:
+#: This is the supplier telling you how deep to dig, and it is the one place
+#: their catalogue and this project disagree — see
+#: :meth:`PanelFence._check_posts`, which measures 2 ft of burial against a
+#: 4 ft frost depth and says what that costs.
+AVO_POST_TABLE: dict[float, tuple[float, float]] = {
+    4.0: (6.0, 2.0),
+    5.0: (8.0, 3.0),
+    6.0: (10.0, 4.0),
+    8.0: (12.0, 4.0),
+}
+
+#: The rail every panel is framed with: 2" x 3" S2S, dowelled into the post.
+AVO_RAIL = StockChoice(
+    "2x3", grade="", profile="S2S dowelled Colonial rail", actual_in=(2.0, 3.0)
+)
+
+#: The post most panels hang on, bored at the mill for those dowels.
+AVO_POST = StockChoice("4x4", grade="#1", profile="chamfered top, pre-routed")
+
+#: The post a gate hangs on.  Their widths are 4x4, 5x5 and 6x6; a gate wants
+#: the big one for the same reason it does in every other design here.
+AVO_GATE_POST = StockChoice("6x6", grade="#1", profile="chamfered top, pre-routed")
+
+
+@dataclass(frozen=True)
+class PanelOrder:
+    """What a panel fence is bought as: pieces, not feet.
+
+    Nothing in a panel fence is cut, so it has no cut list in the sense the
+    rest of this repository means: it has an order.  Panels, posts and caps
+    are counted, and every one of them is a line on an invoice rather than a
+    length off a stick.
+
+    Parameters
+    ----------
+    lines : list[tuple[str, int, str]]
+        ``(what, how many, in what unit)``, in order.
+    unpriced : list[str]
+        Labels of everything the catalogue publishes without a price.
+    quoted : list[str]
+        Things the catalogue will not price online at all — the gates, which
+        it says are custom and quoted by email.
+    """
+
+    lines: list[tuple[str, int, str]] = field(default_factory=list)
+    unpriced: list[str] = field(default_factory=list)
+    quoted: list[str] = field(default_factory=list)
+
+    @property
+    def cost_summary(self) -> CostSummary:
+        """A summary with nothing in it but the names of what it cannot price."""
+        return CostSummary.of((), self.unpriced)
+
+    def to_text(self) -> str:
+        """Render the order as the list you would email the yard."""
+        out = [
+            f"  {count:>3d} x {what:<52s} ({unit})"
+            for what, count, unit in self.lines
+        ]
+        for label in self.quoted:
+            out.append(f"  (?) {label}: custom, and the catalogue quotes it by email")
+        for label in self.unpriced:
+            out.append(
+                f"  (!) {label} carries no published price — it is missing from "
+                "any total, not free"
+            )
+        return "\n".join(out)
+
+
+@dataclass
+class PanelFence:
+    """A fence assembled from The Lumbery's pre-built AVO panels.
+
+    The same run as :class:`CedarFence`, bought the other way.  A stick-built
+    fence is boards, rails and posts, and the design question is how the boards
+    divide; a panel fence is 8 ft assemblies hung between pre-bored posts, and
+    the design question is whether the run divides into panels at all.
+
+    Parameters
+    ----------
+    style : str
+        A key of :data:`AVO_STYLES`, default ``"stockade"``.
+    run_ft : float, optional
+        Length of plain fence, post centre to post centre, default 38.
+    height_ft : float, optional
+        Panel height in feet, default 4.  The catalogue stocks
+        :data:`AVO_PANEL_HEIGHTS_FT`; anything else is a custom panel and the
+        checks say so.
+    grade : str, optional
+        Which grade to order, in the catalogue's words.  Defaults to the first
+        one the style offers.
+    gates : int, optional
+        How many gate sections, default 2.
+    gate_section_ft : float, optional
+        Length of a gate section on centre, default 10.
+    gate_leaves : int, optional
+        Leaves per gate, default 2.
+    panel_ft : float, optional
+        Panel length, default :data:`AVO_PANEL_LENGTH_FT`.
+    ground_clearance_in : float, optional
+        Gap between grade and the bottom of a panel, default 2.
+    spacing_in : float, optional
+        Gap between boards in the spaced styles, default 1.75.  The catalogue
+        does not publish it; see the finding that says so.
+    rail_inset_in : float, optional
+        How far the rail centres sit inside the top and bottom of a panel,
+        default 6.  Also unpublished, and also flagged.
+    post, gate_post, rail : StockChoice, optional
+        Which post and rail entries to order.
+    species : str, optional
+        Species, default ``"white_cedar"``.
+    inventory : Inventory, optional
+        Stock to price against.  ``None`` loads ``stock.yaml``.
+
+    Raises
+    ------
+    ValueError
+        If *style* is not in the catalogue, or *grade* is not one that style
+        is offered in.
+    """
+
+    style: str = "stockade"
+    run_ft: float = 38.0
+    height_ft: float = 4.0
+    grade: str = ""
+    gates: int = 2
+    gate_section_ft: float = 10.0
+    gate_leaves: int = 2
+    panel_ft: float = AVO_PANEL_LENGTH_FT
+    ground_clearance_in: float = 2.0
+    spacing_in: float = 1.75
+    rail_inset_in: float = 6.0
+    post: StockChoice = field(default_factory=lambda: AVO_POST)
+    gate_post: StockChoice = field(default_factory=lambda: AVO_GATE_POST)
+    rail: StockChoice = field(default_factory=lambda: AVO_RAIL)
+    species: str = "white_cedar"
+    inventory: Inventory = field(default_factory=Inventory.load)
+
+    def __post_init__(self) -> None:
+        """Check the style and grade against the catalogue."""
+        if self.style not in AVO_STYLES:
+            raise ValueError(
+                f"style must be one of {sorted(AVO_STYLES)}, got {self.style!r}"
+            )
+        if not self.grade:
+            self.grade = self.spec.grades[0]
+        elif self.grade not in self.spec.grades:
+            raise ValueError(
+                f"{self.spec.name} is offered in {list(self.spec.grades)}, "
+                f"not {self.grade!r}"
+            )
+
+    # ------------------------------------------------------------------
+    # The catalogue's numbers
+    # ------------------------------------------------------------------
+
+    @property
+    def spec(self) -> PanelStyle:
+        """The catalogue entry this fence is built from."""
+        return AVO_STYLES[self.style]
+
+    @property
+    def height(self) -> float:
+        """Panel height, mm."""
+        return self.height_ft * FT
+
+    @property
+    def panel_length(self) -> float:
+        """Panel length, mm."""
+        return self.panel_ft * FT
+
+    @property
+    def run(self) -> float:
+        """Length of plain fence, mm."""
+        return self.run_ft * FT
+
+    @property
+    def gate_section(self) -> float:
+        """Length of one gate section on centre, mm."""
+        return self.gate_section_ft * FT
+
+    @property
+    def overall_length(self) -> float:
+        """Run plus gate sections, post centre to post centre, mm."""
+        return self.run + self.gates * self.gate_section
+
+    @property
+    def post_length_ft(self) -> float:
+        """Post length from the catalogue's own sizing table, in feet."""
+        table = AVO_POST_TABLE.get(self.height_ft)
+        if table is not None:
+            return table[0]
+        # Off their table: the shortest stocked post that leaves the burial
+        # their table would have asked for at the next height down.
+        return self.height_ft + 2.0
+
+    @property
+    def post_length(self) -> float:
+        """Post length, mm."""
+        return self.post_length_ft * FT
+
+    @property
+    def above_grade(self) -> float:
+        """How much post stands above grade, mm.
+
+        The panel hangs clear of the ground and the post has to reach its top,
+        so this is the panel height plus the gap under it — which is where the
+        catalogue's own "4 ft above ground, 2 ft below" stops being exact.
+        """
+        return self.height + inches(self.ground_clearance_in)
+
+    @property
+    def embedment(self) -> float:
+        """How much post is in the ground, mm."""
+        return self.post_length - self.above_grade
+
+    @property
+    def post_size(self) -> float:
+        """Line post face dimension, mm."""
+        return self.post.width
+
+    @property
+    def gate_post_size(self) -> float:
+        """Gate post face dimension, mm."""
+        return self.gate_post.width
+
+    # ------------------------------------------------------------------
+    # Layout: the run divided into panels, which is the whole question
+    # ------------------------------------------------------------------
+
+    def spans(self) -> list[Span]:
+        """Return every span between adjacent posts, left to right.
+
+        A panel fence cannot choose its bay: the bay *is* the panel.  So the
+        run is laid out in whole panels and whatever is left over becomes one
+        odd panel, which the catalogue will build to size and which nobody
+        should discover on site.
+        """
+        segments: list[tuple[str, float]] = []
+        if self.gates:
+            share = self.run / self.gates
+            for _ in range(self.gates):
+                segments.append(("fence", share))
+                segments.append(("gate", self.gate_section))
+        else:
+            segments.append(("fence", self.run))
+
+        spans: list[Span] = []
+        x = 0.0
+        for kind, length in segments:
+            if kind == "gate":
+                spans.append(Span("gate", x, x + length))
+                x += length
+                continue
+            full = int(length // self.panel_length)
+            for _ in range(full):
+                spans.append(Span("panel", x, x + self.panel_length))
+                x += self.panel_length
+            remainder = length - full * self.panel_length
+            if remainder > 1.0:
+                spans.append(Span("panel", x, x + remainder))
+                x += remainder
+        return spans
+
+    def panels(self) -> list[Span]:
+        """Every panel span, in order."""
+        return [s for s in self.spans() if s.kind == "panel"]
+
+    def odd_panels(self) -> list[Span]:
+        """Panels that are not a full catalogue length — the custom ones."""
+        return [
+            s for s in self.panels() if abs(s.length - self.panel_length) > 1.0
+        ]
+
+    def gate_openings(self) -> list[Span]:
+        """Every gate opening, in order."""
+        return [s for s in self.spans() if s.kind == "gate"]
+
+    def posts(self) -> list[PostPlan]:
+        """Return every post, left to right, sized as the catalogue sells them."""
+        spans = self.spans()
+        boundaries = [spans[0].x0] + [s.x1 for s in spans]
+        gate_x = {x for s in spans if s.kind == "gate" for x in (s.x0, s.x1)}
+        out: list[PostPlan] = []
+        for x in boundaries:
+            is_gate_post = any(abs(x - gx) < 1e-6 for gx in gate_x)
+            choice = self.gate_post if is_gate_post else self.post
+            # A gate hangs on the next post length up, which the catalogue
+            # sells: the extra two feet all go in the ground, where a gate
+            # post needs them.
+            length = self.post_length + (inches(24.0) if is_gate_post else 0.0)
+            out.append(
+                PostPlan(
+                    x=x,
+                    nominal=choice.nominal,
+                    size=choice.width,
+                    embedment=length - self.above_grade,
+                    length=length,
+                    is_gate_post=is_gate_post,
+                )
+            )
+        return out
+
+    def post_kinds(self) -> dict[str, int]:
+        """Count posts by the routing the catalogue sells them with.
+
+        A pre-routed post is bored on the faces the rails come into, so an end
+        post and a line post are different products and turning up with the
+        wrong mix means a hole in the wrong side of a post.
+        """
+        posts = self.posts()
+        kinds = {"end": 0, "line": 0}
+        for index, _post in enumerate(posts):
+            kinds["end" if index in (0, len(posts) - 1) else "line"] += 1
+        return kinds
+
+    def board_run(self, cover: float) -> BoardRun:
+        """Fit the infill across one panel of *cover* mm."""
+        board_w = self.spec.board_w
+        if self.spec.infill == "solid":
+            count = max(1, int(-(-cover // board_w)))
+            last = cover - (count - 1) * board_w
+            return BoardRun(
+                count=count,
+                gap=0.0,
+                cover=cover,
+                last_width=None if abs(last - board_w) < 0.5 else last,
+            )
+        if self.spec.infill == "tongue_and_groove":
+            # A tongue and groove board covers less than it measures; the
+            # catalogue does not publish how much less.
+            covers = board_w - inches(0.375)
+            count = max(1, int(-(-cover // covers)))
+            last = cover - (count - 1) * covers
+            return BoardRun(
+                count=count,
+                gap=0.0,
+                cover=cover,
+                last_width=None if abs(last - covers) < 0.5 else last,
+            )
+        target = inches(self.spacing_in)
+        pitch = board_w + target
+        count = max(2, round((cover + target) / pitch))
+        gap = (cover - count * board_w) / (count - 1)
+        return BoardRun(count=count, gap=gap, cover=cover)
+
+    # ------------------------------------------------------------------
+    # Assembly
+    # ------------------------------------------------------------------
+
+    def build(self) -> Compound:
+        """Build the fence as a positioned build123d assembly.
+
+        Grade is ``z = 0``.  The panels are drawn as what they are made of —
+        boards, rails, balusters — because a picture of a box labelled "panel"
+        would check nothing, but nothing here is a cut list: see
+        :meth:`order`.
+        """
+        children: list[object] = []
+        children.extend(self._posts())
+        for span in self.panels():
+            children.extend(self._panel(span))
+        for span in self.gate_openings():
+            children.extend(self._gate(span))
+        return Compound(children=children, label=f"avo_fence_{self.style}")
+
+    def _stock(self, choice: StockChoice, **kwargs: object) -> dict[str, object]:
+        """Return the keyword arguments a part made from *choice* needs."""
+        if choice.actual_in is not None:
+            kwargs["actual_mm"] = (choice.thickness, choice.width)
+        return dict(
+            material=self.species,
+            nominal=choice.nominal,
+            rough=choice.rough,
+            grade=choice.grade,
+            stock_profile=choice.profile,
+            **kwargs,
+        )
+
+    def _posts(self) -> list[object]:
+        """Return every post, front faces coplanar at ``y = 0``."""
+        out: list[object] = []
+        kinds = self.posts()
+        for index, post in enumerate(kinds):
+            choice = self.gate_post if post.is_gate_post else self.post
+            where = "end" if index in (0, len(kinds) - 1) else "line"
+            board = Board(
+                length_mm=post.length,
+                label="gate_post" if post.is_gate_post else f"{where}_post",
+                notes=(
+                    f"{self.post_length_ft:g} ft post, bored at the mill for "
+                    f"the rail dowels; {post.embedment / IN:.0f}\" in the "
+                    f"ground, {(post.length - post.embedment) / IN:.0f}\" above "
+                    "grade"
+                ),
+                **self._stock(choice),
+            )
+            z = post.length / 2 - post.embedment
+            out.append(
+                Pos(post.x, -post.size / 2, z) * UPRIGHT_POST * board
+            )
+        return out
+
+    def _panel(self, span: Span) -> list[object]:
+        """Return one panel, drawn as the parts it is assembled from."""
+        posts = {round(p.x, 6): p for p in self.posts()}
+        left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
+        clear = span.length - left.size / 2 - right.size / 2
+        centre = (span.x0 + span.x1) / 2
+        z0 = inches(self.ground_clearance_in)
+        custom = span in self.odd_panels()
+        tag = "custom_" if custom else ""
+
+        if self.spec.infill == "tongue_and_groove":
+            return self._framed_panel(centre, clear, z0, tag)
+        if self.spec.infill == "baluster":
+            return self._baluster_panel(span, centre, clear, z0, tag)
+        return self._railed_panel(span, centre, clear, z0, tag)
+
+    def _railed_panel(
+        self, span: Span, centre: float, clear: float, z0: float, tag: str
+    ) -> list[object]:
+        """Return a stockade, privacy or spaced panel: two rails and boards."""
+        out: list[object] = []
+        rail_y = -self.post_size / 2
+        for z, where in (
+            (z0 + inches(self.rail_inset_in), "bottom"),
+            (z0 + self.height - inches(self.rail_inset_in), "top"),
+        ):
+            out.append(
+                Pos(centre, rail_y, z)
+                * ALONG_RUN
+                * Board(
+                    length_mm=span.length,
+                    label=f"{tag}panel_rail",
+                    notes=(
+                        f"{where} rail, dowelled into the post at each end and "
+                        "double-nailed"
+                    ),
+                    **self._stock(self.rail),
+                )
+            )
+        out.extend(
+            self._boards(centre, clear, z0, rail_y + self.rail.thickness / 2, tag)
+        )
+        return out
+
+    def _framed_panel(
+        self, centre: float, clear: float, z0: float, tag: str
+    ) -> list[object]:
+        """Return a Universal panel: tongue and groove inside a picture frame."""
+        out: list[object] = []
+        # 6/4x4, as the catalogue names it.  It does not publish the dressed
+        # size, so the frame is drawn at the full quarter thickness.
+        frame = StockChoice(
+            "6/4x4", grade=self.grade, profile="dressed", actual_in=(1.5, 4.0)
+        )
+        rail_y = -self.post_size / 2
+        f_w, f_t = frame.width, frame.thickness
+        for z in (z0 + f_w / 2, z0 + self.height - f_w / 2):
+            out.append(
+                Pos(centre, rail_y, z)
+                * ALONG_RUN
+                * Board(
+                    length_mm=clear,
+                    label=f"{tag}frame_rail",
+                    notes="6/4x4 picture frame — the panel reads the same from "
+                    "both sides, which is the whole point of it",
+                    **self._stock(frame),
+                )
+            )
+        for side in (-1, 1):
+            out.append(
+                Pos(centre + side * (clear - f_w) / 2, rail_y, z0 + self.height / 2)
+                * UPRIGHT
+                * Board(
+                    length_mm=self.height,
+                    label=f"{tag}frame_stile",
+                    notes="6/4x4 picture frame",
+                    **self._stock(frame),
+                )
+            )
+        inner = clear - 2 * f_w
+        out.extend(
+            self._boards(
+                centre,
+                inner,
+                z0 + f_w,
+                rail_y + f_t / 2,
+                tag,
+                height=self.height - 2 * f_w,
+            )
+        )
+        return out
+
+    def _baluster_panel(
+        self, span: Span, centre: float, clear: float, z0: float, tag: str
+    ) -> list[object]:
+        """Return a Chestnut Hill panel: 2x2 balusters between doubled rails."""
+        out: list[object] = []
+        top_rail = StockChoice(
+            "6/4x4", grade=self.grade, profile="dressed", actual_in=(1.5, 4.0)
+        )
+        bottom_rail = StockChoice(
+            "6/4x6", grade=self.grade, profile="dressed", actual_in=(1.5, 6.0)
+        )
+        baluster = StockChoice("2x2", grade=self.grade, profile="dressed")
+        rail_y = -self.post_size / 2
+        for choice, z, where in (
+            (bottom_rail, z0 + bottom_rail.width / 2, "bottom"),
+            (top_rail, z0 + self.height - top_rail.width / 2, "top"),
+        ):
+            # Both sides: the rails sandwich the balusters, which is why this
+            # style looks the same from the neighbour's garden.
+            for side in (-1, 1):
+                out.append(
+                    Pos(
+                        centre,
+                        rail_y + side * (baluster.thickness + choice.thickness) / 2,
+                        z,
+                    )
+                    * ALONG_RUN
+                    * Board(
+                        length_mm=span.length,
+                        label=f"{tag}chestnut_{where}_rail",
+                        notes=f"{where} rail, one each side of the balusters",
+                        **self._stock(choice),
+                    )
+                )
+        inner_z0 = z0 + bottom_rail.width
+        inner_h = self.height - bottom_rail.width - top_rail.width
+        run = self.board_run(clear)
+        pitch = baluster.width + run.gap
+        x0 = centre - clear / 2
+        for i in range(run.count):
+            out.append(
+                Pos(x0 + i * pitch + baluster.width / 2, rail_y, inner_z0 + inner_h / 2)
+                * UPRIGHT
+                * Board(
+                    length_mm=inner_h,
+                    label=f"{tag}baluster",
+                    notes=f"2x2 baluster, {mm_to_fractional_inch(run.gap, 32)} apart",
+                    **self._stock(baluster),
+                )
+            )
+        return out
+
+    def _boards(
+        self,
+        centre: float,
+        cover: float,
+        z0: float,
+        y: float,
+        tag: str,
+        height: float | None = None,
+    ) -> list[object]:
+        """Return the infill boards across *cover*, centred on *centre*."""
+        out: list[object] = []
+        # The board is given its size directly rather than through a nominal
+        # lookup: the catalogue publishes 7/8" x 2-7/8" and 3/4" x 3-1/2",
+        # which are milled sizes and not any nominal size's dressed answer.
+        board_h = self.height if height is None else height
+        run = self.board_run(cover)
+        pitch = (
+            self.spec.board_w + run.gap
+            if self.spec.infill == "spaced"
+            else cover / run.count
+        )
+        x0 = centre - cover / 2
+        for i in range(run.count):
+            width = self.spec.board_w
+            if run.last_width is not None and i == run.count - 1:
+                width = run.last_width
+            out.append(
+                Pos(
+                    x0 + i * pitch + width / 2,
+                    y + self.spec.board_t / 2,
+                    z0 + board_h / 2,
+                )
+                * UPRIGHT
+                * Board(
+                    length_mm=board_h,
+                    thickness_mm=self.spec.board_t,
+                    width_mm=width,
+                    material=self.species,
+                    label=f"{tag}board",
+                    grade=self.grade,
+                    stock_profile=f"{self.spec.name.lower()} board",
+                    notes=(
+                        f'{self.spec.board_t_in:g}" x {self.spec.board_w_in:g}" '
+                        + (
+                            "butted"
+                            if self.spec.infill != "spaced"
+                            else f"at {mm_to_fractional_inch(run.gap, 32)} apart"
+                        )
+                    ),
+                )
+            )
+        return out
+
+    def _gate(self, span: Span) -> list[object]:
+        """Return the leaves hanging in *span*.
+
+        Drawn, and deliberately not costed: the catalogue says every gate is
+        custom and quoted by email, so what this produces is a picture and a
+        specification to send them, not a line item.
+        """
+        out: list[object] = []
+        clear = span.length - self.gate_post_size
+        hinge, middle = inches(0.375), inches(0.75)
+        width = (clear - 2 * hinge - (self.gate_leaves - 1) * middle) / self.gate_leaves
+        z0 = inches(3.0)
+        height = self.height - inches(1.0)
+        x = span.x0 + self.gate_post_size / 2 + hinge
+        for leaf in range(self.gate_leaves):
+            out.extend(self._leaf(x, width, z0, height, hinged_left=leaf == 0))
+            x += width + middle
+        return out
+
+    def _leaf(
+        self, x0: float, width: float, z0: float, height: float, hinged_left: bool
+    ) -> list[object]:
+        """Return one gate leaf: a braced frame with the panel's own infill."""
+        out: list[object] = []
+        frame = self.rail
+        f_w, f_t = frame.width, frame.thickness
+        y = -f_t / 2
+        for side in (0, 1):
+            out.append(
+                Pos(x0 + f_w / 2 + side * (width - f_w), y, z0 + height / 2)
+                * UPRIGHT
+                * Board(
+                    length_mm=height,
+                    label="gate_stile",
+                    notes="hinge stile" if side == 0 else "latch stile",
+                    **self._stock(frame),
+                )
+            )
+        rail_length = width - 2 * f_w
+        for z in (z0 + f_w / 2, z0 + height - f_w / 2):
+            out.append(
+                Pos(x0 + width / 2, y, z)
+                * ALONG_RUN
+                * Board(
+                    length_mm=rail_length,
+                    label="gate_rail",
+                    **self._stock(frame),
+                )
+            )
+        inner_h = height - 2 * f_w
+        brace_length = math.hypot(rail_length, inner_h)
+        angle = math.degrees(math.atan2(inner_h, rail_length))
+        tilt = (90.0 - angle) if hinged_left else -(90.0 - angle)
+        out.append(
+            Pos(x0 + width / 2, y, z0 + height / 2)
+            * Rotation(0, tilt, 0)
+            * UPRIGHT
+            * Board(
+                length_mm=brace_length,
+                label="gate_brace",
+                notes=f"{angle:.0f}° from horizontal, foot at the hinge side",
+                **self._stock(frame),
+            )
+        )
+        out.extend(
+            self._boards(x0 + width / 2, width, z0, y + f_t / 2, "gate_", height=height)
+        )
+        return out
+
+    # ------------------------------------------------------------------
+    # Ordering, which is what a panel fence has instead of a cut list
+    # ------------------------------------------------------------------
+
+    def panel_stock(self, height_ft: float | None = None) -> Any:
+        """Return the catalogue entry for this style's panel, or ``None``."""
+        want = f"AVO {self.spec.name} fence panel"
+        size = f"{height_ft or self.height_ft:g} ft H x 8 ft L"
+        for entry in self.inventory.unit_goods:
+            if entry.item == want and entry.size == size:
+                return entry
+        return None
+
+    def post_stock(self, choice: StockChoice) -> Any:
+        """Return the catalogue entry for a post, or ``None``."""
+        try:
+            return choice.entry(self.inventory, self.species)
+        except KeyError:
+            return None
+
+    def cap_stock(self) -> Any:
+        """Return the catalogue entry for a post cap, or ``None``."""
+        for entry in self.inventory.unit_goods:
+            if entry.item == "AVO post cap":
+                return entry
+        return None
+
+    def order(self) -> PanelOrder:
+        """Return what to put on the order: panels, posts, caps, and gates.
+
+        Nothing here is a length.  A panel fence is bought by the piece, and
+        the only arithmetic is counting — which is exactly why the run not
+        dividing into 8 ft matters so much more here than it would on a fence
+        somebody cuts on site.
+        """
+        lines: list[tuple[str, int, str]] = []
+        unpriced: list[str] = []
+        quoted: list[str] = []
+
+        full = [s for s in self.panels() if s not in self.odd_panels()]
+        entry = self.panel_stock()
+        label = (
+            f"{self.spec.name} panel, {self.height_ft:g} ft H x "
+            f"{self.panel_ft:g} ft L, {self.grade}"
+        )
+        if full:
+            lines.append((label, len(full), "panel"))
+        for span in self.odd_panels():
+            lines.append(
+                (
+                    f"{self.spec.name} panel, {self.height_ft:g} ft H x "
+                    f"{mm_to_fractional_inch(span.length)} L, {self.grade} "
+                    "— CUSTOM",
+                    1,
+                    "panel",
+                )
+            )
+        if entry is not None and entry.price is None:
+            unpriced.append(entry.stock_label)
+
+        kinds = self.post_kinds()
+        gate_posts = [p for p in self.posts() if p.is_gate_post]
+        line_posts = kinds["line"] - len(gate_posts)
+        for count, what in (
+            (kinds["end"], f"{self.post.nominal} end post, pre-routed"),
+            (line_posts, f"{self.post.nominal} line post, pre-routed"),
+            (
+                len(gate_posts),
+                f"{self.gate_post.nominal} gate post, pre-routed",
+            ),
+        ):
+            if count:
+                length_ft = (
+                    self.post_length_ft + 2.0
+                    if "gate" in what
+                    else self.post_length_ft
+                )
+                lines.append((f"{what}, {length_ft:g} ft", count, "post"))
+        for choice in (self.post, self.gate_post):
+            stock = self.post_stock(choice)
+            if stock is not None and stock.price is None:
+                if stock.stock_label not in unpriced:
+                    unpriced.append(stock.stock_label)
+
+        caps = len(self.posts())
+        lines.append(("post cap", caps, "each"))
+        cap = self.cap_stock()
+        if cap is not None and cap.price is None:
+            unpriced.append(cap.stock_label)
+
+        leaves = len(self.gate_openings()) * self.gate_leaves
+        if leaves:
+            quoted.append(
+                f"{leaves} gate leaves for "
+                f"{len(self.gate_openings())} openings of "
+                f"{self.gate_section_ft:g} ft"
+            )
+        return PanelOrder(lines=lines, unpriced=unpriced, quoted=quoted)
+
+    # ------------------------------------------------------------------
+    # Checks
+    # ------------------------------------------------------------------
+
+    def check(self, assembly: Compound, parts: list[CutPart]) -> CheckReport:
+        """Run every design check against a built panel fence.
+
+        Parameters
+        ----------
+        assembly : build123d.Compound
+            The result of :meth:`build`.
+        parts : list[CutPart]
+            The extracted parts.  Useful for mass and materials; it is *not*
+            an order — see :meth:`order`.
+
+        Returns
+        -------
+        CheckReport
+            All findings, in reporting order.
+        """
+        report = CheckReport()
+        report.extend(self._check_layout())
+        report.extend(self._check_catalogue())
+        report.extend(self._check_posts())
+        report.extend(self._check_assumptions())
+        report.extend(self._check_gates())
+        report.extend(check_material_suitability(parts, self.inventory))
+        return report
+
+    def _check_layout(self) -> list[Finding]:
+        """Report how the run divides into panels, which it usually does not."""
+        panels = self.panels()
+        odd = self.odd_panels()
+        findings = [
+            Finding(
+                Severity.INFO,
+                "layout",
+                f"{self.overall_length / FT:.0f} ft overall: "
+                f"{len(panels)} panels and {len(self.posts())} posts, plus "
+                f"{len(self.gate_openings())} gate opening"
+                f"{'s' if len(self.gate_openings()) != 1 else ''} of "
+                f"{self.gate_section_ft:g} ft",
+            )
+        ]
+        if odd:
+            widths = ", ".join(mm_to_fractional_inch(s.length) for s in odd)
+            stretch_ft = (self.run_ft / self.gates) if self.gates else self.run_ft
+            down = int(stretch_ft // self.panel_ft) * self.panel_ft
+            up = down + self.panel_ft
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "layout",
+                    f"{self.run_ft:g} ft of fence does not divide into "
+                    f"{self.panel_ft:g} ft panels: {len(panels) - len(odd)} "
+                    f"come off the shelf and {len(odd)} ({widths}) have to be "
+                    "made to size. The catalogue builds custom panels and does "
+                    "not stock them, so that is lead time and a separate "
+                    f"price — each stretch here is {stretch_ft:g} ft, and "
+                    f"{down:g} ft or {up:g} ft would take whole panels",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "layout",
+                    f"the run divides into {len(panels)} whole panels, which "
+                    "is the cheapest thing a panel fence can do",
+                )
+            )
+        return findings
+
+    def _check_catalogue(self) -> list[Finding]:
+        """Report what was ordered against what the catalogue actually sells."""
+        findings: list[Finding] = []
+        spec = self.spec
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "catalogue",
+                f"{spec.name}: {spec.summary}. Boards "
+                f'{spec.board_t_in:g}" x {spec.board_w_in:g}", rails 2" x 3" '
+                f"S2S dowelled Colonial, {self.grade} — the other grades are "
+                f"{', '.join(g for g in spec.grades if g != self.grade)}",
+            )
+        )
+        if self.height_ft in AVO_PANEL_HEIGHTS_FT:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "catalogue",
+                    f"{self.height_ft:g} ft is a stocked height "
+                    f"({', '.join(f'{h:g}' for h in AVO_PANEL_HEIGHTS_FT)} ft "
+                    "in every style)",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "catalogue",
+                    f"{self.height_ft:g} ft is not a stocked height — the "
+                    "catalogue lists "
+                    f"{', '.join(f'{h:g}' for h in AVO_PANEL_HEIGHTS_FT)} ft, "
+                    "so every panel here is custom",
+                )
+            )
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "catalogue",
+                f"top and board options for this style: "
+                f"{', '.join(spec.options)} — each sold per panel, and each "
+                "quantity has to match the panel count exactly",
+            )
+        )
+        panels = self.panels()
+        if panels and self.spec.infill != "baluster":
+            first = panels[0]
+            clear = first.length - self.post_size
+            run = self.board_run(clear)
+            if run.last_width is not None and run.last_width < inches(1.0):
+                findings.append(
+                    Finding(
+                        Severity.WARN,
+                        "infill",
+                        f"an {self.panel_ft:g} ft panel of "
+                        f'{spec.board_w_in:g}" boards ends on a '
+                        f"{mm_to_fractional_inch(run.last_width, 32)} sliver. "
+                        "The mill will not build it that way — it rips two "
+                        "boards to share the remainder — so treat the board "
+                        "count here as one board and a rip, not as gospel",
+                    )
+                )
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "ordering",
+                "nothing in this design is cut: it is an order for panels, "
+                "posts and caps. The parts below are what the panels are made "
+                "of, drawn so the checks have something to measure",
+            )
+        )
+        return findings
+
+    def _check_posts(self) -> list[Finding]:
+        """Check the posts against the catalogue's own sizing table."""
+        findings: list[Finding] = []
+        table = AVO_POST_TABLE.get(self.height_ft)
+        embed_in = self.embedment / IN
+        if table is not None:
+            _length, burial_ft = table
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "stock",
+                    f"the catalogue pairs a {self.height_ft:g} ft fence with a "
+                    f"{self.post_length_ft:g} ft post: "
+                    f"{self.height_ft:g} ft up and {burial_ft:g} ft down",
+                )
+            )
+            if abs(embed_in - burial_ft * 12) > 1.0:
+                findings.append(
+                    Finding(
+                        Severity.INFO,
+                        "stock",
+                        f"hanging the panel {self.ground_clearance_in:g}\" clear "
+                        f"of grade puts its top at "
+                        f"{self.above_grade / IN:.0f}\", so the post has to "
+                        f"stand that high and only {embed_in:.0f}\" is left in "
+                        f"the ground rather than the {burial_ft * 12:.0f}\" "
+                        "their table assumes — the gap under a panel comes out "
+                        "of the hole",
+                    )
+                )
+
+        deep_enough = embed_in >= FROST_DEPTH_IN - 1e-6
+        findings.append(
+            Finding(
+                Severity.INFO if deep_enough else Severity.WARN,
+                "frost",
+                f"{embed_in:.0f}\" of post in the ground against a "
+                f"{FROST_DEPTH_IN:.0f}\" frost depth for southern Maine"
+                + (
+                    ""
+                    if deep_enough
+                    else " — this is the catalogue's own sizing, and it is "
+                    "half the depth the frost line asks for. It is what most "
+                    "of these fences are built to and it is why they lean; "
+                    f"the next post up ({self.post_length_ft + 2:g} ft) buys "
+                    f"{embed_in + 24:.0f}\" and costs one post size"
+                ),
+            )
+        )
+        kinds = self.post_kinds()
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "ordering",
+                f"pre-routed posts are bored on the faces the rails come into, "
+                f"so they are ordered by position: {kinds['end']} end and "
+                f"{kinds['line']} line. A line post in an end position is a "
+                "post with a hole in the wrong side of it",
+            )
+        )
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "ordering",
+                f"{len(self.posts())} post caps, sold separately — the posts "
+                "come without them, and a chamfered top without a cap is the "
+                "end grain the chamfer is there to protect",
+            )
+        )
+        return findings
+
+    def _check_assumptions(self) -> list[Finding]:
+        """Report the numbers the catalogue does not publish."""
+        findings = [
+            Finding(
+                Severity.WARN,
+                "assumed",
+                f"the rails are drawn {self.rail_inset_in:g}\" in from the top "
+                "and bottom of each panel, which the catalogue does not "
+                "publish. It changes nothing you buy and everything about "
+                "where the fence looks strongest",
+            )
+        ]
+        if self.spec.infill == "spaced":
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "assumed",
+                    f"the gap between boards is drawn at "
+                    f"{self.spacing_in:g}\", which the catalogue does not "
+                    "publish either — it is the number that decides how many "
+                    "boards are in a panel, so ask before comparing prices "
+                    "between styles",
+                )
+            )
+        if self.spec.infill == "tongue_and_groove":
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "assumed",
+                    "a 1x4 tongue and groove board is drawn covering 3/8\" "
+                    "less than it measures; the catalogue gives the board and "
+                    "not the coverage",
+                )
+            )
+        return findings
+
+    def _check_gates(self) -> list[Finding]:
+        """Report what the catalogue says about gates, which is: ask."""
+        openings = self.gate_openings()
+        if not openings:
+            return []
+        clear = openings[0].length - self.gate_post_size
+        return [
+            Finding(
+                Severity.WARN,
+                "gate",
+                f"{len(openings)} openings of "
+                f"{mm_to_fractional_inch(clear)} clear are drawn here as "
+                f"{self.gate_leaves} braced leaves each, and the catalogue "
+                "will not price them: it says every gate is custom and quoted "
+                "by email. This drawing is the specification to send, not a "
+                "line on the order",
+            ),
+            Finding(
+                Severity.INFO,
+                "gate",
+                f"the gate posts here are {self.gate_post.nominal} and "
+                f"{self.post_length_ft + 2:g} ft — one length up from the line "
+                "posts, with every extra inch of it in the ground, which is "
+                "where a gate post earns it",
+            ),
+        ]
+
+
 # ---------------------------------------------------------------------------
 # What Lumbery sells, and what a fence can do with it
 # ---------------------------------------------------------------------------
@@ -2316,10 +3513,22 @@ RAIL_NOMINALS: frozenset[str] = frozenset({"2x4", "2x6"})
 POST_NOMINALS: frozenset[str] = frozenset({"4x4", "6x6"})
 
 #: How ``stock.yaml`` spells round stock.
-LOG_PROFILE: str = "peeled log"
+LOG_PROFILES: frozenset[str] = frozenset({"round post", "round rail"})
 
 #: Smallest log worth a post rather than a rail, in inches.
 LOG_POST_DIAMETER_IN: float = 5.0
+
+#: Profiles that mark an entry as part of the pre-assembled panel line.
+#:
+#: They are cedar, they are stocked, and a stick-built fence cannot use them:
+#: a pre-routed post is bored for somebody else's rails and a Colonial rail is
+#: half of a panel.  Naming them keeps the stick-built catalogue honest about
+#: what it is leaving out.
+AVO_COMPONENT_PROFILES: tuple[str, ...] = (
+    "pre-routed",
+    "Colonial rail",
+    "fence picket",
+)
 
 
 @dataclass(frozen=True)
@@ -2387,8 +3596,17 @@ def variants(
     for entry in inventory.dimensional:
         if entry.species != species:
             continue
-        if entry.profile == LOG_PROFILE:
+        if entry.profile in LOG_PROFILES:
             usable.append(_log_variant(entry))
+            continue
+        if any(mark in entry.profile for mark in AVO_COMPONENT_PROFILES):
+            unusable.append(
+                (
+                    entry.stock_label,
+                    "part of the AVO panel line, sold by the piece rather than "
+                    "by the foot — see --panels",
+                )
+            )
             continue
         choice = StockChoice(entry.nominal, entry.grade, entry.profile)
         if entry.price_per_piece is not None:
@@ -2875,6 +4093,84 @@ def compare(styles: tuple[str, ...] = STYLES) -> str:
     return "\n".join(rows)
 
 
+def run_panels(style: str, outdir: Path, height_ft: float = 4.0) -> CheckReport:
+    """Build one AVO panel fence, write its drawings, print its order.
+
+    Parameters
+    ----------
+    style : str
+        A key of :data:`AVO_STYLES`.
+    outdir : Path
+        Directory for the generated files.
+    height_ft : float, optional
+        Panel height, default 4.
+
+    Returns
+    -------
+    CheckReport
+        The design-check findings.
+    """
+    outdir.mkdir(parents=True, exist_ok=True)
+    fence = PanelFence(style=style, height_ft=height_ft)
+    assembly = fence.build()
+    parts = extract(assembly)
+
+    stem = f"avo_fence_{style}"
+    name = f"{fence.spec.name} panels — {height_ft:g} ft"
+    print(f"\n{'=' * 78}\n  {name}\n{'=' * 78}")
+
+    df = render_cut_list(
+        parts,
+        output_csv=outdir / f"{stem}_parts.csv",
+        output_md=outdir / f"{stem}_parts.md",
+    )
+    print(df.to_string(index=False))
+
+    report = fence.check(assembly, parts)
+    print(f"\n-- design checks {'-' * 61}")
+    print(report.to_text())
+
+    order = fence.order()
+    print(f"\n-- the order {'-' * 65}")
+    print(order.to_text())
+    print(f"\n  {order.cost_summary.to_text()}")
+
+    render_assembly(
+        assembly, output_png=outdir / f"{stem}.png", title=name
+    )
+    render_assembly(
+        _panel_detail(fence, assembly),
+        output_png=outdir / f"{stem}_detail.png",
+        title=f"{name} (one panel and a gate)",
+    )
+    export_assembly(
+        assembly,
+        output_step=outdir / f"{stem}.step",
+        output_stl=outdir / f"{stem}.stl",
+    )
+    print(f"\nWrote parts list, views and CAD export to {outdir}/")
+    return report
+
+
+def _panel_detail(fence: PanelFence, assembly: Compound) -> Compound:
+    """Return the last panel before the first gate, and the gate."""
+    gates = fence.gate_openings()
+    if not gates:
+        return assembly
+    gate = gates[0]
+    before = [s for s in fence.panels() if s.x1 <= gate.x0 + 1e-6]
+    x_lo = before[-1].x0 if before else gate.x0
+    x_hi = gate.x1 + fence.gate_post_size
+    return Compound(
+        children=[
+            copy.copy(child)
+            for child in assembly.children
+            if x_lo - 1e-6 <= child.center().X <= x_hi + 1e-6
+        ],
+        label=f"{assembly.label}_detail",
+    )
+
+
 def _spec(
     style: str,
     board: StockChoice | None = None,
@@ -2940,6 +4236,32 @@ def _spec(
     )
 
 
+def _panel_spec(style: str) -> ProjectSpec:
+    """Return the gallery entry for one AVO panel style."""
+    fence = PanelFence(style=style)
+    spec = fence.spec
+    return ProjectSpec(
+        slug=f"avo-fence-{style.replace('_', '-')}",
+        name=f"AVO {spec.name} panels",
+        summary=(
+            f"{spec.summary.capitalize()}. Pre-assembled 8 ft panels, "
+            f'{spec.board_t_in:g}" x {spec.board_w_in:g}" boards, hung on '
+            "pre-routed cedar posts — bought by the piece, not cut on site."
+        ),
+        species="white_cedar",
+        build=fence.build,
+        check=fence.check,
+        inventory=fence.inventory,
+        notes=(
+            "The Lumbery's own catalogue, read 2026-08-18: AVO panels in 4, 5 "
+            "and 6 ft heights by 8 ft, posts pre-bored for dowelled rails, "
+            "caps and toppers per panel, gates quoted by email. The prices "
+            "are not published in the page, so nothing here has one."
+        ),
+        tags=["outdoor", "fence", "cedar", "avo"],
+    )
+
+
 #: Projects this module contributes to the gallery.
 #:
 #: Three styles in the default board, and a fourth that changes the board
@@ -2960,6 +4282,9 @@ PROJECTS: list[ProjectSpec] = [
         ),
         log_rails=2,
     ),
+    _panel_spec("stockade"),
+    _panel_spec("universal"),
+    _panel_spec("chestnut_hill"),
     _spec(
         "picket",
         board=StockChoice("1x6", "STK", "tongue & groove, dressed"),
@@ -2978,6 +4303,19 @@ def main() -> None:
     """Parse arguments and build the requested fence."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--style", choices=[*STYLES, "all"], default="board_on_board")
+    parser.add_argument(
+        "--panels",
+        choices=[*AVO_STYLES, "all"],
+        default=None,
+        help="build The Lumbery's pre-assembled AVO panels in this style "
+        "instead of a stick-built fence",
+    )
+    parser.add_argument(
+        "--panel-height",
+        type=float,
+        default=4.0,
+        help="panel height in feet; the catalogue stocks 4, 5 and 6",
+    )
     parser.add_argument("--outdir", type=Path, default=Path("build"))
     parser.add_argument("--gate-leaves", type=int, choices=[1, 2], default=2)
     parser.add_argument(
@@ -3007,6 +4345,12 @@ def main() -> None:
     if args.variants:
         style = "board_on_board" if args.style == "all" else args.style
         print(catalogue(style=style))
+        return
+
+    if args.panels:
+        styles = tuple(AVO_STYLES) if args.panels == "all" else (args.panels,)
+        for style in styles:
+            run_panels(style, args.outdir, height_ft=args.panel_height)
         return
 
     lengths = [float(v) for v in args.assume_lengths.split(",") if v.strip()]

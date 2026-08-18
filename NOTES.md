@@ -1276,3 +1276,95 @@ goes below it. Three details earned their place:
 Furniture gets none of this, because it does not go below zero — the guess is
 "is any of this in the ground?", and `ground=True` or `ground=False` overrides
 it where the guess is wrong.
+
+## Addendum: the catalogue, and what it says my fences got wrong
+
+The Lumbery's store page — lumberystore.com/fence-panels-and-posts, read
+2026-08-18 — turned out to describe a different product from the one this
+project had been designing. They are AVO's exclusive retailer in Maine and New
+Hampshire, and AVO sells **pre-assembled panels**: 8 ft units in six styles and
+three heights, hung on posts bored at the mill for their dowelled rail ends.
+
+Everything I had built was stick-built: boards nailed to rails on site, boards
+running past the posts, the bay chosen to suit the run. That is a real way to
+build a fence and it is not what this yard sells.
+
+### What the catalogue settles
+
+Numbers I had been inferring, which they simply publish:
+
+- **Board sizes.** Two of them, and they are milled sizes rather than any
+  nominal size's dressed answer: 7/8" x 2-7/8" (stockade, spaced picket) and
+  3/4" x 3-1/2" (privacy board, spaced board). My rough sawn 1x6 at a full
+  1" x 6" was a third heavier than either.
+- **The rail.** 2" x 3" S2S dowelled Colonial rail, double-nailed top and
+  bottom. A dressed 2x3 would be 1-1/2" x 2-1/2"; theirs is not, so
+  `StockChoice` and `Board` grew `actual_in` / `actual_mm`, which is the same
+  principle as the coverage work: a supplier that states the section is
+  believed over a table that guesses it.
+- **Heights.** 4, 5 and 6 ft in every style, and the custom order form circles
+  36, 48, 60, 72, 84 and 96 inches. The 4 ft I was asked for is a stocked size.
+- **Post lengths and burial**, from their own sizing table: a 6 ft post for a
+  4 ft fence, 4 ft up and 2 ft down; 8 ft for 5 ft; 10 ft for 6 ft.
+- **Grades**, in their words: Premium (#1), #2, Economy (#3) — and which styles
+  are offered in which. Spaced picket has no Economy grade.
+
+### Where it disagrees with what I built
+
+Three disagreements, and all three are now findings rather than opinions.
+
+**The run has to divide.** A stick-built fence puts its posts where it likes.
+A panel fence cannot: the bay *is* the panel, and 38 ft is four 8 ft panels and
+two 3 ft leftovers. The catalogue builds custom panels and does not stock them,
+so those two are lead time and a separate price — and the check says the
+stretches are 19 ft each, and that 16 ft or 24 ft would take whole panels.
+
+**Their burial is half of mine.** I had every post 4 ft down, to clear the
+southern Maine frost line. Their table says 2 ft for a 4 ft fence, and it is
+their fence — so the panel design follows their table and the frost check now
+fires against the supplier rather than against my own guess:
+
+```
+WARN [frost] 22" of post in the ground against a 48" frost depth for southern
+     Maine — this is the catalogue's own sizing, and it is half the depth the
+     frost line asks for. It is what most of these fences are built to and it
+     is why they lean; the next post up (8 ft) buys 46" and costs one post size
+```
+
+Note the 22": their table says 24", and hanging the panel 2" clear of grade
+takes two inches out of the hole. The gap under a panel comes from somewhere.
+
+**Gates are not a product.** Every panel page says the same thing: gates are
+custom, cannot be pre-ordered online, email for pricing. So the panel design
+draws the gate and refuses to order it, and the order prints it as a quoted
+line. This is the first thing in this repository that is deliberately *not*
+costed because the supplier declines to.
+
+### An order is not a cut list
+
+This is the structural thing the panel line asked for. Everything else here
+produces a cut list — parts, dimensions, what to buy them from. A panel fence
+cuts nothing: it is counted, not measured. `PanelOrder` is that: panels by
+style, height and grade, posts by *position* (end, line, gate — a pre-routed
+post is bored on the faces its rails come into, so a line post in an end
+position is a post with a hole in the wrong side), caps by the post, and the
+gates as a line that says "ask".
+
+The parts still get drawn — boards, rails, balusters — because a picture of a
+box labelled "panel" would check nothing. The report says so in as many words,
+so nobody takes the parts list to a saw.
+
+### Still not priced, and now for a third reason
+
+The store publishes the whole catalogue as page text and renders the money
+client-side from an API this fetch does not reach. So the options are recorded
+and the prices are blank — which now makes three distinct reasons for a blank
+in this file: nobody publishes it (round cedar, before this), the page is
+blocked (the mesh), and the page publishes it somewhere I cannot read (all of
+AVO). Every one of them prints as a partial total that names what it left out,
+and every one of them is one phone call from being filled in: (207) 835-7023.
+
+The round cedar entries did get better, though. They were recorded as "peeled
+log, NOT PRICED, Lumbery's guide is sawn stock only" — and the store side sells
+round posts in 5 to 8 ft and round rails in 3", 3-1/2" and 4". So the log fence
+is buying a catalogue item after all, and the entries now say so.

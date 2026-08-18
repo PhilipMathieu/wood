@@ -149,7 +149,7 @@ def test_the_cedar_prices_are_real_dated_and_sourced(inv):
     """Lumbery publishes a full guide, so this is the one supplier we can cite."""
     sawn = [
         d for d in inv.dimensional
-        if d.species == "white_cedar" and d.profile != "peeled log"
+        if d.species == "white_cedar" and d.price_source.startswith("Lumbery")
     ]
     assert len(sawn) > 20
     for entry in sawn:
@@ -160,12 +160,38 @@ def test_the_cedar_prices_are_real_dated_and_sourced(inv):
 
 
 def test_the_round_stock_is_deliberately_unpriced(inv):
-    """The guide is sawn stock only, and a fence that wants logs should be told."""
-    logs = [d for d in inv.dimensional if d.profile == "peeled log"]
+    """They sell it; the store side simply does not publish prices in the page."""
+    logs = [d for d in inv.dimensional if "round" in d.profile]
     assert logs
     for entry in logs:
         assert entry.price is None
         assert entry.price_source.startswith("NOT PRICED")
+        assert entry.lengths_ft      # the store does publish the lengths
+
+
+def test_the_avo_panel_catalogue_is_recorded_with_its_options(inv):
+    """Six styles, three heights, and the add-ons that go with them."""
+    panels = [u for u in inv.unit_goods if u.item.endswith("fence panel")]
+    assert len(panels) == 18
+    assert {u.size for u in panels} == {
+        "4 ft H x 8 ft L", "5 ft H x 8 ft L", "6 ft H x 8 ft L",
+    }
+    assert all(u.price is None for u in panels)
+    assert all("lumberystore.com" in u.price_url for u in panels)
+    options = {u.item for u in inv.unit_goods if u.item.startswith("AVO")} - {
+        u.item for u in panels
+    }
+    assert "AVO post cap" in options
+    assert "AVO cap strip" in options
+
+
+def test_the_panel_posts_are_sold_by_the_piece_in_published_lengths(inv):
+    """Which the sawn price guide never does — it publishes no lengths at all."""
+    posts = [d for d in inv.dimensional if "pre-routed" in d.profile]
+    assert posts
+    for entry in posts:
+        assert entry.lengths_ft == [6, 8, 10, 12]
+        assert entry.price is None
 
 
 def test_the_mesh_is_unpriced_and_says_why(inv):
@@ -307,9 +333,18 @@ def test_dimensional_for_names_what_is_stocked_when_nothing_matches(inv):
 
 def test_dimensional_for_matches_a_size_with_only_one_entry(inv):
     """A grade is only needed where a grade distinguishes something."""
-    stock = inv.dimensional_for("white_cedar", "6x6")
-    assert stock.nominal == "6x6"
-    assert stock.price == pytest.approx(9.45)
+    stock = inv.dimensional_for("white_cedar", "5x5")
+    assert stock.nominal == "5x5"
+    assert "pre-routed" in stock.profile
+
+
+def test_a_size_stocked_two_ways_became_ambiguous_and_says_so(inv):
+    """6x6 is a sawn timber on the price list and a pre-routed panel post."""
+    with pytest.raises(KeyError, match="ambiguous"):
+        inv.dimensional_for("white_cedar", "6x6")
+    assert inv.dimensional_for(
+        "white_cedar", "6x6", grade="STK", profile="rough sawn"
+    ).price == pytest.approx(9.45)
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +354,11 @@ def test_dimensional_for_matches_a_size_with_only_one_entry(inv):
 
 def test_the_whole_lumbery_guide_is_recorded(inv):
     """Shakes and lattice were the only prices missing, for want of a unit."""
-    labels = {u.stock_label for u in inv.unit_goods_for("white_cedar")}
+    labels = {
+        u.stock_label
+        for u in inv.unit_goods_for("white_cedar")
+        if not u.item.startswith("AVO")
+    }
     assert labels == {
         'white_cedar shakes 3/8" (clear)',
         'white_cedar shakes 3/8" (wall)',

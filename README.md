@@ -37,9 +37,10 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
-  cedar_fence.py      38 ft of white cedar fence at 4 ft, in four styles —
-                      picket, board-on-board, horizontal, and peeled logs with
-                      black coated mesh — plus two 10 ft gated sections
+  cedar_fence.py      38 ft of white cedar fence at 4 ft, two ways: built from
+                      sticks in four styles (picket, board-on-board,
+                      horizontal, logs and black coated mesh), or ordered as
+                      The Lumbery's pre-assembled AVO panels in six
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -55,8 +56,9 @@ uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
 uv run python projects/cedar_fence.py --style all --outdir build
-uv run python projects/cedar_fence.py --compare     # the three styles, priced
+uv run python projects/cedar_fence.py --compare     # the stick-built styles, priced
 uv run python projects/cedar_fence.py --variants    # every cedar Lumbery stocks
+uv run python projects/cedar_fence.py --panels all  # the AVO panel catalogue
 ```
 
 That writes to `build/`:
@@ -332,6 +334,32 @@ log fence is built around, whose retail price is published on pages this
 environment's egress proxy blocks. Both are recorded with sizes, sources and a
 plain statement of what is missing, so every total that touches them prints as
 partial and names what it left out.
+
+## Two ways to buy the same fence
+
+`projects/cedar_fence.py` builds the same 38 ft run twice over, because The
+Lumbery sells it twice over.
+
+**By the foot.** `CedarFence` is stick-built: boards, rails and posts cut on
+site, priced off Lumbery's published white cedar guide, which quotes thirty
+profiles per lineal foot and publishes no lengths at all.
+
+**By the piece.** `PanelFence` is their AVO line — pre-assembled 8 ft panels in
+six styles and three heights, hung on posts bored at the mill for the dowelled
+rail ends. Nothing is cut on site, so it has no cut list: it has an **order**,
+counted in panels, posts and caps. Read from
+[lumberystore.com/fence-panels-and-posts](https://www.lumberystore.com/fence-panels-and-posts)
+on 2026-08-18 — board sizes, rail sections, grades, heights, post lengths and
+burial depths are theirs.
+
+The difference is not cosmetic, and the checks are where it shows:
+
+| | stick-built | AVO panels |
+| --- | --- | --- |
+| the bay | whatever divides the run under 8 ft | fixed: the bay **is** the panel |
+| a 38 ft run | six bays of 6'-4" | four 8 ft panels and two 3 ft **custom** ones |
+| burial | 4 ft, to clear the frost line | 2 ft, per their sizing table — half what the frost line asks |
+| the gates | designed, drawn and costed | drawn, and **quoted by email**: the catalogue will not price a gate |
 
 `projects/cedar_fence.py` is the project built entirely on the real ones: every
 line of its total is dated, and the same guide that prices the stock publishes

@@ -452,45 +452,131 @@ dimensional:
     price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
 
   # ---------------------------------------------------------------------
-  # Round cedar — peeled logs, sold by the foot in diameter ranges.
+  # AVO fence posts, from The Lumbery, read 2026-08-18. Sold by the piece
+  # in fixed lengths, which is the first cedar in this file that is: the
+  # Lumbery guide above prices sawn stock by the lineal foot and publishes
+  # no lengths at all, and these are the same species sold the other way.
   #
-  # NOT PRICED, and not for want of asking the file. Lumbery's published
-  # guide is entirely sawn stock: thirty lines and not one of them round.
-  # Round cedar posts and rails are a real product and a common one in
-  # Maine; what is missing is a published number for them, so these
-  # entries carry sizes and no price. `check_price_provenance` reports
-  # them as WARN — a total that includes them is a total with a hole in
-  # it — which is the correct thing for a design to be told.
+  # Their own sizing table, which is the supplier telling you how deep to
+  # dig: a 6 ft post is for a 4 ft fence, 4 ft up and 2 ft down; 8 ft for
+  # 5 ft, 3 ft down; 10 ft for 6 ft, 4 ft down; 12 ft for 8 ft, 4 ft down.
+  # See the frost check in projects/cedar_fence.py, which disagrees with
+  # the 2 ft figure and says why.
   #
-  # Diameters are the size to design to rather than a promise: round
-  # stock is graded in ranges ("4 to 5 inch"), and every stick differs.
+  # Pre-routed posts are bored at the mill for the dowelled rail ends, in
+  # line, end and corner configurations; solid blanks are unrouted. Actual
+  # dimensions are not published, so these are treated as full nominal.
+  # NOT PRICED, for the same reason as the panels.
   # ---------------------------------------------------------------------
   - species: white_cedar
-    nominal: "log 5"
-    lengths_ft: []
+    nominal: "4x4"
+    lengths_ft: [6, 8, 10, 12]
     qty: 0
-    grade: ""
-    profile: peeled log
-    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
-    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    grade: "#1"
+    profile: chamfered top, pre-routed
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/chamfered-white-cedar-fence-posts/FF4X7ELLLI2FZ3GXXBRL5AK6"
 
   - species: white_cedar
+    nominal: "5x5"
+    lengths_ft: [6, 8, 10, 12]
+    qty: 0
+    grade: "#1"
+    profile: chamfered top, pre-routed
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/chamfered-white-cedar-fence-posts/FF4X7ELLLI2FZ3GXXBRL5AK6"
+
+  - species: white_cedar
+    nominal: "6x6"
+    lengths_ft: [6, 8, 10, 12]
+    qty: 0
+    grade: "#1"
+    profile: chamfered top, pre-routed
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/chamfered-white-cedar-fence-posts/FF4X7ELLLI2FZ3GXXBRL5AK6"
+
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: [6, 8, 10, 12]
+    qty: 0
+    grade: "#1"
+    profile: gothic top, pre-routed
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/gothic-top-white-cedar-fence-posts/YVSXUCP73BUVBE77LFZWXNWU"
+
+  - species: white_cedar
+    nominal: "4x4"
+    lengths_ft: [6, 8, 10, 12]
+    qty: 0
+    grade: "#1"
+    profile: flat cut, pre-routed
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/flat-cut-square-white-cedar-fence-posts/FRXXIBPU4IT4EAKA4HPO3WC3"
+
+  # Round posts and rails, which is what the log-and-mesh design is built
+  # from. These replace the "peeled log" entries this file used to carry:
+  # those were recorded when the sawn price guide was the only source and
+  # round stock looked like something Lumbery did not sell. They sell it —
+  # posts 5 to 8 ft, rails 3", 3-1/2" and 4" in 8 and 10 ft — it is simply
+  # on the store side rather than on the price list, and it is priced there
+  # the same way everything else on that side is: not in the page.
+  - species: white_cedar
     nominal: "log 4"
-    lengths_ft: []
+    lengths_ft: [5, 6, 7, 8]
     qty: 0
     grade: ""
-    profile: peeled log
-    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
-    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    profile: round post
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/round-white-cedar-fence-posts/447SESY5CUIFVE73YTETAMES"
 
   - species: white_cedar
     nominal: "log 6"
-    lengths_ft: []
+    lengths_ft: [5, 6, 7, 8]
     qty: 0
     grade: ""
-    profile: peeled log
-    price_source: "NOT PRICED — Lumbery's guide is sawn stock only; ask for round"
-    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    profile: round post
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/round-white-cedar-fence-posts/447SESY5CUIFVE73YTETAMES"
+
+  - species: white_cedar
+    nominal: "log 5"
+    lengths_ft: [5, 6, 7, 8]
+    qty: 0
+    grade: ""
+    profile: round post
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/round-white-cedar-fence-posts/447SESY5CUIFVE73YTETAMES"
+
+  - species: white_cedar
+    nominal: "log 4"
+    lengths_ft: [8, 10]
+    qty: 0
+    grade: ""
+    profile: round rail
+    price_source: "NOT PRICED — post and rail components, read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/post-and-rail-fencing-components/JYB2MJTWJ3SSPMZHLG3MTHUI"
+
+  # The panel rail, which is the section every AVO panel is framed with.
+  - species: white_cedar
+    nominal: "2x3"
+    lengths_ft: [8]
+    qty: 0
+    grade: ""
+    profile: S2S dowelled Colonial rail
+    price_source: "NOT PRICED — panel component, read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/cedar-stockade-fence-panels/N2DTYUGSLSYHEBVAF4FNCK6M"
+
+  # Loose pickets, sold by the piece rather than as a panel.
+  - species: white_cedar
+    nominal: "1x3"
+    lengths_ft: [6]
+    qty: 0
+    grade: "#1"
+    profile: fence picket
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/white-cedar-fence-pickets/KLTYFHDETGL6C7NAK6KLQ5LB"
+
+
 
 # Hardwood is sold rough, in random widths, and priced by the board foot, so
 # width is an outcome of milling rather than a property of the stock.
@@ -799,6 +885,272 @@ unit_goods:
       under the coating. Staple to the rails and cap the edges with a
       batten — a cut mesh end at hand height is a scratch waiting to
       happen.
+
+
+  # ---------------------------------------------------------------------
+  # AVO pre-assembled fence panels, from The Lumbery — their exclusive
+  # retailer in Maine and New Hampshire. Read from
+  # lumberystore.com/fence-panels-and-posts and the product pages it links,
+  # 2026-08-18.
+  #
+  # These are a different thing from everything above: a panel is not stock
+  # to cut, it is a finished 8 ft assembly that hangs between two posts.
+  # Every style comes 4, 5 and 6 ft high and 8 ft long; posts, caps and
+  # toppers are separate line items; gates are custom and quoted by email.
+  #
+  # NOT PRICED. The storefront publishes the whole catalogue — styles,
+  # grades, board sizes, rail sections, post lengths — as page text, and
+  # renders the money client-side from an API this fetch does not reach.
+  # Reading the options off a page and leaving the prices blank is the
+  # honest half of that; guessing the other half is what this file exists
+  # to refuse. One call to (207) 835-7023 fills them in.
+  # ---------------------------------------------------------------------
+
+  - species: white_cedar
+    item: AVO Stockade fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-stockade-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Stockade fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-stockade-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Stockade fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-stockade-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Privacy Board fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-privacy-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Privacy Board fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-privacy-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Privacy Board fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-privacy-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, butted solid. Grades: Premium (#1), #2, Economy (#3).
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Picket fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-picket-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Picket fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-picket-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Picket fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-picket-fence-panels"
+    notes: >-
+      7/8" x 2-7/8" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Board fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Board fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Spaced Board fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/cedar-spaced-board-fence-panels"
+    notes: >-
+      3/4" x 3-1/2" boards, spaced. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Universal fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/universal-fence-panel"
+    notes: >-
+      1x4 tongue and groove, 3/4" thick, picture framed in 6/4x4, no backing rails — the same both sides. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Universal fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/universal-fence-panel"
+    notes: >-
+      1x4 tongue and groove, 3/4" thick, picture framed in 6/4x4, no backing rails — the same both sides. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Universal fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/universal-fence-panel"
+    notes: >-
+      1x4 tongue and groove, 3/4" thick, picture framed in 6/4x4, no backing rails — the same both sides. Grades: Premium (#1), #2.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Chestnut Hill fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/premium-chestnut-hill-fence"
+    notes: >-
+      2x2 balusters between a 6/4x4 top and 6/4x6 bottom rail, both sides. Grades: Premium, Economy.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Chestnut Hill fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/premium-chestnut-hill-fence"
+    notes: >-
+      2x2 balusters between a 6/4x4 top and 6/4x6 bottom rail, both sides. Grades: Premium, Economy.
+      Maine white cedar, stainless steel nails.
+
+  - species: white_cedar
+    item: AVO Chestnut Hill fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — options read from lumberystore.com 2026-08-18; prices render from an API this fetch does not reach"
+    price_url: "https://www.lumberystore.com/product/premium-chestnut-hill-fence"
+    notes: >-
+      2x2 balusters between a 6/4x4 top and 6/4x6 bottom rail, both sides. Grades: Premium, Economy.
+      Maine white cedar, stainless steel nails.
+
+
+  # Options, each sold per panel and each having to match the panel count.
+  - species: white_cedar
+    item: AVO board topper (dog ear, pointed, gothic or round)
+    unit: panel
+    qty: 0
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/cedar-fence-board-toppers/EJLXUQ2C3SNZMAEDKG6L3MM5"
+    notes: >-
+      Fits stockade, privacy, spaced picket and spaced board panels. Quantity
+      must match the number of panels being customised.
+
+  - species: white_cedar
+    item: AVO cap strip
+    unit: panel
+    qty: 0
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/cedar-fence-cap-strips/4SCNNFEVEGZ4435HG4AUNCS6"
+    notes: >-
+      A continuous top rail over the boards, covering the end grain. Picket
+      and board panels only.
+
+  - species: white_cedar
+    item: AVO scalloped or reverse scalloped top
+    unit: panel
+    qty: 0
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/cedar-scalloped-fence-panels/KFG3U6QFZ2ILU2H3Z2ZA43ZC"
+    notes: >-
+      Concave, convex, or a transition panel sloping between two fence
+      heights.
+
+  - species: white_cedar
+    item: AVO lattice topper (square or diagonal)
+    unit: panel
+    qty: 0
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/square-lattice-fence-topper/ZFIF5VDMY2GXCUTWLTN7ODU2"
+    notes: "Sold per panel, like every other top option."
+
+  - species: white_cedar
+    item: AVO post cap
+    unit: each
+    qty: 0
+    price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
+    price_url: "https://www.lumberystore.com/product/handcrafted-cedar-post-caps/DN6NS2IFNDY4ZXGXB4TZ7XGO"
+    notes: "Handcrafted cedar; posts are sold without them."
 
 # Terms that apply to an order rather than to a board. A discount cannot live
 # on a stock entry because it changes every line at once or none of them.

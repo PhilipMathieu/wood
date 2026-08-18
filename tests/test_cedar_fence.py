@@ -17,11 +17,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "projects"))
 
 from cedar_fence import (  # noqa: E402
     ASSUMED_COVERAGE_IN,
+    AVO_PANEL_HEIGHTS_FT,
+    AVO_POST_TABLE,
+    AVO_STYLES,
     IN,
     MESH_THICKNESS_MM,
     STYLES,
     CedarFence,
     MeshPlan,
+    PanelFence,
     StockChoice,
     catalogue,
     discount_note,
@@ -776,3 +780,221 @@ def test_the_model_admits_it_drew_a_sheet_instead_of_wires(logs, log_parts):
         f for f in logs.check(logs.build(), log_parts).findings if f.code == "mesh"
     ]
     assert any("not as wires" in f.message for f in mesh)
+
+
+# ---------------------------------------------------------------------------
+# The panels The Lumbery actually sells
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def panels() -> PanelFence:
+    return PanelFence()
+
+
+def test_the_catalogue_is_six_styles_in_three_heights():
+    assert set(AVO_STYLES) == {
+        "stockade", "privacy_board", "spaced_picket", "spaced_board",
+        "universal", "chestnut_hill",
+    }
+    assert AVO_PANEL_HEIGHTS_FT == (4.0, 5.0, 6.0)
+
+
+def test_the_two_board_sizes_are_theirs_not_a_nominal_lookup():
+    """7/8 x 2-7/8 and 3/4 x 3-1/2 are milled sizes, not any table's answer."""
+    assert AVO_STYLES["stockade"].board_t_in == 0.875
+    assert AVO_STYLES["stockade"].board_w_in == 2.875
+    assert AVO_STYLES["privacy_board"].board_t_in == 0.75
+    assert AVO_STYLES["privacy_board"].board_w_in == 3.5
+
+
+def test_the_rail_is_the_section_the_catalogue_publishes(panels):
+    """2" x 3" S2S — a dressed 2x3 would be 1-1/2" x 2-1/2"."""
+    assert panels.rail.thickness == pytest.approx(2 * IN)
+    assert panels.rail.width == pytest.approx(3 * IN)
+    rail = next(
+        p for p in extract(panels.build()) if p.label.endswith("panel_rail")
+    )
+    assert rail.thickness_mm == pytest.approx(2 * IN)
+    assert rail.stock_spec == "2x3 S2S dowelled Colonial rail"
+
+
+def test_a_style_it_does_not_sell_is_refused():
+    with pytest.raises(ValueError, match="style must be one of"):
+        PanelFence(style="board_on_board")
+
+
+def test_a_grade_that_style_is_not_offered_in_is_refused():
+    """Spaced picket comes in Premium and #2; Economy is a privacy grade."""
+    with pytest.raises(ValueError, match="is offered in"):
+        PanelFence(style="spaced_picket", grade="Economy (#3)")
+
+
+def test_the_default_grade_is_the_first_the_style_offers(panels):
+    assert panels.grade == "Premium (#1)"
+
+
+# ---------------------------------------------------------------------------
+# The bay is the panel, so the run has to divide
+# ---------------------------------------------------------------------------
+
+
+def test_thirty_eight_feet_does_not_divide_into_eight_foot_panels(panels):
+    assert len(panels.panels()) == 6
+    odd = panels.odd_panels()
+    assert len(odd) == 2
+    assert all(s.length == pytest.approx(3 * 12 * IN) for s in odd)
+
+
+def test_a_run_that_does_divide_gets_no_custom_panels():
+    tidy = PanelFence(run_ft=32.0)
+    assert not tidy.odd_panels()
+    assert len(tidy.panels()) == 4
+
+
+def test_the_odd_panel_is_flagged_with_what_would_fit(panels):
+    layout = [
+        f for f in panels.check(panels.build(), extract(panels.build())).findings
+        if f.code == "layout"
+    ]
+    warn = next(f for f in layout if f.severity is Severity.WARN)
+    assert "does not divide" in warn.message
+    assert "16 ft or 24 ft" in warn.message
+
+
+# ---------------------------------------------------------------------------
+# Their post table, and where it disagrees with the frost line
+# ---------------------------------------------------------------------------
+
+
+def test_the_post_comes_from_their_sizing_table(panels):
+    assert AVO_POST_TABLE[4.0] == (6.0, 2.0)
+    assert panels.post_length_ft == 6.0
+
+
+def test_hanging_the_panel_clear_of_grade_comes_out_of_the_hole(panels):
+    """Their table says 2 ft down; the 2" gap under the panel takes 2" of it."""
+    assert panels.above_grade == pytest.approx(50 * IN)
+    assert panels.embedment == pytest.approx(22 * IN)
+
+
+def test_their_own_sizing_is_flagged_against_the_frost_line(panels):
+    frost = [
+        f for f in panels.check(panels.build(), extract(panels.build())).findings
+        if f.code == "frost"
+    ]
+    assert frost and frost[0].severity is Severity.WARN
+    assert "catalogue's own sizing" in frost[0].message
+
+
+def test_a_gate_post_is_one_length_up_and_all_of_it_goes_down(panels):
+    posts = panels.posts()
+    gate = next(p for p in posts if p.is_gate_post)
+    line = next(p for p in posts if not p.is_gate_post)
+    assert gate.length == pytest.approx(line.length + 24 * IN)
+    assert gate.embedment == pytest.approx(line.embedment + 24 * IN)
+
+
+# ---------------------------------------------------------------------------
+# An order, not a cut list
+# ---------------------------------------------------------------------------
+
+
+def test_the_order_counts_panels_posts_and_caps(panels):
+    order = panels.order()
+    kinds = {
+        what.split(",")[0]: (count, unit)
+        for what, count, unit in order.lines
+        if "CUSTOM" not in what
+    }
+    assert kinds["Stockade panel"][0] == 4
+    assert kinds["4x4 end post"] == (2, "post")
+    assert kinds["4x4 line post"] == (3, "post")
+    assert kinds["6x6 gate post"] == (4, "post")
+    assert kinds["post cap"] == (9, "each")
+
+
+def test_every_custom_panel_is_its_own_line(panels):
+    customs = [line for line in panels.order().lines if "CUSTOM" in line[0]]
+    assert len(customs) == 2
+    assert all(count == 1 for _what, count, _unit in customs)
+
+
+def test_the_gates_are_quoted_rather_than_ordered(panels):
+    order = panels.order()
+    assert order.quoted and "gate leaves" in order.quoted[0]
+    assert not any("gate leaf" in what for what, _c, _u in order.lines)
+
+
+def test_nothing_in_the_catalogue_carries_a_published_price(panels):
+    order = panels.order()
+    assert order.unpriced
+    summary = order.cost_summary
+    assert summary.total is None
+    assert not summary.complete
+
+
+def test_the_order_reads_as_the_email_you_would_send(panels):
+    text = panels.order().to_text()
+    assert "Stockade panel" in text
+    assert "CUSTOM" in text
+    assert "quotes it by email" in text
+
+
+# ---------------------------------------------------------------------------
+# What is drawn, and what is admitted
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("style", sorted(AVO_STYLES))
+def test_every_catalogue_style_builds_and_checks_clean(style: str):
+    fence = PanelFence(style=style)
+    assembly = fence.build()
+    parts = extract(assembly)
+    report = fence.check(assembly, parts)
+    assert parts
+    assert report.ok
+
+
+def test_the_unpublished_numbers_are_flagged_as_assumed(panels):
+    assumed = [
+        f for f in panels.check(panels.build(), extract(panels.build())).findings
+        if f.code == "assumed"
+    ]
+    assert assumed and all(f.severity is Severity.WARN for f in assumed)
+    assert any("rails are drawn" in f.message for f in assumed)
+
+
+def test_a_spaced_style_admits_the_gap_is_not_published():
+    spaced = PanelFence(style="spaced_picket")
+    assumed = [
+        f for f in spaced.check(spaced.build(), extract(spaced.build())).findings
+        if f.code == "assumed"
+    ]
+    assert any("gap between boards" in f.message for f in assumed)
+
+
+def test_the_universal_panel_has_a_frame_and_no_backing_rails():
+    universal = PanelFence(style="universal")
+    labels = {p.label for p in extract(universal.build())}
+    assert "frame_stile" in labels and "frame_rail" in labels
+    assert "panel_rail" not in labels
+
+
+def test_chestnut_hill_sandwiches_its_balusters(panels):
+    hill = PanelFence(style="chestnut_hill")
+    parts = extract(hill.build())
+    rails = [p for p in parts if "chestnut" in p.label]
+    balusters = [p for p in parts if p.label.endswith("baluster")]
+    assert balusters
+    # Two rails per position, one each side, so four rail rows in a panel.
+    assert sum(p.qty for p in rails) == 4 * len(hill.panels())
+
+
+def test_the_parts_list_says_it_is_not_an_order(panels):
+    ordering = [
+        f for f in panels.check(panels.build(), extract(panels.build())).findings
+        if f.code == "ordering"
+    ]
+    assert any("nothing in this design is cut" in f.message for f in ordering)
+    assert any("bored on the faces" in f.message for f in ordering)
