@@ -115,6 +115,12 @@ Provenance is published either way: every project page carries a *Prices*
 section naming each material it buys and where that material's price came
 from, which stays useful after somebody records a real one.
 
+A project that is **ordered rather than cut** — pre-assembled panels, a kit —
+publishes an `order` callable alongside `build` and `check`, and the gallery
+stops deriving a buying plan from its cut list. A fence bought as panels is not
+bought in lineal feet, and quoting it that way would price a fence nobody is
+building.
+
 A project joins the gallery by publishing a module-level `PROJECTS` list:
 
 ```python

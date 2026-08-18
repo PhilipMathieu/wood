@@ -53,6 +53,13 @@ class ProjectSpec:
         Takes ``(assembly, parts)`` and returns a
         :class:`woodshop.checks.CheckReport`.  ``None`` if the project has no
         checks of its own.
+    order : callable, optional
+        Takes no arguments and returns what to *buy*, for a design that is
+        bought rather than cut — pre-assembled panels, a kit, anything sold by
+        the piece.  It must offer ``lines`` (``(what, how many, unit)``) and a
+        ``cost_summary``.  When a project supplies one, nothing derives a
+        buying plan from its cut list, because for that project the cut list
+        is a description of what arrives rather than a list of what to order.
     species : str, optional
         Primary solid-wood species, used to plan hardwood purchases.
     source_url : str, optional
@@ -71,6 +78,7 @@ class ProjectSpec:
     summary: str
     build: Callable[[], Any]
     check: Callable[[Any, list], Any] | None = None
+    order: Callable[[], Any] | None = None
     species: str = "cherry"
     source_url: str = ""
     inventory: Any = None

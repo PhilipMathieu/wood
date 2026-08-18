@@ -2490,11 +2490,16 @@ class PanelOrder:
     quoted : list[str]
         Things the catalogue will not price online at all — the gates, which
         it says are custom and quoted by email.
+    stock_used : list
+        The inventory entries this order buys, for the provenance report.
+        Without it the report falls back to auditing every entry in the
+        species, which for cedar is now forty-seven of them.
     """
 
     lines: list[tuple[str, int, str]] = field(default_factory=list)
     unpriced: list[str] = field(default_factory=list)
     quoted: list[str] = field(default_factory=list)
+    stock_used: list[Any] = field(default_factory=list)
 
     @property
     def cost_summary(self) -> CostSummary:
@@ -3155,6 +3160,7 @@ class PanelFence:
         lines: list[tuple[str, int, str]] = []
         unpriced: list[str] = []
         quoted: list[str] = []
+        stock_used: list[Any] = []
 
         full = [s for s in self.panels() if s not in self.odd_panels()]
         entry = self.panel_stock()
@@ -3174,8 +3180,10 @@ class PanelFence:
                     "panel",
                 )
             )
-        if entry is not None and entry.price is None:
-            unpriced.append(entry.stock_label)
+        if entry is not None:
+            stock_used.append(entry)
+            if entry.price is None:
+                unpriced.append(entry.stock_label)
 
         kinds = self.post_kinds()
         gate_posts = [p for p in self.posts() if p.is_gate_post]
@@ -3197,15 +3205,19 @@ class PanelFence:
                 lines.append((f"{what}, {length_ft:g} ft", count, "post"))
         for choice in (self.post, self.gate_post):
             stock = self.post_stock(choice)
-            if stock is not None and stock.price is None:
-                if stock.stock_label not in unpriced:
-                    unpriced.append(stock.stock_label)
+            if stock is None or any(stock is used for used in stock_used):
+                continue
+            stock_used.append(stock)
+            if stock.price is None:
+                unpriced.append(stock.stock_label)
 
         caps = len(self.posts())
         lines.append(("post cap", caps, "each"))
         cap = self.cap_stock()
-        if cap is not None and cap.price is None:
-            unpriced.append(cap.stock_label)
+        if cap is not None:
+            stock_used.append(cap)
+            if cap.price is None:
+                unpriced.append(cap.stock_label)
 
         leaves = len(self.gate_openings()) * self.gate_leaves
         if leaves:
@@ -3214,7 +3226,9 @@ class PanelFence:
                 f"{len(self.gate_openings())} openings of "
                 f"{self.gate_section_ft:g} ft"
             )
-        return PanelOrder(lines=lines, unpriced=unpriced, quoted=quoted)
+        return PanelOrder(
+            lines=lines, unpriced=unpriced, quoted=quoted, stock_used=stock_used
+        )
 
     # ------------------------------------------------------------------
     # Checks
@@ -4245,12 +4259,14 @@ def _panel_spec(style: str) -> ProjectSpec:
         name=f"AVO {spec.name} panels",
         summary=(
             f"{spec.summary.capitalize()}. Pre-assembled 8 ft panels, "
-            f'{spec.board_t_in:g}" x {spec.board_w_in:g}" boards, hung on '
+            f"{mm_to_fractional_inch(spec.board_t, 32)} x "
+            f"{mm_to_fractional_inch(spec.board_w, 32)} boards, hung on "
             "pre-routed cedar posts — bought by the piece, not cut on site."
         ),
         species="white_cedar",
         build=fence.build,
         check=fence.check,
+        order=fence.order,
         inventory=fence.inventory,
         notes=(
             "The Lumbery's own catalogue, read 2026-08-18: AVO panels in 4, 5 "

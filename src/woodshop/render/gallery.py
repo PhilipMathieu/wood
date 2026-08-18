@@ -126,6 +126,12 @@ class ProjectBuild:
     hardwood : HardwoodPlan or None
         Random-width hardwood buying plan, ``None`` if the project buys no
         hardwood.
+    order : object or None
+        What to buy, for a project that is ordered rather than cut — see
+        :attr:`woodshop.project.ProjectSpec.order`.  When it is set the
+        buying plans below are not derived at all: a fence bought as panels is
+        not bought in lineal feet, and quoting it that way would be a price
+        for a fence nobody is building.
     lineal : LinealPlan or None
         Dimensional-stock buying plan, in lineal feet, ``None`` if the project
         buys no dimensional lumber.  A project has one or the other: a cherry
@@ -152,6 +158,7 @@ class ProjectBuild:
     report: CheckReport
     hardwood: HardwoodPlan | None = None
     lineal: LinealPlan | None = None
+    order: Any = None
     sheets: dict[str, Cut2DResult] = field(default_factory=dict)
     mass_kg: float = 0.0
     price_report: CheckReport = field(default_factory=CheckReport)
@@ -183,6 +190,8 @@ class ProjectBuild:
         publish a bare number and hope the caption is read.
         """
         summary = CostSummary()
+        if self.order is not None:
+            summary = summary + self.order.cost_summary
         if self.hardwood is not None:
             summary = summary + self.hardwood.cost_summary
         if self.lineal is not None:
@@ -236,7 +245,10 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
     # priced by the board foot, dimensional lumber comes in a nominal size and
     # is priced by the foot or the stick.  Nesting a fence post on a random
     # width board would answer a question nobody asked.
+    order = spec.order() if spec.order is not None else None
     hardwood = lineal = None
+    if order is not None:
+        solid = []          # ordered, not cut: derive no buying plan from it
     if solid and any(h.species == spec.species for h in inv.hardwood):
         hardwood = nest_hardwood(solid, inv, spec.species)
     elif solid:
@@ -250,16 +262,22 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
         report=report,
         hardwood=hardwood,
         lineal=lineal,
+        order=order,
         sheets=sheets,
         mass_kg=estimate_mass_kg(parts),
         price_report=CheckReport().extend(
             check_price_provenance(
                 inv,
                 parts,
-                # A design that named its grade and profile has already said
-                # which entries it buys; the species-wide fallback would name
-                # all twenty-eight cedar entries instead of the four.
-                stock=lineal.stock_used if lineal is not None else None,
+                # A design that named its grade and profile — or handed over
+                # an order — has already said which entries it buys; the
+                # species-wide fallback would name every cedar entry in the
+                # file instead of the handful.
+                stock=(
+                    getattr(order, "stock_used", None)
+                    if order is not None
+                    else (lineal.stock_used if lineal is not None else None)
+                ),
             )
         ),
         inventory=inv,
@@ -656,7 +674,13 @@ def _severity_badges(built: ProjectBuild) -> str:
 def _card_stats(built: ProjectBuild, show_costs: bool) -> str:
     """Return the small pill statistics shown on a card."""
     stats = []
-    if built.lineal is not None and built.lineal_ft:
+    if built.order is not None:
+        counts: dict[str, int] = {}
+        for _what, count, unit in built.order.lines:
+            counts[unit] = counts.get(unit, 0) + count
+        for unit, count in counts.items():
+            stats.append(f"{count} {unit}{'' if count == 1 else 's'}")
+    elif built.lineal is not None and built.lineal_ft:
         stats.append(f"{built.lineal_ft:.0f} lineal ft {built.spec.species}")
     elif built.board_feet:
         stats.append(f"{built.board_feet:.0f} bd ft {built.spec.species}")
@@ -917,8 +941,31 @@ def _render_cut_table(parts: list[CutPart]) -> str:
 
 
 def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
-    """Render the buying summary: board feet by thickness, sheets by size."""
+    """Render the buying summary: board feet, sheets, or a list of pieces."""
     rows: list[str] = []
+    if built.order is not None:
+        for what, count, unit in built.order.lines:
+            plural = "" if count == 1 else "s"
+            rows.append(
+                f"<li>{count} {html.escape(unit)}{plural}: "
+                f"{html.escape(what)}</li>"
+            )
+        for label in getattr(built.order, "quoted", ()):
+            rows.append(
+                f"<li>{html.escape(label)} — quoted, not ordered</li>"
+            )
+        note = (
+            '<p class="muted">Bought by the piece. Nothing in this design is '
+            "cut, so the cut list above describes what arrives rather than "
+            "what to order.</p>"
+        )
+        if show_costs:
+            rows.append(
+                f"<li><strong>total: "
+                f"{html.escape(built.cost_summary.to_text())}</strong></li>"
+            )
+        return f'<ul>{"".join(rows)}</ul>{note}'
+
     if built.hardwood is not None:
         for group in built.hardwood.groups:
             cost = ""

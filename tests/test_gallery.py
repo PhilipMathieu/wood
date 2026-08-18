@@ -410,3 +410,35 @@ def test_the_theme_resolves_in_all_three_states(fence, tmp_path):
     assert ':root[data-theme="dark"]' in page
     # And the body paints its own ground rather than borrowing the host's.
     assert "background: var(--bg)" in page
+
+
+# ---------------------------------------------------------------------------
+# A design that is ordered rather than cut
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def panels() -> ProjectSpec:
+    return next(s for s in discover_projects() if s.slug == "avo-fence-stockade")
+
+
+def test_a_project_with_an_order_derives_no_buying_plan(panels):
+    """A fence bought as panels is not bought in lineal feet."""
+    built = build_project(panels)
+    assert built.order is not None
+    assert built.lineal is None
+    assert built.hardwood is None
+
+
+def test_its_total_names_what_the_catalogue_does_not_price(panels):
+    summary = build_project(panels).cost_summary
+    assert summary.total is None
+    assert any("panel" in label for label in summary.unpriced)
+
+
+def test_the_page_lists_pieces_and_says_nothing_is_cut(panels, tmp_path):
+    build_gallery([panels], outdir=tmp_path, show_costs=True)
+    page = (tmp_path / panels.slug / "index.html").read_text(encoding="utf-8")
+    assert "4 panels:" in page or "4 panel" in page
+    assert "Nothing in this design is cut" in page or "nothing in this design" in page.lower()
+    assert "lineal ft" not in page
