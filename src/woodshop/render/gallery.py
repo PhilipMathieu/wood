@@ -47,6 +47,7 @@ from woodshop.checks import (
     check_price_provenance,
     estimate_mass_kg,
 )
+from woodshop.cutlist.dimensional import LinealPlan, plan_dimensional
 from woodshop.cutlist.extract import CutPart, extract
 from woodshop.cutlist.hardwood import HardwoodPlan, nest_hardwood
 from woodshop.cutlist.optimize_2d import Cut2DResult, pack_by_material
@@ -123,7 +124,14 @@ class ProjectBuild:
     report : CheckReport
         The design-check findings, empty if the project defines no checks.
     hardwood : HardwoodPlan or None
-        Solid-stock buying plan, ``None`` if the project uses no solid stock.
+        Random-width hardwood buying plan, ``None`` if the project buys no
+        hardwood.
+    lineal : LinealPlan or None
+        Dimensional-stock buying plan, in lineal feet, ``None`` if the project
+        buys no dimensional lumber.  A project has one or the other: a cherry
+        bed is bought by the board foot off random-width boards, a cedar fence
+        by the lineal foot off a nominal size, and the two are different
+        questions rather than two formats of one answer.
     sheets : dict[str, Cut2DResult]
         Sheet-goods nesting, keyed as :func:`pack_by_material` keys them.
     mass_kg : float
@@ -143,6 +151,7 @@ class ProjectBuild:
     parts: list[CutPart]
     report: CheckReport
     hardwood: HardwoodPlan | None = None
+    lineal: LinealPlan | None = None
     sheets: dict[str, Cut2DResult] = field(default_factory=dict)
     mass_kg: float = 0.0
     price_report: CheckReport = field(default_factory=CheckReport)
@@ -151,7 +160,14 @@ class ProjectBuild:
     @property
     def board_feet(self) -> float:
         """Board feet of solid stock this project buys."""
-        return 0.0 if self.hardwood is None else self.hardwood.board_feet
+        if self.hardwood is not None:
+            return self.hardwood.board_feet
+        return 0.0 if self.lineal is None else self.lineal.board_feet
+
+    @property
+    def lineal_ft(self) -> float:
+        """Lineal feet of dimensional stock this project buys."""
+        return 0.0 if self.lineal is None else self.lineal.lineal_ft
 
     @property
     def sheets_used(self) -> int:
@@ -169,6 +185,8 @@ class ProjectBuild:
         summary = CostSummary()
         if self.hardwood is not None:
             summary = summary + self.hardwood.cost_summary
+        if self.lineal is not None:
+            summary = summary + self.lineal.cost_summary
         if self.sheets and self.inventory is not None:
             summary = summary + sheet_cost_summary(self.sheets, self.inventory)
         return summary
@@ -213,7 +231,16 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
     solid = [p for p in parts if p.material not in sheet_materials]
     sheet = [p for p in parts if p.material in sheet_materials]
 
-    hardwood = nest_hardwood(solid, inv, spec.species) if solid else None
+    # Which plan a project gets is a question about how its stock is *sold*,
+    # not about what it is made of: hardwood arrives in random widths and is
+    # priced by the board foot, dimensional lumber comes in a nominal size and
+    # is priced by the foot or the stick.  Nesting a fence post on a random
+    # width board would answer a question nobody asked.
+    hardwood = lineal = None
+    if solid and any(h.species == spec.species for h in inv.hardwood):
+        hardwood = nest_hardwood(solid, inv, spec.species)
+    elif solid:
+        lineal = plan_dimensional(solid, inv)
     sheets = pack_by_material(sheet, inv) if sheet else {}
 
     return ProjectBuild(
@@ -222,9 +249,19 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
         parts=parts,
         report=report,
         hardwood=hardwood,
+        lineal=lineal,
         sheets=sheets,
         mass_kg=estimate_mass_kg(parts),
-        price_report=CheckReport().extend(check_price_provenance(inv, parts)),
+        price_report=CheckReport().extend(
+            check_price_provenance(
+                inv,
+                parts,
+                # A design that named its grade and profile has already said
+                # which entries it buys; the species-wide fallback would name
+                # all twenty-eight cedar entries instead of the four.
+                stock=lineal.stock_used if lineal is not None else None,
+            )
+        ),
         inventory=inv,
     )
 
@@ -571,7 +608,9 @@ def _severity_badges(built: ProjectBuild) -> str:
 def _card_stats(built: ProjectBuild, show_costs: bool) -> str:
     """Return the small pill statistics shown on a card."""
     stats = []
-    if built.board_feet:
+    if built.lineal is not None and built.lineal_ft:
+        stats.append(f"{built.lineal_ft:.0f} lineal ft {built.spec.species}")
+    elif built.board_feet:
         stats.append(f"{built.board_feet:.0f} bd ft {built.spec.species}")
     if built.sheets_used:
         plural = "" if built.sheets_used == 1 else "s"
@@ -846,6 +885,21 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
             rows.append(
                 f"<li>{html.escape(label)}: edge-glued from {n} staves of "
                 f"{html.escape(mm_to_fractional_inch(stave_w))}</li>"
+            )
+    if built.lineal is not None:
+        for group in built.lineal.groups:
+            cost = ""
+            if show_costs and group.price_line is not None:
+                cost = f" — {group.price_line.to_text()}"
+            rows.append(
+                f"<li>{html.escape(group.label)}: {group.lineal_ft:.0f} lineal "
+                f"ft ({group.measured_ft:.0f} ft of cut plus "
+                f"{group.allowance * 100:.0f}% offcuts)"
+                f"{html.escape(cost)}</li>"
+            )
+        for part, reason in built.lineal.unmatched:
+            rows.append(
+                f"<li>{html.escape(part.label)}: {html.escape(reason)}</li>"
             )
     sheet_lines = {
         line.label: line

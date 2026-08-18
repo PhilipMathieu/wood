@@ -28,8 +28,8 @@ KERF_MM: Final[float] = 3.175
 #
 # These are *dressed* dimensions. Rough sawn stock is close to its nominal
 # size — a rough 1x6 cedar board is about a full 1" x 6" — so an entry whose
-# `profile` says "rough sawn" is not described by this table. Nothing depends
-# on that yet; it will the first time a rough-sawn fence gets a cut list.
+# `profile` says "rough sawn" is not described by this table. See
+# `rough_dimensions_mm`, which is the one a rough-sawn fence is laid out with.
 _NOMINAL_TO_ACTUAL_IN: dict[str, tuple[float, float]] = {
     # fmt: off
     "1x2":  (0.75,  1.5),
@@ -92,6 +92,71 @@ def actual_dimensions_mm(nominal: str) -> tuple[Q_, Q_]:
         Q_(t_in, "inch").to("mm"),
         Q_(w_in, "inch").to("mm"),
     )
+
+
+def rough_dimensions_mm(nominal: str) -> tuple[Q_, Q_]:
+    """Return (thickness, width) in mm for *rough sawn* stock of a nominal size.
+
+    Rough sawn lumber comes off the saw at very close to its nominal size and
+    is sold that way: a rough 1x6 is about a full 1" x 6", where the dressed
+    board of the same name measures 3/4" x 5-1/2".  Half of Lumbery's cedar
+    list is rough sawn, and a fence laid out from the dressed table would be
+    3/8" short in every bay and 1/4" thin in every board.
+
+    Parameters
+    ----------
+    nominal : str
+        Nominal size string, e.g. ``"1x6"``, ``"5/4x6"``, ``"4x4"``.  A
+        quarter thickness before the ``x`` is read as a fraction, so ``5/4x6``
+        is 1-1/4" x 6".
+
+    Returns
+    -------
+    tuple[pint.Quantity, pint.Quantity]
+        Thickness and width in mm.
+
+    Raises
+    ------
+    ValueError
+        If *nominal* is not two dimensions separated by an ``x``.
+
+    Notes
+    -----
+    "Close to full dimension" is not "full dimension": a rough board varies
+    across its length and between mills, and the thickness is the number that
+    varies most.  These are the sizes to *design* to — a rail that has to
+    land between two posts wants the width measured on the pile before
+    anything is cut.
+
+    Examples
+    --------
+    >>> t, w = rough_dimensions_mm("1x6")
+    >>> round(t.magnitude, 1), round(w.magnitude, 1)
+    (25.4, 152.4)
+    >>> t, w = rough_dimensions_mm("5/4x6")
+    >>> round(t.magnitude, 2)
+    31.75
+    """
+    parts = nominal.lower().split("x")
+    if len(parts) != 2:
+        raise ValueError(
+            f"{nominal!r} is not a nominal size of the form '1x6' or '5/4x6'"
+        )
+    return tuple(Q_(_parse_nominal_dimension(p, nominal), "inch").to("mm") for p in parts)
+
+
+def _parse_nominal_dimension(text: str, nominal: str) -> float:
+    """Parse one side of a nominal size, e.g. ``'5/4'`` or ``'6'``, in inches."""
+    text = text.strip()
+    try:
+        if "/" in text:
+            num, den = text.split("/")
+            return float(num) / float(den)
+        return float(text)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{nominal!r} is not a nominal size of the form '1x6' or '5/4x6'"
+        ) from exc
 
 
 def plywood_thickness_mm(nominal: str) -> Q_:

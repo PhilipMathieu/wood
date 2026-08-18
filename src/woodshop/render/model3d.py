@@ -63,6 +63,9 @@ MATERIAL_COLORS: dict[str, str] = {
     "white_oak": "#c8ab7d",
     "pine": "#e8cf9f",
     "poplar": "#d6d2b0",
+    # Fresh northern white cedar is pale straw; left outside it silvers within
+    # a season or two, which is why nobody stains a fence twice.
+    "white_cedar": "#d8c9a3",
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",

@@ -99,6 +99,7 @@ from woodshop.lumber import (
     actual_dimensions_mm,
     mm_to_fractional_inch,
     plywood_thickness_mm,
+    rough_dimensions_mm,
 )
 
 __all__ = [
@@ -144,6 +145,19 @@ class _StockMeta:
 
     #: One of :data:`SHAPES`.  Overridden by shaped subclasses.
     shape: str = "rectangular"
+
+    #: Nominal size the part is cut from, e.g. ``"1x6"``.  Empty for stock
+    #: milled to size out of rough hardwood, which has no nominal size.
+    nominal: str = ""
+
+    #: Grade as the supplier names it, e.g. ``"STK"``.  Empty when the design
+    #: does not care which grade it lands on.
+    grade: str = ""
+
+    #: How the stock is worked — ``"rough sawn"``, ``"dressed"``.  With
+    #: :attr:`grade`, this is what tells two inventory entries of the same
+    #: nominal size and very different prices apart.
+    stock_profile: str = ""
 
     def _record(
         self,
@@ -361,6 +375,17 @@ class Board(StockPart):
         Finished thickness.  Required when ``nominal`` is not given.
     width_mm : float, optional
         Finished width.  Required when ``nominal`` is not given.
+    rough : bool, optional
+        Size the part from the *rough sawn* table rather than the dressed one:
+        a rough 1x6 is about a full 1" x 6" where the dressed board of that
+        name is 3/4" x 5-1/2".  Only meaningful with ``nominal``.
+    grade : str, optional
+        Grade the part is specified in, as the supplier names it, e.g.
+        ``"STK"``.
+    stock_profile : str, optional
+        How the stock is worked — ``"rough sawn"``, ``"dressed"``.  Set
+        automatically to ``"rough sawn"`` when ``rough=True`` and nothing else
+        is given.
     **kwargs
         Forwarded to :class:`StockPart` (``qty``, ``grain_direction``,
         ``trim_allowance_mm``, ``rotation``, ``align``, ``mode``, ``notes``).
@@ -368,14 +393,27 @@ class Board(StockPart):
     Raises
     ------
     ValueError
-        If ``nominal`` is combined with explicit dimensions, or if neither is
-        supplied.
+        If ``nominal`` is combined with explicit dimensions, if neither is
+        supplied, or if ``rough`` is set without a ``nominal`` to look up.
+
+    Notes
+    -----
+    ``grade`` and ``stock_profile`` buy nothing geometrically and everything
+    commercially: rough sawn 1x6 cedar is $2.30/LF in STK and $1.30 in low
+    grade, and a design that does not say which one it means cannot be priced
+    to better than 77%.  They travel to the cut list, where
+    :func:`woodshop.cutlist.dimensional.plan_dimensional` matches the part to
+    the inventory entry it actually buys.
 
     Examples
     --------
     >>> rail = Board(length_mm=2000.0, nominal="1x6", material="pine", label="rail")
     >>> rail.width_mm
     139.7
+    >>> picket = Board(length_mm=1219.2, nominal="1x6", rough=True,
+    ...                material="white_cedar", label="picket")
+    >>> round(picket.width_mm, 1), round(picket.thickness_mm, 1)
+    (152.4, 25.4)
     """
 
     def __init__(
@@ -387,6 +425,9 @@ class Board(StockPart):
         nominal: str | None = None,
         thickness_mm: float | None = None,
         width_mm: float | None = None,
+        rough: bool = False,
+        grade: str = "",
+        stock_profile: str = "",
         **kwargs: Any,
     ) -> None:
         if nominal is not None:
@@ -395,12 +436,18 @@ class Board(StockPart):
                     f"{label!r}: pass either nominal= or thickness_mm=/width_mm=, "
                     "not both"
                 )
-            thickness_q, width_q = actual_dimensions_mm(nominal)
+            sizes = rough_dimensions_mm if rough else actual_dimensions_mm
+            thickness_q, width_q = sizes(nominal)
             thickness_mm = float(thickness_q.magnitude)
             width_mm = float(width_q.magnitude)
         elif thickness_mm is None or width_mm is None:
             raise ValueError(
                 f"{label!r}: give nominal=, or both thickness_mm= and width_mm="
+            )
+        elif rough:
+            raise ValueError(
+                f"{label!r}: rough= sizes a part from its nominal size, so it "
+                "needs nominal= rather than explicit dimensions"
             )
 
         super().__init__(
@@ -411,7 +458,9 @@ class Board(StockPart):
             label=label,
             **kwargs,
         )
-        self.nominal = nominal
+        self.nominal = nominal or ""
+        self.grade = grade
+        self.stock_profile = stock_profile or ("rough sawn" if rough else "")
 
 
 class Panel(StockPart):
@@ -892,6 +941,9 @@ _METADATA_ATTRS: tuple[str, ...] = (
     "profile",
     "trim_allowance_mm",
     "shape",
+    "nominal",
+    "grade",
+    "stock_profile",
 )
 
 

@@ -43,6 +43,7 @@ __all__ = [
     "check_price_provenance",
     "check_tip_resistance",
     "estimate_mass_kg",
+    "beam_deflection_mm",
 ]
 
 _MM_PER_IN = 25.4
@@ -125,6 +126,10 @@ ELASTIC_MODULUS_MPA: dict[str, float] = {
     "white_oak": 12_300.0,
     "pine": 8_500.0,
     "poplar": 10_900.0,
+    # Northern white cedar is the softest and least stiff of these by a wide
+    # margin — about half of cherry — which is the whole reason a fence rail
+    # spanning 8 ft is a different proposition in cedar than it looks on paper.
+    "white_cedar": 5_500.0,
     "plywood_birch": 6_900.0,
     "plywood_cherry": 6_200.0,
     "plywood_baltic_birch": 6_500.0,
@@ -387,6 +392,55 @@ def _nominal_to_mm(nominal: str) -> float:
     return float(nominal) * _MM_PER_IN
 
 
+def beam_deflection_mm(
+    e_mpa: float,
+    span_mm: float,
+    breadth_mm: float,
+    depth_mm: float,
+    load_kg: float,
+) -> float:
+    """Midspan deflection of a simply-supported beam under a uniform load.
+
+    The one piece of beam theory this toolkit uses, written once.  A bed slat
+    and a fence rail are the same sum with different words around it, and the
+    words are where the mistakes live — which dimension is the depth, and how
+    much of the load this member carries.
+
+    Parameters
+    ----------
+    e_mpa : float
+        Modulus of elasticity, MPa.  See :data:`ELASTIC_MODULUS_MPA`.
+    span_mm : float
+        Clear span between supports.
+    breadth_mm : float
+        Cross-section dimension across the load, e.g. the width of a slat
+        lying flat.
+    depth_mm : float
+        Cross-section dimension *along* the load — the one that matters,
+        because deflection goes as its cube.  A 2x4 rail on edge is fourteen
+        times as stiff as the same rail laid flat, and the only difference is
+        which of these two numbers is 3-1/2".
+    load_kg : float
+        Load carried by this member, uniformly distributed.
+
+    Returns
+    -------
+    float
+        Midspan deflection in mm.
+
+    Notes
+    -----
+    A serviceability estimate for comparing options, not a structural
+    certification: it ignores load sharing between members, assumes the load
+    is evenly spread, and takes no account of creep, which in a fence left out
+    in the weather for ten years is not a small term.
+    """
+    load_n = load_kg * 9.80665
+    w = load_n / span_mm                       # uniformly distributed, N/mm
+    i_mm4 = breadth_mm * depth_mm**3 / 12.0    # second moment of area
+    return 5.0 * w * span_mm**4 / (384.0 * e_mpa * i_mm4)
+
+
 def check_slat_deflection(
     material: str,
     span_mm: float,
@@ -442,13 +496,14 @@ def check_slat_deflection(
             )
         ]
 
-    # Uniformly distributed load per slat, N/mm.
-    load_n = design_load_kg * 9.80665 / n_slats
-    w = load_n / span_mm
-    # Second moment of area of a rectangle bending about its weak axis.
-    i_mm4 = slat_width_mm * slat_thickness_mm**3 / 12.0
-    # Midspan deflection of a simply-supported beam under a UDL.
-    deflection_mm = 5.0 * w * span_mm**4 / (384.0 * e_mpa * i_mm4)
+    # Each slat carries an equal share of the load, flat side up.
+    deflection_mm = beam_deflection_mm(
+        e_mpa=e_mpa,
+        span_mm=span_mm,
+        breadth_mm=slat_width_mm,
+        depth_mm=slat_thickness_mm,
+        load_kg=design_load_kg / n_slats,
+    )
     limit_mm = span_mm / limit_ratio
     ratio = span_mm / deflection_mm if deflection_mm > 0 else float("inf")
 
@@ -485,6 +540,7 @@ DENSITY_KG_M3: dict[str, float] = {
     "white_oak": 755.0,
     "pine": 420.0,
     "poplar": 455.0,
+    "white_cedar": 350.0,
     "plywood_birch": 680.0,
     "plywood_cherry": 590.0,
     "plywood_baltic_birch": 690.0,
@@ -633,6 +689,7 @@ def check_price_provenance(
     parts: Iterable[CutPart] | None = None,
     today: date | None = None,
     stale_after_days: int = STALE_AFTER_DAYS,
+    stock: Iterable["PricedStock"] | None = None,
 ) -> list[Finding]:
     """Report where each price used by a design came from, and when.
 
@@ -654,6 +711,13 @@ def check_price_provenance(
     stale_after_days : int, optional
         How old a price may be before it is flagged, default
         :data:`STALE_AFTER_DAYS`.
+    stock : iterable of PricedStock, optional
+        The exact entries to audit, overriding both *parts* and the whole
+        inventory.  A design that names the grade and profile it buys knows
+        better than the fallback below, which widens a softwood part to every
+        entry in its species: a cedar fence buys four of the twenty-eight
+        white cedar entries, and a report naming all twenty-eight is a report
+        nobody reads.
 
     Returns
     -------
@@ -675,10 +739,11 @@ def check_price_provenance(
     """
     when = today or date.today()
     findings: list[Finding] = []
+    entries = list(stock) if stock is not None else _stock_used_by(inventory, parts)
 
-    for stock in _stock_used_by(inventory, parts):
-        label = stock.stock_label
-        if stock.price is None:
+    for entry in entries:
+        label = entry.stock_label
+        if entry.price is None:
             findings.append(
                 Finding(
                     Severity.WARN,
@@ -689,39 +754,39 @@ def check_price_provenance(
             )
             continue
 
-        source = stock.price_source or "no source recorded"
-        if stock.price_as_of is None:
+        source = entry.price_source or "no source recorded"
+        if entry.price_as_of is None:
             findings.append(
                 Finding(
                     Severity.ERROR,
                     "price",
-                    f"{label} is priced per {stock.price_unit} but carries no "
+                    f"{label} is priced per {entry.price_unit} but carries no "
                     f"price_as_of ({source}): treat it as invented until it is "
                     "replaced by a quote with a date on it",
                 )
             )
             continue
 
-        age = stock.price_age_days(when)
-        quoted = f"quoted {stock.price_as_of.isoformat()}"
-        if stock.price_has_expired(when):
+        age = entry.price_age_days(when)
+        quoted = f"quoted {entry.price_as_of.isoformat()}"
+        if entry.price_has_expired(when):
             findings.append(
                 Finding(
                     Severity.WARN,
                     "price",
                     f"{label} was a sale price that ended "
-                    f"{stock.price_valid_until.isoformat()} ({source}): the "
+                    f"{entry.price_valid_until.isoformat()} ({source}): the "
                     "shelf price is not recorded, so this total is a total at "
                     "last month's discount",
                 )
             )
-        elif stock.price_is_a_special:
+        elif entry.price_is_a_special:
             findings.append(
                 Finding(
                     Severity.INFO,
                     "price",
-                    f"{label} priced per {stock.price_unit}, {quoted} — a sale "
-                    f"price good to {stock.price_valid_until.isoformat()} "
+                    f"{label} priced per {entry.price_unit}, {quoted} — a sale "
+                    f"price good to {entry.price_valid_until.isoformat()} "
                     f"({source}), not the shelf price",
                 )
             )
@@ -740,7 +805,7 @@ def check_price_provenance(
                 Finding(
                     Severity.INFO,
                     "price",
-                    f"{label} priced per {stock.price_unit}, {quoted} "
+                    f"{label} priced per {entry.price_unit}, {quoted} "
                     f"({source})",
                 )
             )

@@ -21,6 +21,8 @@ src/woodshop/
   cutlist/
     extract.py        walk an assembly into a consolidated list of CutParts
     hardwood.py       nest parts on random-width boards, total board feet
+    dimensional.py    buy nominal-size stock by the lineal foot, when the
+                      supplier prices it and publishes no lengths
     optimize_1d.py    cutting stock for fixed-width lumber (CP-SAT)
     optimize_2d.py    grain-aware, guillotine-safe sheet nesting
   render/
@@ -35,6 +37,8 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
+  cedar_fence.py      38 ft of white cedar fence at 4 ft, in three styles,
+                      plus two 10 ft gated sections — real prices, by the foot
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -49,6 +53,8 @@ uv sync
 uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
+uv run python projects/cedar_fence.py --style all --outdir build
+uv run python projects/cedar_fence.py --compare
 ```
 
 That writes to `build/`:
@@ -110,6 +116,15 @@ parts (`Disc`, `Turning`) are built about the **lathe axis, which runs along
 with its **height** along X, because that is the way the grain runs. Cut dimensions are stored on the part rather than measured back off its
 bounding box, so they survive being placed.
 
+### Rough sawn versus dressed
+
+`NOMINAL_TO_ACTUAL` holds *dressed* sizes: a 1x6 is 3/4" x 5-1/2". Rough sawn
+stock is close to full dimension, and half of Lumbery's cedar list is rough
+sawn, so `rough_dimensions_mm` is the table that describes it — a rough 1x6 is
+about a full 1" x 6". `Board(..., rough=True)` sizes a part from it. Laid out
+from the dressed table a fence is 3/8" short in every bay and 1/4" thin in
+every board.
+
 ### Stock size versus finished size
 
 Every part carries both. `length_mm`/`width_mm`/`thickness_mm` are the
@@ -144,9 +159,21 @@ All internal geometry is in millimetres. Inches are a presentation format —
 
 | Stock | Use | Why |
 | --- | --- | --- |
-| Dimensional lumber | `optimize_1d` | width is fixed, so only length is chosen |
+| Dimensional lumber, lengths known | `optimize_1d` | width is fixed, so only length is chosen |
+| Dimensional lumber, lengths unpublished | `plan_dimensional` | a rate per lineal foot buys material; it does not buy sticks |
 | Hardwood | `nest_hardwood` | random widths; parts are ripped across the board too |
 | Sheet goods | `pack_by_material` | per-material sheet sizes and grain |
+
+`plan_dimensional` is the answer to a supplier who prices twenty-eight cedar
+profiles and lists no lengths at all. It groups the cut list by the *entry each
+part actually buys* — which is why a `Board` carries `grade` and
+`stock_profile` as well as a nominal size, since rough sawn 1x6 is $2.30/LF in
+STK and $1.30 in low grade — totals the lineal feet, adds a stated offcut
+allowance, and prices it in the unit the supplier printed. What it deliberately
+does not do is invent an 8 ft stick so that a cutting-stock solver has
+something to chew on: `uv run python projects/cedar_fence.py --assume-lengths
+8,10,12` will do that, and labels every number it produces as resting on your
+assumption.
 
 `optimize_2d` defaults to a shelf packer, whose layouts are always
 guillotine-cuttable — crosscut into strips, then rip. `strategy="maxrects"`
@@ -244,6 +271,10 @@ total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
 | cherry 4/4, 5/4, 8/4, 10/4 | placeholder, undated | neither yard publishes a full list — needs a call |
 | cherry and Baltic birch plywood | placeholder, undated | as above |
 | birch plywood, pine, poplar | no price | — |
+
+`projects/cedar_fence.py` is the project built entirely on the real ones: every
+line of its total is dated, and the same guide that prices the stock publishes
+no lengths for it, which is why that project buys by the foot and says so.
 
 Three states, and the file distinguishes all three. A **shelf price** is good
 until it goes stale. A **sale price** carries `price_valid_until`, so the check

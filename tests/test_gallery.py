@@ -39,6 +39,13 @@ def bed() -> ProjectSpec:
     return next(s for s in discover_projects() if s.slug == "mysa-bed-queen-plywood")
 
 
+@pytest.fixture(scope="module")
+def fence() -> ProjectSpec:
+    return next(
+        s for s in discover_projects() if s.slug == "cedar-fence-board-on-board"
+    )
+
+
 # ---------------------------------------------------------------------------
 # slugify
 # ---------------------------------------------------------------------------
@@ -326,3 +333,37 @@ def test_the_single_file_build_gets_the_same_cards(tmp_path, nightstand):
     assert 'id="mysa-nightstand"' in text
     # And no card links to a page the single file does not carry.
     assert 'href="mysa-nightstand/index.html"' not in text
+
+
+# ---------------------------------------------------------------------------
+# A project bought by the lineal foot rather than the board foot
+# ---------------------------------------------------------------------------
+
+
+def test_a_dimensional_project_gets_a_lineal_plan_not_a_nesting(fence):
+    """Nesting a fence post on a random-width board answers nobody's question."""
+    built = build_project(fence)
+    assert built.hardwood is None
+    assert built.lineal is not None
+    assert built.lineal_ft > 500
+    assert not built.lineal.unmatched
+
+
+def test_its_total_is_real_and_dated(fence):
+    summary = build_project(fence).cost_summary
+    assert summary.verified
+    assert summary.oldest_as_of == datetime.date(2026, 8, 17)
+
+
+def test_its_price_report_names_four_entries_not_the_whole_species(fence):
+    built = build_project(fence)
+    assert len(built.price_report.findings) == len(built.lineal.groups)
+    assert all(f.severity is Severity.INFO for f in built.price_report.findings)
+
+
+def test_the_page_publishes_the_footage_and_the_offcut_allowance(fence, tmp_path):
+    build_gallery([fence], outdir=tmp_path, show_costs=True)
+    page = (tmp_path / fence.slug / "index.html").read_text(encoding="utf-8")
+    assert "lineal ft" in page
+    assert "offcuts" in page
+    assert "as of 2026-08-17" in page

@@ -248,3 +248,77 @@ def test_retag_can_override_a_field():
     retag(other, like=rail, notes="mortised")
     assert other.label == "rail"
     assert other.notes == "mortised"
+
+
+# ---------------------------------------------------------------------------
+# The stock a part is specified in: rough or dressed, and in which grade
+# ---------------------------------------------------------------------------
+
+
+def test_a_rough_board_is_full_dimension():
+    rough = Board(
+        length_mm=1168.4, nominal="1x6", rough=True, material="white_cedar",
+        label="picket",
+    )
+    dressed = Board(
+        length_mm=1168.4, nominal="1x6", material="white_cedar", label="picket"
+    )
+    assert rough.width_mm == pytest.approx(152.4)
+    assert rough.thickness_mm == pytest.approx(25.4)
+    assert dressed.width_mm == pytest.approx(139.7)
+
+
+def test_rough_sets_the_profile_it_implies():
+    board = Board(
+        length_mm=1000.0, nominal="2x4", rough=True, material="white_cedar",
+        label="rail",
+    )
+    assert board.stock_profile == "rough sawn"
+
+
+def test_rough_without_a_nominal_size_is_refused():
+    with pytest.raises(ValueError, match="nominal"):
+        Board(
+            length_mm=1000.0, thickness_mm=25.0, width_mm=150.0, rough=True,
+            material="white_cedar", label="picket",
+        )
+
+
+def test_grade_and_profile_reach_the_cut_list():
+    board = Board(
+        length_mm=1168.4, nominal="1x6", rough=True, grade="STK",
+        material="white_cedar", label="picket",
+    )
+    part = extract(board)[0]
+    assert (part.nominal, part.grade, part.stock_profile) == (
+        "1x6", "STK", "rough sawn",
+    )
+    assert part.stock_label == "white_cedar 1x6 rough sawn (STK)"
+
+
+def test_two_grades_of_one_size_do_not_consolidate_into_one_row():
+    """They are different products at very different prices."""
+    stk = Board(
+        length_mm=1168.4, nominal="1x6", rough=True, grade="STK",
+        material="white_cedar", label="picket",
+    )
+    low = Board(
+        length_mm=1168.4, nominal="1x6", rough=True, grade="low",
+        material="white_cedar", label="picket",
+    )
+    parts = extract(Compound(children=[stk, low]))
+    assert len(parts) == 2
+    assert {p.grade for p in parts} == {"STK", "low"}
+
+
+def test_retag_carries_the_stock_metadata_through_a_boolean():
+    from build123d import Box, Pos
+
+    board = Board(
+        length_mm=1168.4, nominal="1x6", rough=True, grade="STK",
+        material="white_cedar", label="picket",
+    )
+    notched = retag(board - Pos(0, 0, 0) * Box(20, 20, 40), like=board)
+    assert notched.nominal == "1x6"
+    assert notched.grade == "STK"
+    assert notched.stock_profile == "rough sawn"

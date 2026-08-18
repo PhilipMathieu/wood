@@ -256,3 +256,37 @@ def test_stock_labels_distinguish_the_two_baltic_birch_sizes(inv):
         'plywood_baltic_birch 3/4 (60" x 60")',
         'plywood_baltic_birch 3/4 (48" x 96")',
     }
+
+
+# ---------------------------------------------------------------------------
+# Finding the one dimensional entry a part buys
+# ---------------------------------------------------------------------------
+
+
+def test_dimensional_for_finds_the_entry_a_part_is_specified_in(inv):
+    stock = inv.dimensional_for(
+        "white_cedar", "1x6", grade="STK", profile="rough sawn"
+    )
+    assert stock.stock_label == "white_cedar 1x6 rough sawn (STK)"
+    assert stock.price == pytest.approx(2.30)
+
+
+def test_dimensional_for_refuses_to_pick_between_two_grades(inv):
+    """Eight entries answer to "cedar 1x6" and they span $1.30 to $3.75."""
+    with pytest.raises(KeyError, match="ambiguous"):
+        inv.dimensional_for("white_cedar", "1x6")
+
+
+def test_dimensional_for_names_what_is_stocked_when_nothing_matches(inv):
+    with pytest.raises(KeyError) as excinfo:
+        inv.dimensional_for("white_cedar", "1x6", grade="FAS", profile="rough sawn")
+    message = str(excinfo.value)
+    assert "no white_cedar 1x6" in message
+    assert "white_cedar 1x6 rough sawn (STK)" in message
+
+
+def test_dimensional_for_matches_a_size_with_only_one_entry(inv):
+    """A grade is only needed where a grade distinguishes something."""
+    stock = inv.dimensional_for("white_cedar", "6x6")
+    assert stock.nominal == "6x6"
+    assert stock.price == pytest.approx(9.45)

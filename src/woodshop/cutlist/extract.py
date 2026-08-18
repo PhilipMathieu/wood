@@ -45,6 +45,16 @@ class CutPart:
     profile : str
         Human-readable description of the finished shape, e.g.
         ``'18" dia. round'``.  Empty for rectangular parts.
+    nominal : str
+        Nominal size the part is cut from, e.g. ``"1x6"``.  Empty for stock
+        milled to size.
+    grade : str
+        Grade the part is specified in, as the supplier names it, e.g.
+        ``"STK"``.  Empty when the design does not name one.
+    stock_profile : str
+        How the stock is worked — ``"rough sawn"``, ``"dressed"``.  Named
+        apart from *profile*, which describes the finished *shape*: this one
+        describes the board it comes off.
     """
 
     label: str
@@ -57,7 +67,25 @@ class CutPart:
     shape: str = "rectangular"
     finished_area_each_mm2: float | None = None
     profile: str = ""
+    nominal: str = ""
+    grade: str = ""
+    stock_profile: str = ""
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def stock_label(self) -> str:
+        """Name the stock this part buys, e.g. ``'white_cedar 1x6 rough sawn (STK)'``.
+
+        Built the same way :attr:`woodshop.inventory.DimensionalStock.stock_label`
+        is, so a part and the inventory entry it lands on print as the same
+        thing.
+        """
+        label = f"{self.material} {self.nominal}".strip()
+        if self.stock_profile:
+            label = f"{label} {self.stock_profile}"
+        if self.grade:
+            label = f"{label} ({self.grade})"
+        return label
 
     # ------------------------------------------------------------------
     # Convenience properties
@@ -119,9 +147,9 @@ def extract(assembly: Any, consolidate_parts: bool = True) -> list[CutPart]:
 def consolidate(parts: list[CutPart]) -> list[CutPart]:
     """Merge parts that are identical in every respect but quantity.
 
-    Parts are grouped on label, material, grain direction, shape, and all
-    three dimensions rounded to 0.01 mm.  Input order of the first occurrence
-    is preserved.
+    Parts are grouped on label, material, grain direction, shape, the stock
+    they come off (nominal size, grade, profile), and all three dimensions
+    rounded to 0.01 mm.  Input order of the first occurrence is preserved.
 
     Parameters
     ----------
@@ -143,6 +171,9 @@ def consolidate(parts: list[CutPart]) -> list[CutPart]:
             round(p.length_mm, 2),
             round(p.width_mm, 2),
             round(p.thickness_mm, 2),
+            p.nominal,
+            p.grade,
+            p.stock_profile,
         )
         if key in merged:
             merged[key].qty += p.qty
@@ -158,6 +189,9 @@ def consolidate(parts: list[CutPart]) -> list[CutPart]:
                 shape=p.shape,
                 finished_area_each_mm2=p.finished_area_each_mm2,
                 profile=p.profile,
+                nominal=p.nominal,
+                grade=p.grade,
+                stock_profile=p.stock_profile,
                 _extra=dict(p._extra),
             )
     return list(merged.values())
@@ -193,6 +227,9 @@ def _walk(node: Any, acc: list[CutPart]) -> None:
                 shape=getattr(node, "shape", "rectangular"),
                 finished_area_each_mm2=getattr(node, "finished_area_mm2", None),
                 profile=getattr(node, "profile", ""),
+                nominal=getattr(node, "nominal", "") or "",
+                grade=getattr(node, "grade", ""),
+                stock_profile=getattr(node, "stock_profile", ""),
                 _extra=extra,
             )
         )

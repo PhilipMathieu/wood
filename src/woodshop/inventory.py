@@ -778,6 +778,74 @@ class Inventory:
                 return sheet
         return candidates[-1]
 
+    def dimensional_for(
+        self,
+        species: str,
+        nominal: str,
+        grade: str | None = None,
+        profile: str | None = None,
+    ) -> DimensionalStock:
+        """Return the dimensional entry a part of this description buys.
+
+        Nominal size alone does not identify softwood.  White cedar 1x6 is
+        eight entries in ``stock.yaml`` — rough sawn, dressed, shiplap,
+        tongue and groove, in two grades — spanning $1.30 to $3.75 a lineal
+        foot.  Asking for "cedar 1x6" and getting whichever one came first in
+        the file would be a 3x error wearing the clothes of a lookup.
+
+        Parameters
+        ----------
+        species : str
+            Species name, e.g. ``"white_cedar"``.
+        nominal : str
+            Nominal size, e.g. ``"1x6"``.
+        grade : str, optional
+            Grade as the supplier names it, e.g. ``"STK"``.  ``None`` matches
+            any grade, which is only useful where one entry exists.
+        profile : str, optional
+            How the stock is worked, e.g. ``"rough sawn"``.  ``None`` matches
+            any profile.
+
+        Returns
+        -------
+        DimensionalStock
+            The one matching entry.
+
+        Raises
+        ------
+        KeyError
+            If nothing matches, or if more than one entry does — an ambiguous
+            match names the candidates rather than picking one.
+        """
+        matches = [
+            d
+            for d in self.dimensional
+            if d.species == species
+            and d.nominal == nominal
+            and (grade is None or d.grade == grade)
+            and (profile is None or d.profile == profile)
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            available = sorted(
+                d.stock_label for d in self.dimensional if d.species == species
+            )
+            raise KeyError(
+                f"no {species} {nominal} in stock.yaml"
+                + (
+                    f" with grade={grade!r} profile={profile!r}"
+                    if grade is not None or profile is not None
+                    else ""
+                )
+                + f"; stock.yaml has: {available}"
+            )
+        raise KeyError(
+            f"{species} {nominal} is ambiguous — {len(matches)} entries match: "
+            f"{sorted(m.stock_label for m in matches)}; name the grade and "
+            "profile, because they are most of the price"
+        )
+
     def hardwood_for(self, species: str, thickness_quarter: str) -> HardwoodStock:
         """Return the hardwood entry for a species and quarter thickness.
 

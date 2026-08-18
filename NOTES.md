@@ -932,3 +932,118 @@ staleness is now in place, and something has to actually go and look. The
 first version proposed there does not even parse the sign: it notices the
 image changed and shows it to a human, because a scraper that launders a bad
 parse into a dated price would undo everything #3 built.
+
+## Addendum: a fence, and what buying by the foot asked of the toolkit
+
+The cedar price list arrived looking for a project, and the project it wanted
+was the one this repository did not have: 38 ft of fence at 4 ft, plus two 10 ft
+sections with gates in them. `projects/cedar_fence.py` builds it in three
+styles — spaced picket, board on board, and horizontal — off one frame of 4x4
+line posts, 6x6 gate posts and 2x4 rails.
+
+### What it costs, and what that number does not include
+
+| Style | Lineal ft | Total | Per foot of fence |
+| --- | --- | --- | --- |
+| picket | 615 | $1,817 | $31 |
+| horizontal | 622 | $1,850 | $32 |
+| board on board | 812 | $2,269 | $39 |
+
+Every rate behind those is Lumbery's, quoted 2026-08-17, and every total says
+so. What they exclude is worth as much as what they contain: **hardware is not
+in `stock.yaml`** — hinges, latches, drop rods, rail brackets and a keg of
+ring-shank nails — and neither is crushed stone, nor labour, nor the machine
+that digs eleven holes 4 ft deep. On a pair of 4'-8" leaves the hinge hardware
+alone is not a rounding error, and the checks say so rather than letting the
+lumber total pass for a project total.
+
+### Rough sawn is a different table, exactly as predicted
+
+The prediction in the price addendum above was that `NOMINAL_TO_ACTUAL` would
+have to grow a rough-sawn sibling "the first time a rough-sawn fence wants a
+cut list". It did: `rough_dimensions_mm` returns full nominal dimensions, and
+`Board(..., rough=True)` sizes a part from it. This is not a detail. A fence
+laid out from the dressed table has boards 5-1/2" wide instead of 6", which is
+one extra board every 12 ft, and rails 3-1/2" deep instead of 4", which is 25%
+less stiffness.
+
+### Nominal size does not identify stock, part two
+
+The same lesson the price work learned about *entries* turned out to apply to
+*parts*. "Cedar 1x6" is eight entries in `stock.yaml` spanning $1.30 to $3.75
+a lineal foot, so a part has to say which one it means. `Board` now carries
+`grade` and `stock_profile` through to `CutPart`, and
+`Inventory.dimensional_for` **refuses to guess**: asked for cedar 1x6 with no
+grade it raises and names the eight candidates rather than returning whichever
+sorted first. A lookup that quietly picked one would have been a 3x error
+wearing the clothes of a function call.
+
+That also fixed a quieter bug in the price report. `check_price_provenance`
+maps a softwood part to *every entry in its species*, because a pine part could
+be cut from any of them — which on a fence meant a provenance report listing all
+twenty-eight cedar entries, twenty-four of which the design never touches. It
+now takes an explicit `stock=`, and the fence hands it the four entries it
+actually buys.
+
+### A buying list is not a cut list
+
+`woodshop/cutlist/dimensional.py` is new, and it exists because of an absence:
+the guide prices the stock and publishes **no lengths at all**. So there is
+nothing for `optimize_1d` to solve. The plan groups parts by the entry they
+buy, totals the lineal feet, adds a stated 10% offcut allowance, and prices it
+in the supplier's own unit — then the project emits a `WARN` per group saying
+that this is 561 LF to buy and not a cut list, and to come back when the yard
+says what lengths they carry. `--assume-lengths 8,10,12` will lay a plan out
+against lengths you supply and labels every line of it as your assumption.
+
+The alternative was to default to 8 ft sticks. That would have produced a
+beautiful cutting diagram for lumber nobody has confirmed exists, which is the
+same failure as an undated price and harder to spot, because a diagram looks
+like evidence.
+
+The gallery had to learn the distinction too: `build_project` now picks a
+hardwood nesting or a lineal plan by asking whether the species is *stocked* as
+hardwood, rather than assuming every solid part comes off a random-width board.
+
+### The checks a fence needs and furniture does not
+
+A bed is not trying to survive outdoors, and nothing in it swings. The fence
+findings are mostly about time and weather:
+
+- **frost** — 4 ft of embedment against a 4 ft frost depth in southern Maine,
+  which is exactly why the line posts are 8 ft sticks: 4 ft in, 4 ft out, no
+  offcut. The gate posts are 8'-6" and get an `INFO` saying that comes off a
+  10 ft stick with 18" left over.
+- **durability** — cedar heartwood resists rot; cedar *sapwood* does not, and a
+  post is bought by the stick rather than sorted. Set posts on crushed stone,
+  not in a concrete cup that holds water against the one part of the fence
+  nobody can inspect.
+- **gate** — a leaf's weight acts at half its width, so a 56-1/4" leaf pulls
+  about 20 kg on its top hinge; the brace runs bottom-hinge to top-latch so it
+  works in compression, and a brace put in the other way is a gate that sags in
+  a season.
+- **rhythm** — the one nobody would think to look for. A gate leaf is laid out
+  on its own, because both its edges have to land on a whole board, so its
+  board spacing does not match the fence beside it. On the picket style that
+  mismatch is 23/32", which is visible from ten feet, and the check reports it
+  as a `WARN` with the trade to make.
+
+`beam_deflection_mm` came out of `check_slat_deflection` while this was being
+written, because a bed slat and a fence rail are the same sum with different
+words around it. The rails are nowhere near their limit — span/5000 against a
+span/240 limit — which is worth publishing precisely because it says the bay
+length is chosen for racking and looks, not for sag.
+
+### What is still open
+
+- **The ground is assumed level.** A real 58 ft line rises and falls, and a
+  fence either steps or rakes to follow it. Both change post lengths, board
+  lengths and the ground gap, and neither is modelled. This is the largest
+  single gap between this model and a fence.
+- **Wind and racking are not modelled.** A board-on-board fence is a sail; what
+  holds it up is the post in the ground and the panel's resistance to
+  parallelogramming, and nothing here computes either.
+- **Hardware has no home in `stock.yaml`.** Hinges are sold by the pair,
+  fasteners by the box, and the schema has neither unit.
+- **The lengths.** One phone call to Lumbery on (207) 835-7023 turns this
+  buying list into a cut list. Until then the `WARN` stays.
