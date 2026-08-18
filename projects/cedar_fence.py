@@ -739,6 +739,44 @@ class HardwarePlan:
         return "\n".join([head, *(ln.to_text() for ln in self.lines)])
 
 
+@dataclass(frozen=True)
+class BoughtNotCut:
+    """The mesh and the hardware together, as a gallery page wants them.
+
+    A fence is bought two ways at once.  Its cedar is bought by the lineal
+    foot off a price list and its wire, hinges and stone are bought by the
+    roll, the box and the yard, and a page that shows only the first looks
+    finished while naming a third of the order nowhere at all.
+
+    Parameters
+    ----------
+    hardware : HardwarePlan
+        Everything counted from the geometry that a saw never touches.
+    mesh : MeshPlan or None
+        The roll goods, where there are any.
+    """
+
+    hardware: HardwarePlan
+    mesh: Any = None
+
+    @property
+    def lines(self) -> list[tuple[str, int, str]]:
+        """What to buy, as ``(what, how many, unit)``."""
+        out: list[tuple[str, int, str]] = []
+        if self.mesh is not None and self.mesh.rolls:
+            out.append((self.mesh.stock.stock_label, self.mesh.rolls, "roll"))
+        for line in self.hardware.lines:
+            unit = "each" if line.stock is None else line.stock.unit
+            out.append((line.name, line.qty, unit))
+        return out
+
+    @property
+    def cost_summary(self) -> CostSummary:
+        """The two summaries merged, with every gap in either one kept."""
+        summary = self.hardware.cost_summary
+        return summary if self.mesh is None else summary + self.mesh.cost_summary
+
+
 @dataclass
 class CedarFence:
     """A parametric cedar fence: a run, some gates, and one of three infills.
@@ -5113,6 +5151,13 @@ def _design_spec(key: str) -> ProjectSpec:
     name, factory, summary = DESIGNS[key]
     fence = factory()
     order = getattr(fence, "order", None)
+    extras = (
+        None
+        if order is not None
+        else lambda _assembly, parts: BoughtNotCut(
+            hardware=fence.hardware(parts), mesh=fence.mesh_plan(parts)
+        )
+    )
     return ProjectSpec(
         slug=f"cedar-fence-{key}",
         name=name,
@@ -5121,6 +5166,7 @@ def _design_spec(key: str) -> ProjectSpec:
         build=fence.build,
         check=fence.check,
         order=order,
+        extras=extras,
         inventory=fence.inventory,
         notes=(
             "One of the three systems The Lumbery stocks, read from their "

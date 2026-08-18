@@ -132,6 +132,11 @@ class ProjectBuild:
         buying plans below are not derived at all: a fence bought as panels is
         not bought in lineal feet, and quoting it that way would be a price
         for a fence nobody is building.
+    extras : object or None
+        Everything the project buys that is neither cut nor ordered as a
+        finished piece — see :attr:`woodshop.project.ProjectSpec.extras`.
+        Unlike *order* it sits beside the buying plan rather than replacing
+        it.
     lineal : LinealPlan or None
         Dimensional-stock buying plan, in lineal feet, ``None`` if the project
         buys no dimensional lumber.  A project has one or the other: a cherry
@@ -159,6 +164,7 @@ class ProjectBuild:
     hardwood: HardwoodPlan | None = None
     lineal: LinealPlan | None = None
     order: Any = None
+    extras: Any = None
     sheets: dict[str, Cut2DResult] = field(default_factory=dict)
     mass_kg: float = 0.0
     price_report: CheckReport = field(default_factory=CheckReport)
@@ -192,6 +198,8 @@ class ProjectBuild:
         summary = CostSummary()
         if self.order is not None:
             summary = summary + self.order.cost_summary
+        if self.extras is not None:
+            summary = summary + self.extras.cost_summary
         if self.hardwood is not None:
             summary = summary + self.hardwood.cost_summary
         if self.lineal is not None:
@@ -246,6 +254,7 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
     # is priced by the foot or the stick.  Nesting a fence post on a random
     # width board would answer a question nobody asked.
     order = spec.order() if spec.order is not None else None
+    extras = spec.extras(assembly, parts) if spec.extras is not None else None
     hardwood = lineal = None
     if order is not None:
         solid = []          # ordered, not cut: derive no buying plan from it
@@ -263,6 +272,7 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
         hardwood=hardwood,
         lineal=lineal,
         order=order,
+        extras=extras,
         sheets=sheets,
         mass_kg=estimate_mass_kg(parts),
         price_report=CheckReport().extend(
@@ -1016,6 +1026,12 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
             seen.add(reason)
             rows.append(
                 f"<li>{html.escape(part.label)}: {html.escape(reason)}</li>"
+            )
+    if built.extras is not None:
+        for what, count, unit in built.extras.lines:
+            rows.append(
+                f"<li>{count} {html.escape(_plural(unit, count))}: "
+                f"{html.escape(what)}</li>"
             )
     sheet_lines = {
         line.label: line

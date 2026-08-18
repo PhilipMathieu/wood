@@ -60,6 +60,14 @@ class ProjectSpec:
         ``cost_summary``.  When a project supplies one, nothing derives a
         buying plan from its cut list, because for that project the cut list
         is a description of what arrives rather than a list of what to order.
+    extras : callable, optional
+        Takes ``(assembly, parts)`` and returns an object offering ``lines``
+        (``(what, how many, unit)``) and a ``cost_summary``, for everything a
+        project buys that is neither cut from stock nor ordered as a finished
+        piece — hinges, a roll of wire, a yard of stone.  Unlike *order* this
+        does not replace the buying plan; it sits beside it, because a fence
+        is bought by the foot **and** by the box, and a total that holds only
+        the first looks finished when it is a third of the order.
     species : str, optional
         Primary solid-wood species, used to plan hardwood purchases.
     source_url : str, optional
@@ -79,6 +87,7 @@ class ProjectSpec:
     build: Callable[[], Any]
     check: Callable[[Any, list], Any] | None = None
     order: Callable[[], Any] | None = None
+    extras: Callable[[Any, list], Any] | None = None
     species: str = "cherry"
     source_url: str = ""
     inventory: Any = None

@@ -159,10 +159,25 @@ class CostSummary:
         return cls(tuple(lines), tuple(unpriced))
 
     def __add__(self, other: "CostSummary") -> "CostSummary":
-        """Merge two summaries, keeping every line and every gap."""
+        """Merge two summaries, keeping every line and every gap that is still one.
+
+        A label that one half prices and the other names as missing is not
+        missing from the sum.  A fence is bought two ways at once — its cedar
+        by the lineal foot and its wire by the roll — and the plan that buys
+        the boards is right to say it is leaving the mesh out, right up until
+        the plan that buys the mesh is added to it.  Carrying the exclusion
+        forward past that point would report a hole that had just been filled.
+        """
         if not isinstance(other, CostSummary):  # pragma: no cover - defensive
             return NotImplemented
-        return CostSummary(self.lines + other.lines, self.unpriced + other.unpriced)
+        lines = self.lines + other.lines
+        priced = {line.label for line in lines}
+        gaps = tuple(
+            label
+            for label in self.unpriced + other.unpriced
+            if label not in priced
+        )
+        return CostSummary(lines, gaps)
 
     @property
     def total(self) -> float | None:

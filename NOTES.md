@@ -1472,3 +1472,13 @@ and nothing else. But `PanelOrder.cost_summary` could previously only ever
 return names of things it could not price, and a summary that names four
 unpriced panels beside one priced yard of stone is a truer picture of the order
 than a summary that names only the panels.
+
+**A sum can close a gap its halves could not.** `CostSummary.__add__` used to
+concatenate `unpriced` blindly, which was right while nothing else covered the
+excluded material. The lineal plan is correct to say it is leaving the mesh out
+— it buys by the foot and mesh comes off a roll — and it was correct right up
+until the plan that buys the roll was added to it. Now a label that either half
+prices drops out of the merged `unpriced`, so a fence stops reporting a hole
+that had just been filled. `ProjectSpec` gained `extras` for the same reason:
+unlike `order`, which *replaces* the buying plan, extras sit beside it, because
+a fence is bought by the foot **and** by the box.

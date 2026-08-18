@@ -466,3 +466,29 @@ def test_a_supplier_unit_is_not_naively_pluralised(panels, tmp_path):
     page = (tmp_path / panels.slug / "index.html").read_text(encoding="utf-8")
     assert "eachs" not in page
     assert "9 each:" in page
+
+
+def test_a_fence_is_bought_two_ways_at_once(fence):
+    """By the foot for its cedar, and by the roll and the box for the rest."""
+    built = build_project(fence)
+    assert built.lineal is not None
+    assert built.extras is not None
+    bought = {what for what, _count, _unit in built.extras.lines}
+    assert any("mesh" in what for what in bought)
+    assert any("hinge" in what for what in bought)
+    assert any("crushed" in what for what in bought)
+
+
+def test_the_mesh_is_not_reported_as_a_gap_once_the_roll_is_in_the_total(fence):
+    """The lineal plan is right to exclude it, and wrong to keep saying so."""
+    built = build_project(fence)
+    assert any("mesh" in label for label in built.lineal.cost_summary.unpriced)
+    assert not any("mesh" in label for label in built.cost_summary.unpriced)
+    assert built.cost_summary.total > 1000
+
+
+def test_an_ordered_project_gets_no_extras_because_its_order_holds_them(panels):
+    """A panel fence's stone is a line on its order, not a plan beside it."""
+    built = build_project(panels)
+    assert built.extras is None
+    assert built.order is not None

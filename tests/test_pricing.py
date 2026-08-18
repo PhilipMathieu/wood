@@ -217,3 +217,29 @@ def test_the_earliest_sale_end_governs_a_mixed_total():
 def test_a_shelf_price_says_nothing_about_sales():
     assert "sale" not in CostSummary.of([_DATED]).to_text()
     assert CostSummary.of([_DATED]).earliest_valid_until is None
+
+
+def test_adding_summaries_closes_a_gap_the_other_half_fills():
+    """A label one half prices and the other calls missing is not missing."""
+    boards = CostSummary.of(
+        [PriceLine("cedar 1x6", 100.0, "lineal ft", 3.0, as_of=date(2026, 8, 18))],
+        ["welded wire mesh"],
+    )
+    mesh = CostSummary.of(
+        [PriceLine("welded wire mesh", 1.0, "roll", 159.99, as_of=date(2026, 8, 18))]
+    )
+    together = boards + mesh
+    assert together.unpriced == ()
+    assert together.complete
+    assert together.total == pytest.approx(300.0 + 159.99)
+
+
+def test_but_a_gap_nothing_fills_survives_the_merge():
+    boards = CostSummary.of(
+        [PriceLine("cedar 1x6", 100.0, "lineal ft", 3.0, as_of=date(2026, 8, 18))],
+        ["round cedar posts"],
+    )
+    mesh = CostSummary.of(
+        [PriceLine("welded wire mesh", 1.0, "roll", 159.99, as_of=date(2026, 8, 18))]
+    )
+    assert (boards + mesh).unpriced == ("round cedar posts",)
