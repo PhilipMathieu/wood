@@ -39,6 +39,7 @@ True
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from woodshop.cutlist.extract import CutPart
@@ -48,6 +49,9 @@ from woodshop.pricing import CostSummary, PriceLine
 __all__ = ["StockGroup", "LinealPlan", "plan_dimensional", "OFFCUT_ALLOWANCE"]
 
 _MM_PER_FT = 304.8
+
+#: Shapes whose stock is round, and whose volume is therefore not its blank's.
+_ROUND_SHAPES: frozenset[str] = frozenset({"turned", "pole"})
 
 #: Fraction added to a group's lineal footage for offcuts, default 10%.
 #:
@@ -168,9 +172,14 @@ class LinealPlan:
 
         Softwood is not sold this way here — the rate is per lineal foot — but
         the figure is what makes a cedar fence comparable with a cherry bed.
+
+        Round stock is measured as the cylinder it is, not as the square blank
+        that bounds it: a 4 in log holds pi/4 of the wood a 4x4 does, and
+        billing the corners it never had would flatter a log fence by a fifth.
         """
         return sum(
             p.length_mm * p.width_mm * p.thickness_mm * p.qty
+            * (math.pi / 4.0 if p.shape in _ROUND_SHAPES else 1.0)
             for g in self.groups
             for p in g.parts
         ) / (25.4**3) / 144.0

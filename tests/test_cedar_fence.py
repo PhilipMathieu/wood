@@ -20,14 +20,18 @@ from cedar_fence import (  # noqa: E402
     AVO_PANEL_HEIGHTS_FT,
     AVO_POST_TABLE,
     AVO_STYLES,
+    DESIGNS,
     IN,
     MESH_THICKNESS_MM,
+    POST_AND_RAIL_LENGTHS_FT,
+    PROJECTS,
     STYLES,
     CedarFence,
     MeshPlan,
     PanelFence,
     StockChoice,
     catalogue,
+    compare_designs,
     discount_note,
     price_variants,
     style_for,
@@ -641,10 +645,18 @@ def test_the_mesh_hangs_behind_the_logs(logs):
     assert mesh.max.Y <= rail.min.Y + 1e-6
 
 
-def test_the_mesh_stops_where_the_fence_does(logs, log_parts):
+def test_the_mesh_runs_from_the_top_rail_to_the_ground(logs, log_parts):
+    """A dog goes under a 2 in gap without breaking stride, so there isn't one."""
     mesh = next(p for p in log_parts if p.label == "mesh")
-    assert mesh.width_mm == pytest.approx(46 * IN)   # 48" less the ground gap
+    assert mesh.width_mm == pytest.approx(48 * IN)
+    assert logs.mesh_bottom == 0.0
     assert logs.mesh_height <= logs.mesh_roll_height_in * IN
+
+
+def test_a_boarded_fence_keeps_its_ground_gap(logs):
+    """The clearance is for boards that would wick water, not for mesh."""
+    boards = CedarFence(style="picket")
+    assert boards.mesh_bottom == pytest.approx(boards.ground_clearance_in * IN)
 
 
 def test_the_gates_are_sawn_frames_with_mesh_in_them(log_parts):
@@ -998,3 +1010,80 @@ def test_the_parts_list_says_it_is_not_an_order(panels):
     ]
     assert any("nothing in this design is cut" in f.message for f in ordering)
     assert any("bored on the faces" in f.message for f in ordering)
+
+
+# ---------------------------------------------------------------------------
+# Three designs, because The Lumbery sells three systems
+# ---------------------------------------------------------------------------
+
+
+def test_there_are_exactly_three_designs():
+    """One per system in the catalogue, and no fourth that only differs a bit.
+
+    The styles below the designs still exist — they are how the catalogue is
+    priced and how a panel is benchmarked against sticks — but a style is a
+    row in a price guide and a design is something somebody can buy.
+    """
+    assert list(DESIGNS) == ["privacy", "chestnut", "rails"]
+    assert [p.slug for p in PROJECTS] == [
+        "cedar-fence-privacy",
+        "cedar-fence-chestnut",
+        "cedar-fence-rails",
+    ]
+
+
+def test_two_are_panels_and_one_is_sticks():
+    """Which is the catalogue's own division, not a modelling convenience."""
+    kinds = {key: type(factory()) for key, (_n, factory, _s) in DESIGNS.items()}
+    assert kinds["privacy"] is PanelFence
+    assert kinds["chestnut"] is PanelFence
+    assert kinds["rails"] is CedarFence
+
+
+def test_every_design_carries_its_own_summary_and_they_differ():
+    summaries = [summary for _n, _f, summary in DESIGNS.values()]
+    assert len(set(summaries)) == 3
+    assert all(len(s) > 80 for s in summaries)
+
+
+def test_the_rail_design_is_laid_out_in_the_rails_they_sell():
+    """A bay is a rail here, the same way a bay is a panel on the other side."""
+    fence = DESIGNS["rails"][1]()
+    assert fence.bay_ft == POST_AND_RAIL_LENGTHS_FT[0] == 8.0
+    lengths = sorted(
+        round(s.length / (12 * IN), 2)
+        for s in fence.spans()
+        if s.kind == "panel"
+    )
+    # The run is 38 ft in two halves either side of the gate sections, and each
+    # half is two 8 ft rails and a 3 ft remainder that a rail can be cut to.
+    assert lengths == [3.0, 3.0, 8.0, 8.0, 8.0, 8.0]
+
+
+def test_the_rail_design_hangs_mesh_and_the_panels_do_not():
+    parts = {
+        key: {p.label for p in extract(factory().build())}
+        for key, (_n, factory, _s) in DESIGNS.items()
+    }
+    assert "mesh" in parts["rails"]
+    assert "mesh" not in parts["privacy"]
+    assert "mesh" not in parts["chestnut"]
+
+
+def test_a_short_bay_is_explained_rather_than_left_to_be_noticed():
+    fence = DESIGNS["rails"][1]()
+    layout = [
+        f for f in fence.check(fence.build(), extract(fence.build())).findings
+        if f.code == "layout"
+    ]
+    assert any("cut" in f.message for f in layout)
+
+
+def test_the_comparison_names_all_three_and_prices_none_of_them():
+    text = compare_designs()
+    for name, _factory, _summary in DESIGNS.values():
+        assert name in text
+    # Every one of the three is unpriced in the catalogue; the money in the
+    # table is the wood, at the sawn guide's rates.
+    assert text.count("unpriced") >= 3
+    assert "quoted by email" in text

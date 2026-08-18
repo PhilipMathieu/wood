@@ -41,9 +41,8 @@ def bed() -> ProjectSpec:
 
 @pytest.fixture(scope="module")
 def fence() -> ProjectSpec:
-    return next(
-        s for s in discover_projects() if s.slug == "cedar-fence-board-on-board"
-    )
+    """Return the one fence design built from sticks, not ordered as panels."""
+    return next(s for s in discover_projects() if s.slug == "cedar-fence-rails")
 
 
 # ---------------------------------------------------------------------------
@@ -345,8 +344,17 @@ def test_a_dimensional_project_gets_a_lineal_plan_not_a_nesting(fence):
     built = build_project(fence)
     assert built.hardwood is None
     assert built.lineal is not None
-    assert built.lineal_ft > 500
-    assert not built.lineal.unmatched
+    assert built.lineal_ft > 250
+
+
+def test_the_mesh_is_unmatched_because_it_is_not_lumber(fence):
+    """Wire off a roll has no nominal size, and saying so beats guessing one."""
+    built = build_project(fence)
+    assert {part.label for part, _reason in built.lineal.unmatched} == {
+        "mesh",
+        "gate_mesh",
+    }
+    assert all("roll" in reason for _part, reason in built.lineal.unmatched)
 
 
 def test_its_total_is_real_and_dated(fence):
@@ -355,10 +363,16 @@ def test_its_total_is_real_and_dated(fence):
     assert summary.oldest_as_of == datetime.date(2026, 8, 17)
 
 
-def test_its_price_report_names_four_entries_not_the_whole_species(fence):
+def test_its_price_report_names_the_entries_it_buys_not_the_whole_species(fence):
     built = build_project(fence)
     assert len(built.price_report.findings) == len(built.lineal.groups)
-    assert all(f.severity is Severity.INFO for f in built.price_report.findings)
+    # There are thirty-odd cedar entries in the guide; this design buys four,
+    # and the report is about those four.
+    assert 1 <= len(built.lineal.groups) <= 6
+    assert all(
+        f.severity in (Severity.INFO, Severity.WARN)
+        for f in built.price_report.findings
+    )
 
 
 def test_the_page_publishes_the_footage_and_the_offcut_allowance(fence, tmp_path):
@@ -419,7 +433,7 @@ def test_the_theme_resolves_in_all_three_states(fence, tmp_path):
 
 @pytest.fixture(scope="module")
 def panels() -> ProjectSpec:
-    return next(s for s in discover_projects() if s.slug == "avo-fence-stockade")
+    return next(s for s in discover_projects() if s.slug == "cedar-fence-privacy")
 
 
 def test_a_project_with_an_order_derives_no_buying_plan(panels):

@@ -1368,3 +1368,53 @@ The round cedar entries did get better, though. They were recorded as "peeled
 log, NOT PRICED, Lumbery's guide is sawn stock only" — and the store side sells
 round posts in 5 to 8 ft and round rails in 3", 3-1/2" and 4". So the log fence
 is buying a catalogue item after all, and the entries now say so.
+
+## Ten options is not a choice — 2026-08-18
+
+Somewhere between "spec out a couple of sensible options" and here, this file
+grew four stick-built styles and six panel styles, and asked somebody to pick
+one of ten fences that mostly differ by an inch of reveal. That is not a menu,
+it is a spreadsheet. Nobody chooses a fence by comparing a 3/4" board fence
+against a 7/8" board fence; they choose between *a solid screen*, *a decorative
+boundary*, and *a rail fence*, and then they choose a grade.
+
+Which is, unsurprisingly, exactly how The Lumbery organises the yard. So the
+project now offers three designs, one per system:
+
+| `--design` | system | bought as |
+| --- | --- | --- |
+| `privacy` | Privacy Board panels | panels, posts, caps |
+| `chestnut` | Chestnut Hill panels | panels, posts, caps |
+| `rails` | post and rail, with mesh | sticks by the foot, mesh by the roll |
+
+The styles did not get deleted, and deleting them would have been the wrong
+kind of tidy. `--variants` still walks every cedar profile in the sawn guide
+and prices the run in each — that is what makes "Premium costs $700 more than
+#2 over 38 ft" a fact rather than a feeling — and `--benchmark` still builds a
+panel out of sticks to put a floor under an unpublished panel price. They are
+how the catalogue is read. They are not things to order.
+
+### The rail bay is a rail
+
+The panel designs are laid out in 8 ft bays because the panel is 8 ft and
+cannot be cut. Post and rail is laid out in 8 ft bays for the opposite reason:
+the rails come in 8 and 10 ft, the bay follows the rail, and the leftover is
+fine because a rail is a stick and a saw exists. So each 19 ft stretch is two
+8 ft bays and a 3 ft one, and the layout finding says which of those two
+situations you are in — the panel remainder is a custom order and a lead time,
+the rail remainder is a cut.
+
+### The mesh goes to the ground
+
+The mesh used to stop where the boards stop, 2" clear of grade, which is the
+right height for a board that would otherwise wick water out of the dirt and
+rot from the bottom up. It is the wrong height for the job the mesh is doing.
+A dog goes under a 2" gap without breaking stride. `mesh_bottom` is therefore
+0 for the log fence and the board clearance for everything else, and the check
+now suggests a 60" roll on a 48" fence so there is a foot of it to bury as an
+apron for a digger.
+
+While fixing that: board feet of a round rail was being counted off its
+bounding box, which credited a 4" log with the corners it does not have and
+flattered the rail design by a fifth. Round stock now measures as the cylinder
+it is — the same pi/4 the mass estimate already used.

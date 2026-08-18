@@ -37,10 +37,9 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
-  cedar_fence.py      38 ft of white cedar fence at 4 ft, two ways: built from
-                      sticks in four styles (picket, board-on-board,
-                      horizontal, logs and black coated mesh), or ordered as
-                      The Lumbery's pre-assembled AVO panels in six
+  cedar_fence.py      38 ft of white cedar fence at 4 ft, in the three systems
+                      The Lumbery sells: Privacy Board panels, Chestnut Hill
+                      panels, and post and rail with dog mesh under it
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -55,10 +54,10 @@ uv sync
 uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
-uv run python projects/cedar_fence.py --style all --outdir build
-uv run python projects/cedar_fence.py --compare     # the stick-built styles, priced
+uv run python projects/cedar_fence.py --design all --outdir build
+uv run python projects/cedar_fence.py --compare-systems  # the three, side by side
 uv run python projects/cedar_fence.py --variants    # every cedar Lumbery stocks
-uv run python projects/cedar_fence.py --panels all  # the AVO panel catalogue
+uv run python projects/cedar_fence.py --compare     # the stick-built styles, priced
 ```
 
 That writes to `build/`:
@@ -341,31 +340,44 @@ environment's egress proxy blocks. Both are recorded with sizes, sources and a
 plain statement of what is missing, so every total that touches them prints as
 partial and names what it left out.
 
-## Two ways to buy the same fence
+## Three designs, because the yard sells three systems
 
-`projects/cedar_fence.py` builds the same 38 ft run twice over, because The
-Lumbery sells it twice over.
-
-**By the foot.** `CedarFence` is stick-built: boards, rails and posts cut on
-site, priced off Lumbery's published white cedar guide, which quotes thirty
-profiles per lineal foot and publishes no lengths at all.
-
-**By the piece.** `PanelFence` is their AVO line — pre-assembled 8 ft panels in
-six styles and three heights, hung on posts bored at the mill for the dowelled
-rail ends. Nothing is cut on site, so it has no cut list: it has an **order**,
-counted in panels, posts and caps. Read from
+`projects/cedar_fence.py` builds the same 38 ft run — 4 ft high, with two 10 ft
+gate sections — three times, and the three are the three things
 [lumberystore.com/fence-panels-and-posts](https://www.lumberystore.com/fence-panels-and-posts)
-on 2026-08-18 — board sizes, rail sections, grades, heights, post lengths and
-burial depths are theirs.
+actually sells (read 2026-08-18; board sizes, rail sections, grades, heights,
+post lengths and burial depths are theirs).
+
+| `--design` | what it is | what you buy |
+| --- | --- | --- |
+| `privacy` | Privacy Board: 3/4" x 3-1/2" cedar butted solid in an 8 ft panel | panels, posts, caps |
+| `chestnut` | Chestnut Hill: 2x2 balusters between doubled 6/4 rails, same both sides | panels, posts, caps |
+| `rails` | post and rail: round cedar posts, three round rails in 8 ft bays, **black coated welded wire behind the rails and run to grade** | sticks, by the lineal foot, plus a roll of mesh |
+
+The mesh is the only thing in any of the three that is not in the catalogue as
+drawn. A post and rail fence stops a horse and does nothing at all about a dog;
+the wire is what makes it a fence a dog stays inside, and it runs to grade
+rather than holding the 2" clearance a boarded fence keeps to stay out of the
+wet, because a dog goes under a 2" gap without breaking stride.
+
+Earlier drafts of this project offered nine or ten designs that differed by an
+inch of reveal. Those are still in the file — `STYLES` and `AVO_STYLES` are how
+the price guide is walked and how a panel is benchmarked against the sticks it
+is made of — but they are catalogue machinery, not choices. A style is a row in
+a price list; a design is something you can order.
+
+**The two panel designs have no cut list**, because nothing in them is cut: they
+have an **order**, counted in panels, posts and caps, and the gallery prints it
+as one. Only the post and rail design is bought by the foot.
 
 The difference is not cosmetic, and the checks are where it shows:
 
-| | stick-built | AVO panels |
+| | post and rail | the two panel designs |
 | --- | --- | --- |
-| the bay | whatever divides the run under 8 ft | fixed: the bay **is** the panel |
-| a 38 ft run | six bays of 6'-4" | four 8 ft panels and two 3 ft **custom** ones |
+| the bay | the rail: 8 ft, and a 3 ft remainder a saw can make | the panel: 8 ft, and a 3 ft remainder that has to be **custom** |
+| a 38 ft run | two 8 ft bays and a 3 ft one, each side of the gates | four 8 ft panels and two 3 ft custom ones |
 | burial | 4 ft, to clear the frost line | 2 ft, per their sizing table — half what the frost line asks |
-| the gates | designed, drawn and costed | drawn, and **quoted by email**: the catalogue will not price a gate |
+| the gates | drawn, and **quoted by email**: the catalogue will not price a gate | the same |
 
 `projects/cedar_fence.py` is the project built entirely on the real ones: every
 line of its total is dated, and the same guide that prices the stock publishes
