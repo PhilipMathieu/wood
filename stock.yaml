@@ -857,21 +857,19 @@ unit_goods:
       can check whether it fits a groove
 
   # Black PVC/powder-coated welded wire, the mesh a log-and-mesh fence is
-  # built around. Sold by the roll, 48" tall to suit a 4 ft fence.
+  # built around. Sold by the roll, tall enough to suit a 4 ft fence.
   #
-  # NOT PRICED, and the reason is worth recording because it is not the
-  # usual one. This is a stocked retail product with published prices —
-  # search results quote $159.99 for the 4 ft x 100 ft 14 ga PVC-coated
-  # roll — but every retailer domain tried (homedepot.com,
-  # tractorsupply.com, themillstores.com, tridentfence.com) is blocked by
-  # this environment's egress proxy, so no page could be read. A number
-  # copied out of a search snippet is exactly the kind of price this file
-  # exists to refuse: undated, unread, and indistinguishable in print from
-  # one somebody checked. One line with a price and a date turns every
-  # log-and-mesh total below from partial into complete.
+  # This entry sat unpriced for a while, and the reason was recorded here:
+  # search snippets quoted $159.99 for the 4 ft roll, but every retailer
+  # domain was blocked by this environment's egress proxy, and a number
+  # copied out of a snippet is undated, unread, and indistinguishable in
+  # print from one somebody checked. The snippet turned out to be right.
+  # That is not why it is here now — it is here now because it arrived with
+  # a SKU, a retailer and a date, which is the difference between a figure
+  # and a price.
   #
-  # `coverage_sqft` is the roll's area, which is real arithmetic (4 ft x
-  # 100 ft) rather than a coverage figure somebody would have to publish.
+  # `coverage_sqft` is the roll's area, which is real arithmetic (height x
+  # length) rather than a coverage figure somebody would have to publish.
   - species: steel
     item: welded wire mesh, 2x4, 14 ga, black PVC coated
     unit: roll
@@ -879,12 +877,33 @@ unit_goods:
     size: "4 ft x 100 ft"
     qty: 0
     coverage_sqft: 400
-    price_source: "NOT PRICED — retail domains blocked by the egress proxy; read one and add it"
+    price_per_unit: 159.99
+    price_as_of: 2026-08-18
+    price_source: "allFENZ, Home Depot SKU 305517924 — relayed by the owner, not read from the page"
     notes: >-
       48" tall to suit a 4 ft fence; 2" x 4" mesh, 14 ga galvanised core
       under the coating. Staple to the rails and cap the edges with a
       batten — a cut mesh end at hand height is a scratch waiting to
       happen.
+
+  # The same wire a foot taller. Not an upgrade to the fence: the extra
+  # foot goes in the ground as an apron, turned out from the posts and
+  # buried, which is what stops a dog digging under rather than climbing
+  # over. The fence is still 4 ft.
+  - species: steel
+    item: welded wire mesh, 2x4, 14 ga, black PVC coated
+    unit: roll
+    size: "5 ft x 100 ft"
+    qty: 0
+    coverage_sqft: 500
+    price_per_unit: 167.43
+    price_as_of: 2026-08-18
+    price_source: "allFENZ, Home Depot SKU 310332480 — relayed by the owner, not read from the page"
+    notes: >-
+      $7 more than the 4 ft roll for a foot of buried apron, which is the
+      cheapest dog-proofing on this list by some distance. No `material`
+      key: nothing is modelled in it yet, because the apron is a detail of
+      how the mesh is hung and not a part with a shape.
 
 
   # ---------------------------------------------------------------------
@@ -1151,6 +1170,211 @@ unit_goods:
     price_source: "NOT PRICED — read from lumberystore.com 2026-08-18"
     price_url: "https://www.lumberystore.com/product/handcrafted-cedar-post-caps/DN6NS2IFNDY4ZXGXB4TZ7XGO"
     notes: "Handcrafted cedar; posts are sold without them."
+
+
+  # ---------------------------------------------------------------------
+  # Fence hardware — the half of a gate that is not wood.
+  #
+  # Everything above this comment is bought from a lumber yard, and every
+  # price above carries the yard's own guide behind it. Nothing below is.
+  # These are big-box and farm-store prices, relayed by the owner on
+  # 2026-08-18 with SKUs where a SKU exists; they were not read off the
+  # retailers' pages by anything in this repository, because the egress
+  # proxy blocks every one of those domains. `price_source` says so on
+  # each line rather than in a comment nobody reads, so a total built from
+  # them can be traced back to a person and a day.
+  #
+  # Two tiers, in `grade`. "heavy duty" is the thing that outlives the
+  # fence; "budget" is the imported equivalent that does the same job for
+  # a third of the money and will be the reason somebody rehangs a gate in
+  # 2036. Both are real products at real prices, and the design prices
+  # whichever tier it is asked for rather than picking one and calling it
+  # the cost. The swing between them is almost entirely hinges.
+  #
+  # `count_per_unit` is what makes a package a quantity: 25 bolts in a box
+  # and about 340 staples in a 5 lb carton are the numbers that turn a
+  # count derived from geometry into a number of things to put in a cart.
+
+  - species: steel
+    item: tee hinge, 12", bolted
+    unit: each
+    grade: heavy duty
+    qty: 0
+    price_per_unit: 27.47
+    price_as_of: 2026-08-18
+    price_source: "Everbilt extra heavy-duty, Home Depot SKU 20484 — relayed by the owner"
+    notes: >-
+      A gate leaf is a cantilever off its hinges and the top one carries
+      the pull. Three per leaf, bolted through the stile — a screw into
+      end-grain-adjacent cedar is what fails first on a wooden gate.
+
+  - species: steel
+    item: tee hinge, 12", bolted
+    unit: each
+    grade: budget
+    qty: 0
+    price_per_unit: 7.50
+    price_as_of: 2026-08-18
+    price_source: "12 in T-strap 6-packs, Home Depot online, ~$45/6 — relayed by the owner"
+    notes: >-
+      A quarter of the heavy-duty price and the largest single saving
+      available on this fence. Lighter steel and a thinner pin; on a 4 ft
+      leaf that is a real bet rather than an obvious mistake.
+
+  - species: steel
+    item: gate latch, thumb
+    unit: each
+    grade: heavy duty
+    qty: 0
+    price_per_unit: 26.98
+    price_as_of: 2026-08-18
+    price_source: "Everbilt heavy-duty thumb latch, Home Depot — relayed by the owner"
+
+  - species: steel
+    item: gate latch, thumb
+    unit: each
+    grade: budget
+    qty: 0
+    price_per_unit: 13.00
+    price_as_of: 2026-08-18
+    price_source: "plainer Home Depot latch — relayed by the owner"
+
+  - species: steel
+    item: cane bolt with retainer, 18-24"
+    unit: set
+    grade: heavy duty
+    qty: 0
+    price_per_unit: 35.00
+    price_as_of: 2026-08-18
+    price_source: "Everbilt/National, Home Depot, $24-$35 — relayed by the owner"
+    notes: >-
+      One per pair of leaves: it pins the inactive leaf so the latch is
+      not holding both. The retainer that comes with it is the stop; the
+      ground sleeve is not included and is a separate line below.
+
+  - species: steel
+    item: cane bolt with retainer, 18-24"
+    unit: set
+    grade: budget
+    qty: 0
+    price_per_unit: 24.00
+    price_as_of: 2026-08-18
+    price_source: "Everbilt/National, Home Depot, $24-$35 — relayed by the owner"
+
+  - species: steel
+    item: 'drop rod ground sleeve, 1 ft of 3/4-1" pipe'
+    unit: each
+    qty: 0
+    price_per_unit: 5.00
+    price_as_of: 2026-08-18
+    price_source: "offcut of galvanised or PVC pipe, set in the post stone — owner's estimate"
+    notes: >-
+      No big-box cane bolt includes one. Without a sleeve the rod drills
+      its own hole in the dirt, which silts up over one winter and stops
+      being a hole. A foot of pipe set in the stone when the gate post
+      goes in costs five dollars and is the difference between a gate that
+      still pins in ten years and one that does not.
+
+  - species: steel
+    item: post cap
+    unit: each
+    grade: heavy duty
+    qty: 0
+    price_per_unit: 9.00
+    price_as_of: 2026-08-18
+    price_source: "galvanised steel 4x4 caps, $3-$9 ea — relayed by the owner"
+    notes: >-
+      A cap is not decoration: an unprotected post end is end grain
+      pointing at the sky, and it is where a post rots from.
+
+  - species: steel
+    item: post cap
+    unit: each
+    grade: budget
+    qty: 0
+    price_per_unit: 3.00
+    price_as_of: 2026-08-18
+    price_source: "wood pyramid 4x4 caps, $3-$9 ea — relayed by the owner"
+    notes: >-
+      Round posts of 5 in and 6 in are not 4x4s. These fit a sawn post;
+      on a round post the equivalent is a bevel cut on the top so water
+      runs off, which costs nothing but a saw.
+
+  - species: steel
+    item: fence staples, 9 ga, 1-1/2", galvanised
+    unit: box
+    grade: right-sized
+    qty: 0
+    count_per_unit: 340
+    price_per_unit: 20.97
+    price_as_of: 2026-08-18
+    price_source: "Grip-Rite 5 lb box, Home Depot — relayed by the owner"
+    notes: >-
+      The correct package for one fence. See the keg below for the one
+      that is not.
+
+  - species: steel
+    item: fence staples, 9 ga, 1-3/4", knurled
+    unit: bucket
+    grade: lifetime supply
+    qty: 0
+    count_per_unit: 3350
+    price_per_unit: 119.00
+    price_as_of: 2026-08-18
+    price_source: "Bekaert 50 lb bucket, Tractor Supply Scarborough — relayed by the owner"
+    notes: >-
+      Recorded so the design can say why not to buy it. A 50 lb keg is
+      about 3,350 staples against the two or three hundred this fence
+      needs, at six times the price of the box that covers it. Knurled
+      legs do hold better in softwood; that is not worth 3,000 spare
+      staples.
+
+  - species: steel
+    item: carriage bolts, 3/8" x 4", galvanised
+    unit: box
+    qty: 0
+    count_per_unit: 25
+    price_per_unit: 47.93
+    price_as_of: 2026-08-18
+    price_source: "Everbilt 25-pack, Home Depot SKU 803550 — relayed by the owner"
+    notes: >-
+      $1.92 a bolt. Nuts and washers are sold separately and are the line
+      below; a box of bolts on its own is not a fastener.
+
+  - species: steel
+    item: nuts and washers for 3/8" carriage bolts
+    unit: set
+    qty: 0
+    price_per_unit: 18.00
+    price_as_of: 2026-08-18
+    price_source: "Home Depot, approximate — relayed by the owner"
+    notes: "Enough for one box of 25 bolts."
+
+  - species: stone
+    item: '3/4" crushed, bulk'
+    unit: cu yd
+    qty: 0
+    price_per_unit: 44.99
+    price_as_of: 2026-08-18
+    price_source: "Moody's Nursery, Saco — pickup, relayed by the owner"
+    notes: >-
+      Bulk, loaded into your own truck. A cubic yard is about 2,800 lb,
+      which is at the limit of a half-ton pickup — two trips or a trailer.
+      Do not buy this bagged: 0.5 cu ft bags at $5-$7 work out over $270 a
+      yard, six times the bulk price, for the same stone.
+
+  - species: stone
+    item: crushed gravel, delivered
+    unit: cu yd
+    qty: 0
+    price_per_unit: 56.00
+    price_as_of: 2026-08-18
+    price_source: "Estabrook's, delivers to South Portland — relayed by the owner; delivery fee not included"
+    notes: >-
+      $11 a yard more than pickup, plus a delivery fee nobody has quoted,
+      against the cost of borrowing a trailer. Gorham Sand & Gravel in
+      Buxton delivers in 1 cu yd increments, which is the useful part for
+      an order this small.
 
 # Terms that apply to an order rather than to a board. A discount cannot live
 # on a stock entry because it changes every line at once or none of them.

@@ -445,9 +445,11 @@ def test_a_project_with_an_order_derives_no_buying_plan(panels):
 
 
 def test_its_total_names_what_the_catalogue_does_not_price(panels):
+    """The one priced line is the stone; the panels above it are all named."""
     summary = build_project(panels).cost_summary
-    assert summary.total is None
+    assert not summary.complete
     assert any("panel" in label for label in summary.unpriced)
+    assert [line.label for line in summary.lines] == ['stone 3/4" crushed, bulk']
 
 
 def test_the_page_lists_pieces_and_says_nothing_is_cut(panels, tmp_path):

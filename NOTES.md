@@ -1418,3 +1418,57 @@ While fixing that: board feet of a round rail was being counted off its
 bounding box, which credited a 4" log with the corners it does not have and
 flattered the rail design by a fifth. Round stock now measures as the cylinder
 it is — the same pi/4 the mass estimate already used.
+
+## The half of a fence that a cut list cannot describe — 2026-08-18
+
+Hardware was a single WARN: *hinges, latch, drop rod and a keg of galvanised
+staples are not in stock.yaml and are not in any total this project prints.*
+That warning was accurate and useless. It named the gap and then left the
+totals looking finished when they were missing a third of the order.
+
+The prices arrived the way prices are supposed to: with SKUs, a retailer and a
+day. Not from a page anything here fetched — the egress proxy blocks every
+big-box domain — so `price_source` says *relayed by the owner* on every one of
+those lines rather than implying a read that never happened. That distinction
+is the entire reason `price_source` is a string and not a boolean.
+
+**Quantities come from the fence, not from a list.** A hinge count is a leaf
+count times three. A staple count is one per foot per rail over the mesh run,
+plus eight wrapping each post. A yard of stone is nine holes minus nine posts —
+and the subtraction matters more than it looks, because the arithmetic that
+skips it is the same arithmetic that has people buying two yards and storing
+one behind the shed forever. It comes to 0.78 cu yd, which is one yard; without
+the posts subtracted it would round to one yard as well, and the point is that
+you can see it did.
+
+**Packages, not pieces.** `UnitStock` gained `count_per_unit`, which is what
+turns 24 bolts into one box of 25. It is `None` until somebody reads the label,
+for the same reason `coverage_sqft` is: a design that cannot count the pieces in
+a carton has to ask rather than divide by a number it made up.
+
+**Two tiers, priced honestly, neither one hidden.** `HARDWARE_TIERS` is
+`("heavy duty", "budget")` and `--hardware` picks one. $676 against $333, and
+nearly all of the difference is hinges. A design that quietly picked one and
+called it *the* hardware cost would be concealing the largest single decision on
+the list. Whichever you ask for, the other prints beside it.
+
+**Stocking the wrong package on purpose.** The 50 lb keg of staples and the
+delivered gravel are in `stock.yaml` with prices and are never bought by any
+plan. They are there so the checks can say why not: 3,350 staples against the
+243 this fence needs, at six times the price of the box that covers it. A price
+list that only holds the right answer cannot explain the wrong one.
+
+**A finding retired itself.** The mesh entry carried a long comment about being
+a stocked retail product whose price could be seen in search snippets and not
+read from any page, and a WARN that fired whenever the mesh went unpriced. The
+comment is now the story of how it got closed; the WARN is gated on the price
+rather than deleted along with the problem, and `test_but_it_comes_straight_back_if_the_price_goes_away`
+pins that. The snippet's number turned out to be right, which was never the
+issue — being undated and unattributed was.
+
+**The panel designs got their first priced line.** Not much of one: an AVO gate
+arrives hung and its caps come with the posts, so a panel fence buys the stone
+and nothing else. But `PanelOrder.cost_summary` could previously only ever
+return names of things it could not price, and a summary that names four
+unpriced panels beside one priced yard of stone is a truer picture of the order
+than a summary that names only the panels.

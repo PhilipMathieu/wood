@@ -194,12 +194,40 @@ def test_the_panel_posts_are_sold_by_the_piece_in_published_lengths(inv):
         assert entry.price is None
 
 
-def test_the_mesh_is_unpriced_and_says_why(inv):
-    """A number copied out of a search snippet is the price this file refuses."""
-    mesh = next(u for u in inv.unit_goods if u.species == "steel")
-    assert mesh.price is None
-    assert "blocked" in mesh.price_source
+def test_the_mesh_is_priced_and_says_who_by(inv):
+    """It sat unpriced until the figure arrived with a SKU, a seller and a day.
+
+    The search snippet that quoted the same number all along was never the
+    problem with it; being undated and unattributed was.
+    """
+    mesh = next(u for u in inv.unit_goods if u.material == "steel_mesh_black")
+    assert mesh.price == pytest.approx(159.99)
+    assert mesh.price_as_of is not None
+    assert "SKU" in mesh.price_source
     assert mesh.coverage_sqft == pytest.approx(400)   # 4 ft x 100 ft, arithmetic
+
+
+def test_hardware_says_it_was_relayed_rather_than_read(inv):
+    """Nothing in this repository has been to homedepot.com, and it says so."""
+    hardware = [u for u in inv.unit_goods if u.species in ("steel", "stone")]
+    assert len(hardware) > 10
+    assert all(u.price is not None for u in hardware)
+    assert all(u.price_as_of is not None for u in hardware)
+    assert all(
+        "relayed by the owner" in u.price_source or "owner's estimate" in u.price_source
+        for u in hardware
+    )
+
+
+def test_a_package_knows_how_many_are_in_it_or_admits_that_it_does_not(inv):
+    """Which is what turns a count from geometry into a number of boxes."""
+    bolts = next(u for u in inv.unit_goods if u.item.startswith("carriage bolts"))
+    assert bolts.count_per_unit == 25
+    assert bolts.packages_for(24) == 1
+    assert bolts.packages_for(26) == 2
+    hinge = next(u for u in inv.unit_goods if u.item.startswith("tee hinge"))
+    assert hinge.count_per_unit is None
+    assert hinge.packages_for(12) is None
 
 
 def test_cedar_is_priced_by_the_lineal_foot_as_the_guide_quotes_it(inv):

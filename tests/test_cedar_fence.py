@@ -20,19 +20,25 @@ from cedar_fence import (  # noqa: E402
     AVO_PANEL_HEIGHTS_FT,
     AVO_POST_TABLE,
     AVO_STYLES,
+    BOLTS_PER_HINGE,
     DESIGNS,
+    HARDWARE_TIERS,
+    HINGES_PER_LEAF,
     IN,
     MESH_THICKNESS_MM,
     POST_AND_RAIL_LENGTHS_FT,
     PROJECTS,
     STYLES,
     CedarFence,
+    HardwarePlan,
     MeshPlan,
     PanelFence,
     StockChoice,
     catalogue,
     compare_designs,
     discount_note,
+    hardware_stock,
+    post_stone_cuyd,
     price_variants,
     style_for,
     variants,
@@ -342,9 +348,12 @@ def test_the_rot_risk_is_reported_even_though_it_is_cedar(report):
     assert any("sapwood" in f.message for f in durability)
 
 
-def test_the_hardware_is_named_as_missing_from_the_total(report):
+def test_the_hardware_says_what_it_costs_and_where_buying_it_goes_wrong(report):
+    """It used to say only that it was missing from every total. It is not now."""
     hardware = findings(report, "hardware")
-    assert hardware and hardware[0].severity is Severity.WARN
+    assert hardware
+    assert any("hardware runs" in f.message for f in hardware)
+    assert any(f.severity is Severity.WARN for f in hardware)
 
 
 def test_a_gate_spacing_that_fights_the_fence_is_flagged():
@@ -718,18 +727,42 @@ def test_the_timber_plan_leaves_the_mesh_alone(logs, log_parts):
 
 
 def test_the_total_refuses_to_look_complete(logs, log_parts):
+    """The logs are still unpriced, and a total that hid that would be worse."""
     summary = logs.cost_summary(log_parts)
     assert not summary.complete
     assert any("log" in label for label in summary.unpriced)
-    assert any("mesh" in label for label in summary.unpriced)
     assert "excludes unpriced" in summary.to_text()
 
 
-def test_the_unpriced_mesh_is_reported_as_a_gap_and_not_as_free(logs, log_parts):
+def test_the_mesh_and_the_hardware_are_in_the_total_and_the_logs_are_not(
+    logs, log_parts
+):
+    """Which is the point: the gap is named, and it is a smaller gap than it was."""
+    summary = logs.cost_summary(log_parts)
+    priced = " ".join(line.label for line in summary.lines)
+    assert "mesh" in priced
+    assert "tee hinge" in priced
+    assert all("mesh" not in label for label in summary.unpriced)
+
+
+def test_the_mesh_no_longer_warns_because_the_mesh_has_a_price(logs, log_parts):
+    """The warning that said so was the point of the entry, and it is spent."""
     report = logs.check(logs.build(), log_parts)
-    prices = [f for f in report.findings if f.code == "price"]
+    assert not [f for f in report.findings if f.code == "price"]
+
+
+def test_but_it_comes_straight_back_if_the_price_goes_away(logs, log_parts):
+    """The finding is gated on the price, not deleted along with the problem."""
+    import copy
+
+    bare = copy.deepcopy(logs)
+    entry = bare.mesh_stock()
+    object.__setattr__(entry, "price_per_unit", None)
+    prices = [
+        f for f in bare.check(bare.build(), log_parts).findings if f.code == "price"
+    ]
     assert prices and prices[0].severity is Severity.WARN
-    assert "nothing was invented" in prices[0].message
+    assert "nothing here has been invented" in prices[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -939,11 +972,15 @@ def test_the_gates_are_quoted_rather_than_ordered(panels):
 
 
 def test_nothing_in_the_catalogue_carries_a_published_price(panels):
+    """Not one panel, post or cap. The only priced line is the stone under it."""
     order = panels.order()
     assert order.unpriced
     summary = order.cost_summary
-    assert summary.total is None
     assert not summary.complete
+    assert [line.label for line in summary.lines] == [
+        stock.stock_label
+        for stock in [hardware_stock(panels.inventory, '3/4" crushed, bulk')]
+    ]
 
 
 def test_the_order_reads_as_the_email_you_would_send(panels):
@@ -1083,7 +1120,133 @@ def test_the_comparison_names_all_three_and_prices_none_of_them():
     text = compare_designs()
     for name, _factory, _summary in DESIGNS.values():
         assert name in text
-    # Every one of the three is unpriced in the catalogue; the money in the
-    # table is the wood, at the sawn guide's rates.
-    assert text.count("unpriced") >= 3
+    # The catalogue prices none of the three; the money in the wood column is
+    # the wood at the sawn guide's rates, and it is marked as a floor.
+    assert "publishes no price for any of" in text
+    assert text.count("+") >= 3
     assert "quoted by email" in text
+
+
+# ---------------------------------------------------------------------------
+# Hardware: the half of a fence that a cut list cannot describe
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def rails() -> CedarFence:
+    """Return the post-and-rail design, the one that buys its own hardware."""
+    return DESIGNS["rails"][1]()
+
+
+@pytest.fixture(scope="module")
+def rail_hardware(rails: CedarFence) -> HardwarePlan:
+    return rails.hardware(extract(rails.build()))
+
+
+def _line(plan: HardwarePlan, needle: str):
+    return next(ln for ln in plan.lines if needle in ln.label)
+
+
+def test_hardware_is_counted_from_the_fence_not_typed_in(rails, rail_hardware):
+    """Every quantity is a consequence of the geometry above it."""
+    leaves = len(rails.gate_openings) * rails.gate_leaves
+    assert _line(rail_hardware, "tee hinge").qty == HINGES_PER_LEAF * leaves
+    assert _line(rail_hardware, "post cap").qty == len(rails.posts())
+    assert _line(rail_hardware, "gate latch").qty == len(rails.gate_openings)
+
+
+def test_every_quantity_shows_the_arithmetic_behind_it(rail_hardware):
+    """A hardware count is the easiest number in a project to get wrong by one."""
+    assert all(len(line.why) > 20 for line in rail_hardware.lines)
+
+
+def test_bolts_and_staples_are_bought_by_the_package_not_the_piece(rail_hardware):
+    """You cannot buy 24 carriage bolts; you buy a box of 25 and have one left."""
+    bolts = _line(rail_hardware, "carriage bolts")
+    assert bolts.pieces == BOLTS_PER_HINGE * _line(rail_hardware, "tee hinge").qty
+    assert bolts.qty == 1
+    assert bolts.pieces > bolts.stock.count_per_unit - 5
+    staples = _line(rail_hardware, "fence staples")
+    assert staples.qty == staples.stock.packages_for(staples.pieces)
+
+
+def test_the_keg_of_staples_is_stocked_so_the_design_can_advise_against_it(rails):
+    """It is ten times the staples at six times the price of the right box."""
+    keg = hardware_stock(rails.inventory, 'fence staples, 9 ga, 1-3/4", knurled')
+    box = hardware_stock(rails.inventory, 'fence staples, 9 ga, 1-1/2", galvanised')
+    assert keg.count_per_unit > 3000
+    assert box.count_per_unit < 500
+    findings = rails.check(rails.build(), extract(rails.build())).findings
+    advice = [f for f in findings if f.code == "hardware"]
+    assert any("not the bucket" in f.message for f in advice)
+    assert any(f.severity is Severity.WARN for f in advice)
+
+
+def test_the_stone_is_the_hole_less_the_post(rails):
+    """Nine holes minus nine posts, which is a fifth of a yard here."""
+    holes = post_stone_cuyd(rails.posts(), round_posts=True)
+    naive = post_stone_cuyd(
+        rails.posts()
+    )  # square posts displace more, so less stone
+    assert holes > naive
+    assert 0.5 < holes < 1.0
+    assert _line(rails.hardware([]), "crushed").qty == 1
+
+
+def test_a_tier_is_a_bet_on_hinges(rails):
+    """Nearly the whole swing between the two tiers is the hinges."""
+    parts = extract(rails.build())
+    totals = {
+        tier: rails.hardware(parts, tier).cost_summary.total
+        for tier in HARDWARE_TIERS
+    }
+    dear, cheap = totals["heavy duty"], totals["budget"]
+    assert dear > cheap * 1.5
+    hinges = {
+        tier: _line(rails.hardware(parts, tier), "tee hinge").price_line.amount
+        for tier in HARDWARE_TIERS
+    }
+    assert hinges["heavy duty"] - hinges["budget"] > 0.6 * (dear - cheap)
+
+
+def test_an_unknown_tier_is_refused_rather_than_quietly_priced(rails):
+    with pytest.raises(ValueError, match="tier must be one of"):
+        rails.hardware([], "whatever is cheapest")
+
+
+def test_hardware_is_in_the_total_now(rails):
+    """It used to be a warning saying it was in no total, which is not the same."""
+    parts = extract(rails.build())
+    with_gear = rails.cost_summary(parts).total
+    timber_and_mesh = rails.plan(parts).cost_summary + rails.mesh_plan(parts).cost_summary
+    assert with_gear > timber_and_mesh.total
+    assert with_gear - timber_and_mesh.total == pytest.approx(
+        rails.hardware(parts).cost_summary.total
+    )
+
+
+def test_every_hardware_price_carries_the_day_it_was_true(rail_hardware):
+    """Which is the whole reason these are in stock.yaml and not in the code."""
+    summary = rail_hardware.cost_summary
+    assert summary.complete
+    assert summary.verified
+    assert all(
+        "relayed by the owner" in line.source or "owner's estimate" in line.source
+        for line in summary.lines
+    )
+
+
+def test_a_panel_fence_buys_stone_and_almost_nothing_else():
+    """Its gates arrive hung and its caps come with AVO's posts."""
+    order = DESIGNS["privacy"][1]().order()
+    assert len(order.priced) == 1
+    assert "crushed" in order.priced[0].label
+    assert order.cost_summary.total == pytest.approx(order.priced[0].amount)
+    # Still incomplete — the panels themselves carry no published price.
+    assert not order.cost_summary.complete
+
+
+def test_the_comparison_prices_the_hardware_it_cannot_price_the_panels():
+    text = compare_designs()
+    assert "hardware" in text
+    assert "–" in text  # the budget-to-heavy range on the post-and-rail row

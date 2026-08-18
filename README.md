@@ -379,6 +379,42 @@ The difference is not cosmetic, and the checks are where it shows:
 | burial | 4 ft, to clear the frost line | 2 ft, per their sizing table — half what the frost line asks |
 | the gates | drawn, and **quoted by email**: the catalogue will not price a gate | the same |
 
+### The half of a fence that a cut list cannot describe
+
+Hinges, a latch, a cane bolt, the staples holding the mesh on, the caps over the
+post ends and the yard of stone the posts stand in used to be a single warning
+saying these things existed and were in no total. They are in the total now,
+counted from the same geometry the cut list comes from — a hinge count is a leaf
+count, a staple count is feet of mesh and a post count, a yard of stone is nine
+holes **minus nine posts**.
+
+```
+$ python projects/cedar_fence.py --design rails --hardware budget
+```
+
+Hardware comes in two tiers, and `--hardware` picks which one to price:
+
+| tier | what it is | this fence |
+| --- | --- | --- |
+| `heavy duty` | the fitting that outlives the fence | $676 |
+| `budget` | the imported one that does the same job | $333 |
+
+The other tier's total prints beside whichever you asked for, because the choice
+is worth more than most of the decisions above it — and nearly the whole swing
+is hinges, the one fitting here that carries a load rather than merely closing.
+
+These prices are **not** from the yard, and `price_source` says so on every line:
+they are big-box and farm-store prices with SKUs, relayed by the owner on a day
+that is recorded, because the egress proxy blocks every one of those domains.
+The stock entries that price the wrong package are in `stock.yaml` too, so the
+design can say why not to buy them — a 50 lb keg of staples is 3,350 against the
+243 this fence needs, and half-cubic-foot bags of stone work out over six times
+the bulk rate for the same stone.
+
+A panel fence buys almost none of this: its gates arrive hung and its caps come
+with AVO's posts. What it does buy is the stone, because the holes are the same
+holes — and that one line is the only priced thing on a panel order.
+
 `projects/cedar_fence.py` is the project built entirely on the real ones: every
 line of its total is dated, and the same guide that prices the stock publishes
 no lengths for it, which is why that project buys by the foot and says so.

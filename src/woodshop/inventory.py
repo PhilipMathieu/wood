@@ -571,6 +571,11 @@ class UnitStock(PricedStock):
         Square feet one unit covers, where the supplier says.  ``None`` means
         nobody has said, and a design that needs the number has to ask rather
         than assume one.
+    count_per_unit : int or None, optional
+        How many pieces are in one unit, where the package says — 25 bolts in
+        a box, 340 staples in a 5 lb carton.  It is what turns a count derived
+        from geometry into a number of packages to buy, and it is ``None``
+        until somebody reads the label, for the same reason as the rest.
     thickness_in : float or None, optional
         Thickness where published.  ``None`` for the same reason.
     price_per_unit : float or None, optional
@@ -595,6 +600,7 @@ class UnitStock(PricedStock):
     qty: int = 0
     size: str = ""
     coverage_sqft: float | None = None
+    count_per_unit: int | None = None
     thickness_in: float | None = None
     price_per_unit: float | None = None
     price_as_of: date | None = None
@@ -612,6 +618,23 @@ class UnitStock(PricedStock):
     def price_unit(self) -> str:
         """Unit the price is quoted in, e.g. ``"bundle"``."""
         return self.unit
+
+    def packages_for(self, count: int) -> int | None:
+        """Return how many units hold *count* pieces, rounding up.
+
+        ``None`` when the package does not say how many are in it, which is
+        the difference between "buy two boxes" and "buy some boxes": a design
+        that cannot count the pieces in a carton has to ask rather than divide
+        by a number it made up.
+
+        Parameters
+        ----------
+        count : int
+            Pieces the design needs.
+        """
+        if not self.count_per_unit:
+            return None
+        return -(-count // self.count_per_unit)  # ceil
 
     @property
     def stock_label(self) -> str:

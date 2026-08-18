@@ -558,6 +558,187 @@ class MeshPlan:
         return "\n".join(lines)
 
 
+#: Hardware tiers offered, best first.  A tier is a ``grade`` in stock.yaml.
+#:
+#: The two are not good and bad.  They are the fitting that outlives the fence
+#: and the imported one that does the same job for a quarter of the money, and
+#: the choice between them is a bet on how long you want the gate to swing
+#: without being rehung.  A design that picked one and called it *the* cost
+#: would be hiding the largest single decision on the hardware list.
+HARDWARE_TIERS: tuple[str, ...] = ("heavy duty", "budget")
+
+#: Stone around a post, each side, in inches.  Less and it cannot be tamped.
+POST_STONE_ANNULUS_IN: float = 3.0
+
+#: Staples per foot of mesh, per rail it is stapled to.
+STAPLES_PER_FT_PER_RAIL: int = 1
+
+#: Staples spent wrapping the mesh onto one post.
+STAPLES_PER_POST: int = 8
+
+#: Bolts through one bolted hinge.
+BOLTS_PER_HINGE: int = 2
+
+#: Hinges under one gate leaf.  Two is what a gate is sold with and three is
+#: what stops it dropping; see the gate check that works out the pull.
+HINGES_PER_LEAF: int = 3
+
+
+def post_stone_cuyd(posts: list["PostPlan"], round_posts: bool = False) -> float:
+    """Return cubic yards of stone to backfill every hole in *posts*.
+
+    A hole is round whatever shape the post is, so the stone is the hole less
+    the post: nine holes minus nine posts, not nine holes.  The difference is
+    about a fifth of a yard on a fence this size, which is nothing — but the
+    arithmetic that ignores it is the same arithmetic that has people buying
+    two yards and storing one behind the shed forever.
+
+    The posts are set in stone rather than concrete deliberately; see the post
+    check, which explains why a concrete collar holds water against the one
+    part of the post that cannot dry.
+
+    Parameters
+    ----------
+    posts : list[PostPlan]
+        Every post to be set, with its face size and depth.
+    round_posts : bool, optional
+        ``True`` where the posts are logs, which displace pi/4 of what a sawn
+        post of the same face would.
+    """
+    total_ft3 = 0.0
+    for post in posts:
+        hole = post.size + 2 * inches(POST_STONE_ANNULUS_IN)
+        hole_area = math.pi / 4.0 * hole**2
+        post_area = math.pi / 4.0 * post.size**2 if round_posts else post.size**2
+        total_ft3 += (hole_area - post_area) * post.embedment / FT**3
+    return total_ft3 / 27.0
+
+
+def hardware_stock(inventory: Inventory, item: str, tier: str = "") -> Any:
+    """Return the ``unit_goods`` entry for *item*, in *tier* where it has one.
+
+    Parameters
+    ----------
+    inventory : Inventory
+        Where to look.
+    item : str
+        The ``item`` field to match, exactly as stock.yaml spells it.
+    tier : str, optional
+        A member of :data:`HARDWARE_TIERS`.  Ignored for items sold in only
+        one grade, which is most of them — a carriage bolt is a carriage bolt.
+
+    Returns
+    -------
+    UnitStock or None
+        ``None`` when nothing matches, which the plan reports as a line it
+        cannot price rather than as a line that is not there.
+    """
+    matches = [u for u in inventory.unit_goods if u.item == item]
+    if tier:
+        tiered = [u for u in matches if u.grade == tier]
+        if tiered:
+            return tiered[0]
+    plain = [u for u in matches if not u.grade]
+    if plain:
+        return plain[0]
+    return matches[0] if matches else None
+
+
+@dataclass(frozen=True)
+class HardwareLine:
+    """One thing to buy that is not wood, and the geometry that counted it.
+
+    Parameters
+    ----------
+    label : str
+        What it is, for when there is no stock entry to name it.
+    qty : int
+        How many *units* to buy — boxes, not bolts.
+    why : str
+        Where the quantity came from, in the same words a person would use
+        checking it.  A hardware count is the easiest number in a project to
+        get wrong by one, and the only defence is showing the arithmetic.
+    stock : UnitStock or None, optional
+        The inventory entry, or ``None`` if nothing matching is stocked.
+    pieces : int or None, optional
+        Pieces needed, where a unit holds more than one.  ``None`` when the
+        unit *is* the piece, as it is for a hinge.
+    """
+
+    label: str
+    qty: int
+    why: str
+    stock: Any = None
+    pieces: int | None = None
+
+    @property
+    def name(self) -> str:
+        """The stock entry's label, or this line's own if it has no entry."""
+        return self.label if self.stock is None else self.stock.stock_label
+
+    @property
+    def price_line(self) -> PriceLine | None:
+        """Units times the rate, with provenance — ``None`` if unpriced."""
+        if self.stock is None or self.stock.price is None:
+            return None
+        return self.stock.price_line(self.qty)
+
+    def to_text(self) -> str:
+        """Render the line as one row of the shopping list."""
+        line = self.price_line
+        cost = "unpriced" if line is None else line.to_text()
+        unit = "each" if self.stock is None else self.stock.unit
+        held = (
+            ""
+            if self.pieces is None
+            else f" [{self.pieces} needed, {self.stock.count_per_unit}/{unit}]"
+            if self.stock is not None and self.stock.count_per_unit
+            else f" [{self.pieces} needed]"
+        )
+        return (
+            f"  {self.qty:>3d} x {self.name:<52s} {cost:>12s}\n"
+            f"      {self.why}{held}"
+        )
+
+
+@dataclass
+class HardwarePlan:
+    """Everything a fence buys that a saw never touches.
+
+    Wood is the part of a fence that a cut list can describe, and for a long
+    time it was the only part this project costed: hinges, staples and a yard
+    of stone were named in a warning and left out of every total, which made
+    the totals look finished when they were two thirds of an order.
+
+    They are counted here from the same geometry the cut list comes from — a
+    hinge count is a leaf count, a staple count is feet of mesh and a post
+    count, a yard of stone is nine holes minus nine posts — so the numbers
+    move when the fence does instead of being a figure somebody typed once.
+
+    Parameters
+    ----------
+    lines : list[HardwareLine]
+        The order, in the sequence you would walk a store in.
+    tier : str
+        Which member of :data:`HARDWARE_TIERS` was priced.
+    """
+
+    lines: list[HardwareLine] = field(default_factory=list)
+    tier: str = HARDWARE_TIERS[0]
+
+    @property
+    def cost_summary(self) -> CostSummary:
+        """The priced lines, and the names of the ones that are not."""
+        priced = [ln.price_line for ln in self.lines if ln.price_line is not None]
+        unpriced = [ln.name for ln in self.lines if ln.price_line is None]
+        return CostSummary.of(priced, unpriced)
+
+    def to_text(self) -> str:
+        """Render the plan as the list you would take to the store."""
+        head = f"  hardware, {self.tier} where it comes in tiers"
+        return "\n".join([head, *(ln.to_text() for ln in self.lines)])
+
+
 @dataclass
 class CedarFence:
     """A parametric cedar fence: a run, some gates, and one of three infills.
@@ -1639,11 +1820,156 @@ class CedarFence:
             roll_height=inches(self.mesh_roll_height_in),
         )
 
-    def cost_summary(self, parts: list[CutPart]) -> CostSummary:
-        """Return timber and mesh together, with every gap in the total named."""
+    def post_stone_cuyd(self) -> float:
+        """Return cubic yards of stone to backfill this fence's post holes."""
+        return post_stone_cuyd(self.posts(), self.style == "log_and_mesh")
+
+    def hardware(
+        self, parts: list[CutPart], tier: str = HARDWARE_TIERS[0]
+    ) -> HardwarePlan:
+        """Return everything to buy that is not wood and not mesh.
+
+        Mesh is left to :meth:`mesh_plan`, which buys it in the unit it comes
+        in.  Everything else a fence needs — hinges, a latch, the bolts
+        through them, the staples holding the mesh on, the caps over the post
+        ends, the stone the posts stand in — is counted here from the same
+        geometry the cut list comes from.
+
+        Parameters
+        ----------
+        parts : list[CutPart]
+            The extracted cut list, used for the mesh footage the staple
+            count depends on.
+        tier : str, optional
+            A member of :data:`HARDWARE_TIERS`, default the heavy-duty one.
+
+        Returns
+        -------
+        HardwarePlan
+            The order, with the arithmetic behind every quantity attached.
+
+        Raises
+        ------
+        ValueError
+            If *tier* is not a member of :data:`HARDWARE_TIERS`.
+        """
+        if tier not in HARDWARE_TIERS:
+            raise ValueError(
+                f"tier must be one of {HARDWARE_TIERS}, got {tier!r}"
+            )
+        inv = self.inventory
+        posts = self.posts()
+        openings = self.gate_openings
+        leaves = len(openings) * self.gate_leaves
+        lines: list[HardwareLine] = []
+
+        def add(item: str, qty: int, why: str, pieces: int | None = None) -> None:
+            if qty <= 0:
+                return
+            lines.append(
+                HardwareLine(
+                    label=item,
+                    qty=qty,
+                    why=why,
+                    stock=hardware_stock(inv, item, tier),
+                    pieces=pieces,
+                )
+            )
+
+        add(
+            "post cap",
+            len(posts),
+            f"one over each of {len(posts)} posts — end grain pointing at "
+            "the sky is where a post rots from",
+        )
+
+        hinges = HINGES_PER_LEAF * leaves
+        add(
+            'tee hinge, 12", bolted',
+            hinges,
+            f"{HINGES_PER_LEAF} under each of {leaves} leaves",
+        )
+        add(
+            "gate latch, thumb",
+            len(openings),
+            f"one per opening, {len(openings)} openings",
+        )
+        if self.gate_leaves == 2:
+            add(
+                'cane bolt with retainer, 18-24"',
+                len(openings),
+                "one per pair, to pin the inactive leaf so the latch is not "
+                "holding both",
+            )
+            add(
+                'drop rod ground sleeve, 1 ft of 3/4-1" pipe',
+                len(openings),
+                "one under each cane bolt — no big-box cane bolt ships with "
+                "one, and a rod with no sleeve silts up in a winter",
+            )
+
+        bolts = BOLTS_PER_HINGE * hinges
+        bolt_stock = hardware_stock(inv, 'carriage bolts, 3/8" x 4", galvanised')
+        boxes = bolt_stock.packages_for(bolts) if bolt_stock else None
+        if boxes:
+            add(
+                'carriage bolts, 3/8" x 4", galvanised',
+                boxes,
+                f"{BOLTS_PER_HINGE} through each of {hinges} hinges",
+                pieces=bolts,
+            )
+            add(
+                'nuts and washers for 3/8" carriage bolts',
+                boxes,
+                "a box of bolts on its own is not a fastener",
+            )
+
+        mesh = self.mesh_plan(parts)
+        if mesh is not None:
+            rails = self.log_rails if self.style == "log_and_mesh" else 2
+            staples = (
+                rails * round(mesh.buy_ft) * STAPLES_PER_FT_PER_RAIL
+                + len(posts) * STAPLES_PER_POST
+            )
+            item = 'fence staples, 9 ga, 1-1/2", galvanised'
+            staple_stock = hardware_stock(inv, item)
+            packs = staple_stock.packages_for(staples) if staple_stock else None
+            if packs:
+                add(
+                    item,
+                    packs,
+                    f"{STAPLES_PER_FT_PER_RAIL} per foot on each of {rails} "
+                    f"rails over {mesh.buy_ft:.0f} ft, plus "
+                    f"{STAPLES_PER_POST} wrapping each of {len(posts)} posts",
+                    pieces=staples,
+                )
+
+        yards = self.post_stone_cuyd()
+        add(
+            '3/4" crushed, bulk',
+            math.ceil(yards),
+            f"{yards:.2f} cu yd of hole less post over {len(posts)} holes, "
+            "rounded up to the yard it is sold in",
+        )
+        return HardwarePlan(lines=lines, tier=tier)
+
+    def cost_summary(
+        self, parts: list[CutPart], tier: str = HARDWARE_TIERS[0]
+    ) -> CostSummary:
+        """Return timber, mesh and hardware together, with every gap named.
+
+        Parameters
+        ----------
+        parts : list[CutPart]
+            The extracted cut list.
+        tier : str, optional
+            Hardware tier to price; see :data:`HARDWARE_TIERS`.
+        """
         summary = self.plan(parts).cost_summary
         mesh = self.mesh_plan(parts)
-        return summary if mesh is None else summary + mesh.cost_summary
+        if mesh is not None:
+            summary = summary + mesh.cost_summary
+        return summary + self.hardware(parts, tier).cost_summary
 
     # ------------------------------------------------------------------
     # Checks
@@ -1683,6 +2009,7 @@ class CedarFence:
         report.extend(self._check_posts())
         report.extend(self._check_gates(parts))
         report.extend(self._check_fasteners())
+        report.extend(self._check_hardware(parts))
         report.extend(check_material_suitability(parts, self.inventory))
         return report
 
@@ -1914,10 +2241,10 @@ class CedarFence:
                         "price",
                         "the mesh carries no price, so every total this "
                         "project prints for it is timber only. It is a "
-                        "stocked retail product with published prices; the "
-                        "retail domains are blocked from this environment, so "
-                        "nothing could be read from a page and nothing was "
-                        "invented. One dated line in stock.yaml closes it",
+                        "stocked retail product with published prices, and "
+                        "one dated line in stock.yaml closes it — an "
+                        "undated figure read off a search result does not, "
+                        "which is why nothing here has been invented",
                     )
                 )
 
@@ -2307,7 +2634,6 @@ class CedarFence:
         width : float
             Width of one leaf, mm.
         """
-        n_leaves = len(self.gate_openings) * self.gate_leaves
         findings: list[Finding] = []
         findings.append(
             Finding(
@@ -2330,20 +2656,67 @@ class CedarFence:
                     "rattles",
                 )
             )
+        return findings
+
+    def _check_hardware(self, parts: list[CutPart]) -> list[Finding]:
+        """Report what the hardware costs and where buying it goes wrong.
+
+        Hardware used to be a single warning saying these things existed and
+        were in no total.  They are in the total now, so what is left to say
+        is the part a price list cannot: which package to buy, and how much
+        the wrong one costs.
+        """
+        findings: list[Finding] = []
+        cheap = self.hardware(parts, HARDWARE_TIERS[-1]).cost_summary.total
+        dear = self.hardware(parts, HARDWARE_TIERS[0]).cost_summary.total
+        if cheap is not None and dear is not None:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "hardware",
+                    f"hardware runs {format_money(cheap)} to "
+                    f"{format_money(dear)} depending on the tier, against "
+                    f"{len(self.gate_openings) * self.gate_leaves} gate "
+                    f"leaves and {len(self.posts())} post tops — not a "
+                    "rounding error on a fence this size. Nearly all of the "
+                    "swing is hinges, the one fitting here that carries a "
+                    "load rather than merely closing",
+                )
+            )
+        keg = hardware_stock(
+            self.inventory, 'fence staples, 9 ga, 1-3/4", knurled'
+        )
+        box = hardware_stock(
+            self.inventory, 'fence staples, 9 ga, 1-1/2", galvanised'
+        )
+        staples = next(
+            (ln for ln in self.hardware(parts).lines if "staples" in ln.label),
+            None,
+        )
+        if keg is not None and box is not None and staples is not None:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "hardware",
+                    f"buy staples by the {box.unit}, not the {keg.unit}: this "
+                    f"fence wants {staples.pieces}, which is "
+                    f"{staples.qty} {box.unit} at {format_money(box.price)}. "
+                    f"The {keg.unit} is {keg.count_per_unit:,} staples for "
+                    f"{format_money(keg.price)} — six times the money for a "
+                    "lifetime supply, and the big box stores do not stock "
+                    "kegs anyway",
+                )
+            )
+        yards = self.post_stone_cuyd()
         findings.append(
             Finding(
                 Severity.WARN,
                 "hardware",
-                "hinges, latch, drop rod, "
-                + (
-                    "and a keg of galvanised staples "
-                    if self.style == "log_and_mesh"
-                    else "rail brackets and ring-shank nails "
-                )
-                + "are not in stock.yaml and are not in any total this "
-                "project prints — budget them separately; on "
-                f"{n_leaves} leaves of {mm_to_fractional_inch(width)} the "
-                "hardware is not a rounding error",
+                f"{math.ceil(yards)} cu yd of stone is about "
+                f"{math.ceil(yards) * 2800:,} lb, which is at a half-ton "
+                "pickup's limit — two trips, a trailer, or pay the delivery "
+                "fee. Do not solve it with bags: half-cubic-foot bags work "
+                "out over six times the bulk rate for the same stone",
             )
         )
         return findings
@@ -2583,11 +2956,19 @@ class PanelOrder:
     unpriced: list[str] = field(default_factory=list)
     quoted: list[str] = field(default_factory=list)
     stock_used: list[Any] = field(default_factory=list)
+    priced: list[PriceLine] = field(default_factory=list)
 
     @property
     def cost_summary(self) -> CostSummary:
-        """A summary with nothing in it but the names of what it cannot price."""
-        return CostSummary.of((), self.unpriced)
+        """What the order can be priced at, and the names of what it cannot.
+
+        For a long time this could only ever be the second half: a panel
+        carries no published price, so a panel order totalled nothing at all.
+        The stone the posts stand in does carry one, and a summary that names
+        four unpriced panels beside one priced yard of stone is a truer
+        picture of the order than a summary that names only the panels.
+        """
+        return CostSummary.of(self.priced, self.unpriced)
 
     def to_text(self) -> str:
         """Render the order as the list you would email the yard."""
@@ -2595,6 +2976,8 @@ class PanelOrder:
             f"  {count:>3d} x {what:<52s} ({unit})"
             for what, count, unit in self.lines
         ]
+        for line in self.priced:
+            out.append(f"  {line.label:<52s} {line.to_text():>18s}")
         for label in self.quoted:
             out.append(f"  (?) {label}: custom, and the catalogue quotes it by email")
         for label in self.unpriced:
@@ -3309,8 +3692,27 @@ class PanelFence:
                 f"{len(self.gate_openings())} openings of "
                 f"{self.gate_section_ft:g} ft"
             )
+
+        # The panels are AVO's and the gates arrive hung, so a panel fence
+        # buys almost no hardware -- but the holes are the same holes. A post
+        # is set in stone here for the same reason it is on the stick-built
+        # fence, and the stone is the one line on this order with a price
+        # behind it.
+        priced: list[PriceLine] = []
+        yards = math.ceil(post_stone_cuyd(self.posts()))
+        stone = hardware_stock(self.inventory, '3/4" crushed, bulk')
+        lines.append((f"{stone.item if stone else 'crushed stone'}", yards, "cu yd"))
+        if stone is None or stone.price is None:
+            unpriced.append("crushed stone" if stone is None else stone.stock_label)
+        else:
+            stock_used.append(stone)
+            priced.append(stone.price_line(yards))
         return PanelOrder(
-            lines=lines, unpriced=unpriced, quoted=quoted, stock_used=stock_used
+            lines=lines,
+            unpriced=unpriced,
+            quoted=quoted,
+            stock_used=stock_used,
+            priced=priced,
         )
 
     # ------------------------------------------------------------------
@@ -4033,6 +4435,7 @@ def run(
     outdir: Path,
     gate_leaves: int = 2,
     assume_lengths_ft: list[float] | None = None,
+    hardware: str = HARDWARE_TIERS[0],
 ) -> CheckReport:
     """Build one fence, write its cut list and views, print the report.
 
@@ -4044,6 +4447,10 @@ def run(
         Directory for the generated CSV, Markdown, PNG and CAD files.
     gate_leaves : int, optional
         1 or 2, default 2.
+    hardware : str, optional
+        Which member of :data:`HARDWARE_TIERS` to price the hinges, latches
+        and caps at.  The other tier's total is printed beside it, because
+        the choice is worth more than most of the decisions above it.
     assume_lengths_ft : list[float], optional
         Stock lengths to lay a cut plan out against.  Nothing in
         ``stock.yaml`` says cedar comes in these lengths — that is the point
@@ -4082,11 +4489,19 @@ def run(
     if mesh is not None:
         print(f"\n-- mesh to buy {'-' * 63}")
         print(mesh.to_text())
-        print(f"\n  everything together: {fence.cost_summary(parts).to_text()}")
+
+    print(f"\n-- hardware to buy {'-' * 59}")
+    print(fence.hardware(parts, hardware).to_text())
+    other = [t for t in HARDWARE_TIERS if t != hardware]
+    for tier in other:
+        swing = fence.hardware(parts, tier).cost_summary.total
+        if swing is not None:
+            print(f"\n  the {tier} tier of the same list: {format_money(swing)}")
+    print(f"\n  everything together: {fence.cost_summary(parts, hardware).to_text()}")
 
     print(f"\n-- prices {'-' * 68}")
     print(fence.check_prices(plan, mesh).to_text())
-    total = fence.cost_summary(parts).total
+    total = fence.cost_summary(parts, hardware).total
     if total is not None:
         print(f"      {discount_note(total, fence.inventory)}")
 
@@ -4295,7 +4710,7 @@ def compare_designs() -> str:
     out.append("THE THREE DESIGNS — 38 ft at 4 ft, plus two 10 ft gate sections")
     out.append(
         f"  {'design':<30s}{'bd ft':>7s}{'pieces':>10s}{'posts':>7s}"
-        f"{'catalogue':>11s}   wood at guide rates"
+        f"{'wood at guide rates':>21s}{'hardware':>16s}"
     )
     for key, (name, factory, _summary) in DESIGNS.items():
         fence = factory()
@@ -4312,9 +4727,28 @@ def compare_designs() -> str:
         if isinstance(fence, PanelFence):
             pieces = f"{len(fence.panels())} panels"
             mark, _notes = benchmark(fence)
+            # A panel fence buys almost no hardware: the gates arrive hung
+            # and the caps are AVO's. What is left is the stone the posts
+            # stand in, which is the same stone either way.
+            metal = fence.order().cost_summary
+            gear = (
+                format_money(metal.total) if metal.total is not None else "unpriced"
+            )
         else:
             pieces = f"{len(fence.spans()) - len(fence.gate_openings)} bays"
-            mark = fence.cost_summary(parts)
+            mark = fence.plan(parts).cost_summary
+            mesh = fence.mesh_plan(parts)
+            spread = []
+            for tier in (HARDWARE_TIERS[-1], HARDWARE_TIERS[0]):
+                total = fence.hardware(parts, tier).cost_summary
+                if mesh is not None:
+                    total = total + mesh.cost_summary
+                spread.append(total.total)
+            gear = (
+                "unpriced"
+                if None in spread
+                else f"{format_money(spread[0])}–{format_money(spread[1])}"
+            )
         floor = (
             format_money(mark.total) if mark.total is not None else "unpriced"
         )
@@ -4322,18 +4756,22 @@ def compare_designs() -> str:
             floor += "+"
         out.append(
             f"  {name:<30s}{board_feet:>7.0f}{pieces:>10s}"
-            f"{len(fence.posts()):>7d}{'unpriced':>11s}   {floor}"
+            f"{len(fence.posts()):>7d}{floor:>21s}{gear:>16s}"
         )
 
     out.append("")
     out.append(
-        "Nothing in the catalogue column is a price, because the catalogue "
-        "does not publish one:\nthe panels, the posts, the caps and the mesh "
-        "are all recorded with their sizes and no\nmoney. The right-hand "
-        "column is the *wood*, priced as the nearest sticks on the sawn\n"
-        "guide, and it is a floor: a panel also buys milling, assembly, "
-        "stainless nails and\ndelivery, and every gate in all three is quoted "
-        "by email rather than priced at all."
+        "The wood column is a floor, not a quote. The catalogue publishes no "
+        "price for any of\nthe three — the panels, the posts and the caps are "
+        "all recorded with their sizes and\nno money — so that column prices "
+        "the *wood* as the nearest sticks on the sawn guide.\nA panel also "
+        "buys milling, assembly, stainless nails and delivery.\n\n"
+        "The hardware column is real money at real SKUs. The panels\' is the "
+        "stone their posts\nstand in and nothing else, because an AVO gate "
+        "arrives hung and its caps come with\nthe posts. The post-and-rail "
+        "range is the budget tier to the heavy-duty one, mesh\nincluded; the "
+        "spread is almost entirely hinges. Every gate in all three designs "
+        "is\nquoted by email rather than priced at all."
     )
     out.append("")
     out.append("FOR REFERENCE — the same run built from sticks, which the guide does price")
@@ -4356,8 +4794,10 @@ def compare_designs() -> str:
             f"{len(fence.posts()):>7d}{total:>11s}"
         )
     out.append(
-        "  ...excluding hardware, stone and labour, and cut on site rather "
-        "than delivered."
+        "  ...wood at the guide's rates plus heavy-duty hardware and a yard "
+        "of stone, cut on\n  site rather than delivered, and excluding "
+        "labour. These are the only two figures on\n  this page that are a "
+        "whole fence rather than a part of one."
     )
     return "\n".join(out)
 
@@ -4391,7 +4831,9 @@ def compare(styles: tuple[str, ...] = STYLES) -> str:
     return "\n".join(rows)
 
 
-def run_design(key: str, outdir: Path) -> CheckReport:
+def run_design(
+    key: str, outdir: Path, hardware: str = HARDWARE_TIERS[0]
+) -> CheckReport:
     """Build one of the three designs and write everything it produces.
 
     Parameters
@@ -4400,6 +4842,9 @@ def run_design(key: str, outdir: Path) -> CheckReport:
         A key of :data:`DESIGNS`.
     outdir : Path
         Directory for the generated files.
+    hardware : str, optional
+        Hardware tier to price; see :data:`HARDWARE_TIERS`.  Ignored by the
+        panel designs, whose gates arrive hung and whose caps are AVO's.
 
     Returns
     -------
@@ -4410,7 +4855,7 @@ def run_design(key: str, outdir: Path) -> CheckReport:
     fence = factory()
     if isinstance(fence, PanelFence):
         return run_panels(fence.style, outdir)
-    return run(fence.style, outdir)
+    return run(fence.style, outdir, hardware=hardware)
 
 
 def run_panels(style: str, outdir: Path, height_ft: float = 4.0) -> CheckReport:
@@ -4681,7 +5126,10 @@ def _design_spec(key: str) -> ProjectSpec:
             "One of the three systems The Lumbery stocks, read from their "
             "catalogue on 2026-08-18. 38 ft of fence at 4 ft, plus two 10 ft "
             "gate sections — and the gates are custom in every one of them, "
-            "which the catalogue quotes by email rather than pricing online."
+            "which the catalogue quotes by email rather than pricing online. "
+            "The money below is hardware, mesh and stone at big-box SKUs "
+            "relayed on 2026-08-18; the cedar itself carries no published "
+            "price and is named as missing rather than left out quietly."
         ),
         tags=["outdoor", "fence", "cedar"],
     )
@@ -4722,6 +5170,13 @@ def main() -> None:
     )
     parser.add_argument("--outdir", type=Path, default=Path("build"))
     parser.add_argument("--gate-leaves", type=int, choices=[1, 2], default=2)
+    parser.add_argument(
+        "--hardware",
+        choices=[*HARDWARE_TIERS],
+        default=HARDWARE_TIERS[0],
+        help="which tier of hinges, latches and caps to price; the other "
+        "tier's total is printed beside it either way",
+    )
     parser.add_argument(
         "--assume-lengths",
         type=str,
@@ -4784,7 +5239,7 @@ def main() -> None:
     if args.design:
         keys = tuple(DESIGNS) if args.design == "all" else (args.design,)
         for key in keys:
-            run_design(key, args.outdir)
+            run_design(key, args.outdir, hardware=args.hardware)
         return
 
     if args.panels:
@@ -4796,7 +5251,13 @@ def main() -> None:
     lengths = [float(v) for v in args.assume_lengths.split(",") if v.strip()]
     styles = STYLES if args.style == "all" else (args.style,)
     for style in styles:
-        run(style, args.outdir, gate_leaves=args.gate_leaves, assume_lengths_ft=lengths)
+        run(
+            style,
+            args.outdir,
+            gate_leaves=args.gate_leaves,
+            assume_lengths_ft=lengths,
+            hardware=args.hardware,
+        )
 
 
 if __name__ == "__main__":
