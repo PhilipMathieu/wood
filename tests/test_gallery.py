@@ -442,3 +442,11 @@ def test_the_page_lists_pieces_and_says_nothing_is_cut(panels, tmp_path):
     assert "4 panels:" in page or "4 panel" in page
     assert "Nothing in this design is cut" in page or "nothing in this design" in page.lower()
     assert "lineal ft" not in page
+
+
+def test_a_supplier_unit_is_not_naively_pluralised(panels, tmp_path):
+    """"9 eachs" is what a naive pluraliser does to a catalogue's own unit."""
+    build_gallery([panels], outdir=tmp_path)
+    page = (tmp_path / panels.slug / "index.html").read_text(encoding="utf-8")
+    assert "eachs" not in page
+    assert "9 each:" in page

@@ -679,7 +679,7 @@ def _card_stats(built: ProjectBuild, show_costs: bool) -> str:
         for _what, count, unit in built.order.lines:
             counts[unit] = counts.get(unit, 0) + count
         for unit, count in counts.items():
-            stats.append(f"{count} {unit}{'' if count == 1 else 's'}")
+            stats.append(f"{count} {_plural(unit, count)}")
     elif built.lineal is not None and built.lineal_ft:
         stats.append(f"{built.lineal_ft:.0f} lineal ft {built.spec.species}")
     elif built.board_feet:
@@ -940,14 +940,28 @@ def _render_cut_table(parts: list[CutPart]) -> str:
     return f'<div class="scroll">{table}</div>'
 
 
+#: Units of sale that are already plural, or never take an s.
+_UNCOUNTABLE_UNITS: frozenset[str] = frozenset({"each", "ea", "lineal ft", "bd ft"})
+
+
+def _plural(unit: str, count: int) -> str:
+    """Pluralise a unit of sale, leaving the ones that do not take an s alone.
+
+    "9 eachs" is what happens when a supplier's own unit meets a naive
+    pluraliser.
+    """
+    if count == 1 or unit in _UNCOUNTABLE_UNITS:
+        return unit
+    return f"{unit}s"
+
+
 def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
     """Render the buying summary: board feet, sheets, or a list of pieces."""
     rows: list[str] = []
     if built.order is not None:
         for what, count, unit in built.order.lines:
-            plural = "" if count == 1 else "s"
             rows.append(
-                f"<li>{count} {html.escape(unit)}{plural}: "
+                f"<li>{count} {html.escape(_plural(unit, count))}: "
                 f"{html.escape(what)}</li>"
             )
         for label in getattr(built.order, "quoted", ()):
