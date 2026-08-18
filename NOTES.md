@@ -1047,3 +1047,89 @@ length is chosen for racking and looks, not for sag.
   fasteners by the box, and the schema has neither unit.
 - **The lengths.** One phone call to Lumbery on (207) 835-7023 turns this
   buying list into a cut list. Until then the `WARN` stays.
+
+## Addendum: every variant on the sheet, and the two that had no unit
+
+The fence was built on four entries out of a price list with thirty-four lines
+on it. Pricing the other thirty asked three things of the file, and the third
+one is the interesting one.
+
+### The missing prices were the ones nobody could model
+
+`stock.yaml` held every cedar line Lumbery prices **by the foot** and none of
+the ones priced any other way: three grades of 3/8" shakes at $155, $85 and $20
+a bundle, and 4x8 lattice at $250 a sheet. They were left out deliberately —
+"a bundle is not a unit this schema has" — and the effect was perverse. The
+only prices absent from a complete price list were the two nobody could reason
+about, which is the opposite of the rule this file exists to enforce: record
+what is known, and record what is missing *as missing*.
+
+`UnitStock` is the fix, and it is deliberately dumb. It holds a species, an
+item, a unit, and a price; `coverage_sqft` and `thickness_in` default to
+``None`` and stay there, because the guide says nothing about either. A bundle
+of shakes covers whatever the exposure it is laid at makes it cover, and the
+lattice thickness is simply not published — which is why lattice is not a
+`SheetStock`: nothing could check whether it fits a groove.
+
+### A discount is a property of the order, not of a board
+
+The volume tiers — 5% over $5,000, 10% over $7,500, 15% over $10,000 — had
+been a comment for the same reason: there is nowhere on a stock entry to put
+them, because 15% off changes every line at once or none of them. They now live
+under `suppliers`, with the yard's phone number beside them, and
+`Supplier.discount_for` answers the question a total actually raises. The fence
+prints it: *$2,269 is below Lumbery's first volume tier: 5% starts at $5,000,
+$2,731 away.* Which is worth knowing before somebody adds a third gate.
+
+### What a board covers is a third width
+
+Half the guide is milled — tongue and groove, shiplap, nickel gap, drop siding,
+clapboard — and a milled board has three widths, not one: what it **measures**
+(5-1/2" for a 1x6), what it **covers** once the tongue is inside its neighbour
+(about 5-1/8"), and the **nominal** size it is ordered by. A layout that uses
+the wrong one is out by a board in forty.
+
+`Board(covers_mm=...)` models the part at what it covers and remembers the face
+as `face_width_mm`, and the cut list grew a `stock` column so a row reading
+5-1/8" wide still says *1x6 tongue & groove, dressed (STK)* — otherwise a shop
+goes looking for 5-1/8" boards nobody sells.
+
+**Every coverage figure in this repository is assumed.** Lumbery prices twelve
+milled profiles and publishes the coverage of none, because what a board shows
+is set by the moulder that cut it. `ASSUMED_COVERAGE_IN` holds the
+industry-standard figures, in the project rather than in `stock.yaml`, and any
+fence built on them gets a `WARN` naming the number and saying to measure a
+sample. The clapboard is worse still: it is tapered, so its coverage is the
+*exposure* the person nailing it up chooses. 4" is a convention, not a fact.
+
+### Interlocking stock cannot be spaced or lapped
+
+A tongue and groove picket fence has no gaps to set — the boards butt, and the
+remainder cannot be spread across forty joints, so the last board in each
+stretch is ripped narrow. That is how the stuff is laid, and the rip is now a
+row in the cut list with a note rather than a surprise on site. Board-on-board
+in tongue and groove is refused outright at construction: there is nothing to
+lap over.
+
+### The answer
+
+`--variants` prices the same 58 ft of fence in every cedar Lumbery stocks:
+
+```
+1x6 rough sawn (low)                     $1.30/LF     $1,708
+1x6 tongue & groove, dressed (low)       $1.45/LF     $1,786   butts solid
+1x8 dressed (low)                        $2.20/LF     $1,973
+1x6 rough sawn (STK)                     $2.30/LF     $2,269   ← the default
+1x6 tongue & groove, dressed (STK)       $3.60/LF     $2,983
+5/4x4 eased edge decking (STK)           $2.25/LF     $3,540
+```
+
+Twenty-two infill variants, four rail variants, three post variants, and a
+list of what the yard sells that this fence cannot use — the 2 ft cutoff, the
+shakes, the lattice — each with the reason. A catalogue that silently dropped
+what it could not handle would read exactly like a catalogue of everything
+available, which is the same failure as an undated price.
+
+The cheapest way to build this fence is 2.1x cheaper than the dearest, and
+every number in that range is real and dated. What is *not* in any of them is
+still the same list: hardware, stone, labour, and the lengths.

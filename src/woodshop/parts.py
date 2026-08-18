@@ -159,6 +159,11 @@ class _StockMeta:
     #: nominal size and very different prices apart.
     stock_profile: str = ""
 
+    #: What the stock measures across its face.  Differs from the part's
+    #: width only for milled stock, where part of the face is a tongue hidden
+    #: in the next board.  ``0.0`` until a part sets it.
+    face_width_mm: float = 0.0
+
     def _record(
         self,
         *,
@@ -379,6 +384,14 @@ class Board(StockPart):
         Size the part from the *rough sawn* table rather than the dressed one:
         a rough 1x6 is about a full 1" x 6" where the dressed board of that
         name is 3/4" x 5-1/2".  Only meaningful with ``nominal``.
+    covers_mm : float, optional
+        What one board *covers* when it is butted to its neighbour, for milled
+        stock where that is less than what it measures.  A 1x6 tongue and
+        groove board is 5-1/2" wide and shows about 5-1/8": the rest is the
+        tongue, and it lives inside the next board.  The part is modelled and
+        laid out at the covering width — a solid drawn at the full face would
+        interpenetrate its neighbour — while ``face_width_mm`` records what it
+        measures and ``nominal`` records what to buy.  Requires ``nominal``.
     grade : str, optional
         Grade the part is specified in, as the supplier names it, e.g.
         ``"STK"``.
@@ -394,7 +407,8 @@ class Board(StockPart):
     ------
     ValueError
         If ``nominal`` is combined with explicit dimensions, if neither is
-        supplied, or if ``rough`` is set without a ``nominal`` to look up.
+        supplied, if ``rough`` is set without a ``nominal`` to look up, or if
+        ``covers_mm`` is not a positive width no greater than the face.
 
     Notes
     -----
@@ -414,6 +428,10 @@ class Board(StockPart):
     ...                material="white_cedar", label="picket")
     >>> round(picket.width_mm, 1), round(picket.thickness_mm, 1)
     (152.4, 25.4)
+    >>> tg = Board(length_mm=1219.2, nominal="1x6", covers_mm=130.2,
+    ...            material="white_cedar", label="board")
+    >>> round(tg.width_mm, 1), round(tg.face_width_mm, 1)
+    (130.2, 139.7)
     """
 
     def __init__(
@@ -426,6 +444,7 @@ class Board(StockPart):
         thickness_mm: float | None = None,
         width_mm: float | None = None,
         rough: bool = False,
+        covers_mm: float | None = None,
         grade: str = "",
         stock_profile: str = "",
         **kwargs: Any,
@@ -450,6 +469,20 @@ class Board(StockPart):
                 "needs nominal= rather than explicit dimensions"
             )
 
+        face_width_mm = width_mm
+        if covers_mm is not None:
+            if nominal is None:
+                raise ValueError(
+                    f"{label!r}: covers_mm describes a milled nominal size, so "
+                    "it needs nominal= rather than explicit dimensions"
+                )
+            if covers_mm <= 0 or covers_mm > width_mm + 1e-9:
+                raise ValueError(
+                    f"{label!r}: covers_mm must be positive and no wider than "
+                    f"the {width_mm:.1f} mm face, got {covers_mm!r}"
+                )
+            width_mm = float(covers_mm)
+
         super().__init__(
             length_mm=length_mm,
             width_mm=width_mm,
@@ -461,6 +494,9 @@ class Board(StockPart):
         self.nominal = nominal or ""
         self.grade = grade
         self.stock_profile = stock_profile or ("rough sawn" if rough else "")
+        #: What the board measures across its face, which is what it is sold
+        #: as.  Equal to ``width_mm`` unless the stock is milled to interlock.
+        self.face_width_mm = float(face_width_mm)
 
 
 class Panel(StockPart):
@@ -944,6 +980,7 @@ _METADATA_ATTRS: tuple[str, ...] = (
     "nominal",
     "grade",
     "stock_profile",
+    "face_width_mm",
 )
 
 

@@ -54,7 +54,8 @@ uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
 uv run python projects/cedar_fence.py --style all --outdir build
-uv run python projects/cedar_fence.py --compare
+uv run python projects/cedar_fence.py --compare     # the three styles, priced
+uv run python projects/cedar_fence.py --variants    # every cedar Lumbery stocks
 ```
 
 That writes to `build/`:
@@ -116,7 +117,7 @@ parts (`Disc`, `Turning`) are built about the **lathe axis, which runs along
 with its **height** along X, because that is the way the grain runs. Cut dimensions are stored on the part rather than measured back off its
 bounding box, so they survive being placed.
 
-### Rough sawn versus dressed
+### Rough sawn versus dressed, and what a board covers
 
 `NOMINAL_TO_ACTUAL` holds *dressed* sizes: a 1x6 is 3/4" x 5-1/2". Rough sawn
 stock is close to full dimension, and half of Lumbery's cedar list is rough
@@ -124,6 +125,16 @@ sawn, so `rough_dimensions_mm` is the table that describes it — a rough 1x6 is
 about a full 1" x 6". `Board(..., rough=True)` sizes a part from it. Laid out
 from the dressed table a fence is 3/8" short in every bay and 1/4" thin in
 every board.
+
+Milled stock adds a third width. A 1x6 tongue-and-groove board is 5-1/2" across
+the face and shows about 5-1/8": the rest is the tongue, and it lives inside the
+next board. `Board(..., covers_mm=...)` models the part at what it **covers**,
+records what it **measures** as `face_width_mm`, and keeps buying it by its
+**nominal** size — three different numbers for one board, and a layout that uses
+the wrong one is out by a board in forty. What a profile covers is not published
+by anybody, so the assumption lives in the project that makes it
+(`cedar_fence.ASSUMED_COVERAGE_IN`) and every design that uses it gets a `WARN`
+naming the number.
 
 ### Stock size versus finished size
 
@@ -265,12 +276,28 @@ total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
 
 | Stock | Prices | Source |
 | --- | --- | --- |
-| white cedar (28 profiles/grades) | **real** shelf prices, per lineal foot | [Lumbery's pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
+| white cedar — all 34 lines of the guide: 30 board profiles/grades, 3 shake grades, lattice | **real** shelf prices, per lineal foot, per piece, per bundle and per sheet | [Lumbery's pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
 | cherry 6/4, red oak 4/4, white oak 5/4 and 8/4, 6 mm Baltic birch | **real** but on **sale** to 2026-08-31 | [O'Brien Hardwoods August specials](https://obrienhardwoods.com/specials) |
 | walnut 4/4 shorts | **real**, a standing special | [Atlantic Hardwoods specials](https://www.atlantichardwoods.com/specials) |
 | cherry 4/4, 5/4, 8/4, 10/4 | placeholder, undated | neither yard publishes a full list — needs a call |
 | cherry and Baltic birch plywood | placeholder, undated | as above |
 | birch plywood, pine, poplar | no price | — |
+
+Three kinds of entry, because a price sheet has more than one kind of unit.
+`dimensional` holds anything sold by the foot or the stick; `unit_goods` holds
+what is sold by the item — a bundle of shakes, a lattice panel — where the
+supplier prices the thing and publishes no geometry for it, and those entries
+record the missing coverage and thickness *as missing*. `suppliers` holds what
+applies to the order rather than to any board in it: the yard's phone number and
+its volume-discount tiers, which change every line at once or none of them.
+
+```
+uv run python projects/cedar_fence.py --variants
+```
+
+prices the same 58 ft of fence in every cedar variant Lumbery stocks — $1,708 in
+low-grade rough 1x6 up to $3,540 in 5/4x4 decking — and lists what the guide
+sells that a fence cannot use, with the reason.
 
 `projects/cedar_fence.py` is the project built entirely on the real ones: every
 line of its total is dated, and the same guide that prices the stock publishes

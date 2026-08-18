@@ -290,3 +290,70 @@ def test_dimensional_for_matches_a_size_with_only_one_entry(inv):
     stock = inv.dimensional_for("white_cedar", "6x6")
     assert stock.nominal == "6x6"
     assert stock.price == pytest.approx(9.45)
+
+
+# ---------------------------------------------------------------------------
+# Stock sold by the item, and terms that apply to the order
+# ---------------------------------------------------------------------------
+
+
+def test_the_whole_lumbery_guide_is_recorded(inv):
+    """Shakes and lattice were the only prices missing, for want of a unit."""
+    labels = {u.stock_label for u in inv.unit_goods_for("white_cedar")}
+    assert labels == {
+        'white_cedar shakes 3/8" (clear)',
+        'white_cedar shakes 3/8" (wall)',
+        'white_cedar shakes 3/8" (low)',
+        "white_cedar lattice, square grids 4x8",
+    }
+
+
+def test_a_bundle_price_carries_its_unit_and_its_date(inv):
+    shakes = next(
+        u for u in inv.unit_goods if u.grade == "clear" and "shakes" in u.item
+    )
+    assert shakes.price == pytest.approx(155.00)
+    assert shakes.price_unit == "bundle"
+    assert shakes.price_is_verified
+    assert shakes.price_line(3).amount == pytest.approx(465.00)
+
+
+def test_what_the_guide_does_not_publish_stays_unpublished(inv):
+    """A missing coverage is recorded as missing, never as a guess."""
+    for entry in inv.unit_goods_for("white_cedar"):
+        assert entry.coverage_sqft is None
+        assert entry.thickness_in is None
+
+
+def test_unit_goods_are_audited_like_every_other_price(inv):
+    assert all(u in inv.all_stock() for u in inv.unit_goods)
+
+
+def test_volume_discounts_are_data_rather_than_a_comment(inv):
+    lumbery = inv.supplier("Lumbery")
+    assert [t.percent for t in lumbery.volume_discounts] == [5, 10, 15]
+    assert lumbery.phone == "(207) 835-7023"
+
+
+def test_a_discount_is_a_property_of_the_order(inv):
+    lumbery = inv.supplier("Lumbery")
+    assert lumbery.discount_for(2_269) is None
+    assert lumbery.discount_for(5_000).percent == 5
+    assert lumbery.discount_for(8_000).percent == 10
+    assert lumbery.discount_for(50_000).percent == 15
+
+
+def test_the_next_tier_is_what_a_quote_wants_to_say(inv):
+    lumbery = inv.supplier("Lumbery")
+    assert lumbery.next_tier(2_269).over == pytest.approx(5_000)
+    assert lumbery.next_tier(50_000) is None
+
+
+def test_a_yard_with_no_published_terms_has_none(inv):
+    assert inv.supplier("O'Brien Hardwoods").volume_discounts == []
+    assert inv.supplier("O'Brien Hardwoods").discount_for(100_000) is None
+
+
+def test_an_unknown_supplier_names_the_ones_there_are(inv):
+    with pytest.raises(KeyError, match="Lumbery"):
+        inv.supplier("Home Depot")

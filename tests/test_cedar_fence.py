@@ -15,10 +15,22 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "projects"))
 
-from cedar_fence import IN, STYLES, CedarFence  # noqa: E402
+from cedar_fence import (  # noqa: E402
+    ASSUMED_COVERAGE_IN,
+    IN,
+    STYLES,
+    CedarFence,
+    StockChoice,
+    catalogue,
+    discount_note,
+    price_variants,
+    style_for,
+    variants,
+)
 
 from woodshop.checks import Severity  # noqa: E402
 from woodshop.cutlist.extract import extract  # noqa: E402
+from woodshop.inventory import Inventory  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -347,3 +359,183 @@ def test_a_bay_too_long_for_the_style_is_a_warning():
     layout = [f for f in stretched.check(stretched.build(), parts).findings
               if f.code == "layout"]
     assert any(f.severity is Severity.WARN for f in layout)
+
+
+# ---------------------------------------------------------------------------
+# Choosing among everything Lumbery stocks
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def inv() -> Inventory:
+    return Inventory.load()
+
+
+def test_a_choice_sizes_itself_from_the_table_its_profile_lives_in():
+    rough = StockChoice("1x6", "STK", "rough sawn")
+    dressed = StockChoice("1x6", "STK", "dressed")
+    assert rough.width == pytest.approx(6 * IN)
+    assert dressed.width == pytest.approx(5.5 * IN)
+    assert rough.rough and not dressed.rough
+
+
+def test_a_square_edged_board_covers_what_it_measures():
+    plain = StockChoice("1x6", "STK", "rough sawn")
+    assert plain.covers == pytest.approx(plain.width)
+    assert not plain.milled
+
+
+def test_a_milled_board_covers_less_than_it_measures():
+    tg = StockChoice("1x6", "STK", "tongue & groove, dressed")
+    assert tg.milled
+    assert tg.covers < tg.width
+    assert tg.covers == pytest.approx(ASSUMED_COVERAGE_IN[("1x6", tg.profile)] * IN)
+
+
+def test_every_choice_resolves_to_one_inventory_entry(inv):
+    for variant in variants(inv)[0]:
+        entry = variant.choice.entry(inv)
+        assert entry.price is not None
+        assert entry.price_is_verified
+
+
+def test_every_lumbery_cedar_entry_is_either_usable_or_explained(inv):
+    usable, unusable = variants(inv)
+    accounted = {v.choice.entry(inv).stock_label for v in usable}
+    accounted |= {label for label, _ in unusable}
+    everything = {
+        d.stock_label for d in inv.dimensional if d.species == "white_cedar"
+    } | {u.stock_label for u in inv.unit_goods if u.species == "white_cedar"}
+    assert accounted == everything
+
+
+def test_what_cannot_be_used_says_why(inv):
+    reasons = dict(variants(inv)[1])
+    assert "2 ft piece" in reasons["white_cedar 1x4 dressed cutoff (STK)"]
+    assert "bundle" in reasons['white_cedar shakes 3/8" (clear)']
+    assert "sheet" in reasons["white_cedar lattice, square grids 4x8"]
+
+
+# ---------------------------------------------------------------------------
+# Milled stock butts; it cannot be spaced or lapped
+# ---------------------------------------------------------------------------
+
+
+def test_tongue_and_groove_butts_and_rips_the_last_board():
+    fence = CedarFence(
+        style="picket", board=StockChoice("1x6", "STK", "tongue & groove, dressed")
+    )
+    group = fence.panel_groups()[0]
+    _, cover = fence.cover_of(group)
+    run = fence.board_run(cover, fence.target_gap)
+    assert run.gap == 0.0
+    assert run.last_width is not None and run.last_width < fence.board_w
+    assert (
+        run.full_boards * fence.board_w + run.last_width
+    ) == pytest.approx(cover)
+
+
+def test_the_ripped_board_reaches_the_cut_list_as_its_own_row():
+    fence = CedarFence(
+        style="picket", board=StockChoice("1x6", "STK", "tongue & groove, dressed")
+    )
+    parts = extract(fence.build())
+    widths = {round(p.width_mm, 1) for p in parts if p.label == "board"}
+    assert len(widths) > 1
+    ripped = [p for p in parts if p.label == "board" and "ripped" in p._extra["notes"]]
+    assert ripped
+
+
+def test_milled_stock_is_still_bought_by_the_board_it_comes_from():
+    fence = CedarFence(
+        style="picket", board=StockChoice("1x6", "STK", "tongue & groove, dressed")
+    )
+    plan = fence.plan(extract(fence.build()))
+    labels = [g.label for g in plan.groups]
+    assert "white_cedar 1x6 tongue & groove, dressed (STK)" in labels
+
+
+def test_the_assumed_coverage_is_flagged_every_time_it_is_used():
+    fence = CedarFence(
+        style="picket", board=StockChoice("1x6", "STK", "tongue & groove, dressed")
+    )
+    parts = extract(fence.build())
+    coverage = [
+        f for f in fence.check(fence.build(), parts).findings if f.code == "coverage"
+    ]
+    assert coverage and coverage[0].severity is Severity.WARN
+    assert "ASSUMED" in coverage[0].message
+
+
+def test_an_interlocking_board_cannot_be_laid_board_on_board():
+    with pytest.raises(ValueError, match="interlocks"):
+        CedarFence(
+            style="board_on_board",
+            board=StockChoice("1x6", "STK", "tongue & groove, dressed"),
+        )
+
+
+def test_the_catalogue_builds_it_as_a_picket_instead():
+    milled = StockChoice("1x6", "STK", "tongue & groove, dressed")
+    assert style_for(milled, "board_on_board") == "picket"
+    assert style_for(milled, "horizontal") == "horizontal"
+    assert style_for(StockChoice("1x6"), "board_on_board") == "board_on_board"
+
+
+# ---------------------------------------------------------------------------
+# Pricing every variant
+# ---------------------------------------------------------------------------
+
+
+def test_every_board_variant_builds_and_prices(inv):
+    rows = price_variants("board", inv)
+    assert len(rows) >= 20
+    for _variant, _fence, plan in rows:
+        assert plan.cost is not None
+        assert plan.cost_summary.verified
+        assert not plan.unmatched
+
+
+def test_low_grade_is_the_cheap_way_to_build_the_same_fence(inv):
+    rows = {v.choice.label: plan.cost for v, _f, plan in price_variants("board", inv)}
+    assert rows["1x6 rough sawn (low)"] < rows["1x6 rough sawn (STK)"]
+
+
+def test_rails_and_posts_are_priced_too(inv):
+    assert {v.choice.nominal for v, _f, _p in price_variants("rail", inv)} == {
+        "2x4", "2x6",
+    }
+    assert {v.choice.nominal for v, _f, _p in price_variants("post", inv)} == {
+        "4x4", "6x6",
+    }
+
+
+def test_the_catalogue_names_every_variant_and_what_it_costs(inv):
+    text = catalogue(inv)
+    assert "1x6 rough sawn (STK)" in text
+    assert "1x6 tongue & groove, dressed (low)" in text
+    assert "shakes" in text
+    assert "$/LF" in text
+    assert "2026-08-17" in text
+
+
+# ---------------------------------------------------------------------------
+# Terms that apply to the order rather than the board
+# ---------------------------------------------------------------------------
+
+
+def test_a_fence_this_size_misses_the_first_volume_tier(inv):
+    note = discount_note(2_269, inv)
+    assert "below" in note
+    assert "$5,000" in note
+
+
+def test_a_bigger_order_says_what_it_saves(inv):
+    note = discount_note(8_000, inv)
+    assert "10% tier" in note
+    assert "$7,200" in note      # 8,000 less 10%
+    assert "$10,000" in note     # and what the next tier would need
+
+
+def test_a_yard_with_no_terms_says_so(inv):
+    assert "no volume discount" in discount_note(9_999, inv, "O'Brien Hardwoods")

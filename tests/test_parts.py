@@ -322,3 +322,45 @@ def test_retag_carries_the_stock_metadata_through_a_boolean():
     assert notched.nominal == "1x6"
     assert notched.grade == "STK"
     assert notched.stock_profile == "rough sawn"
+
+
+# ---------------------------------------------------------------------------
+# Milled stock covers less than it measures
+# ---------------------------------------------------------------------------
+
+
+def test_a_milled_board_is_modelled_at_what_it_covers():
+    board = Board(
+        length_mm=1168.4, nominal="1x6", covers_mm=130.2, grade="STK",
+        stock_profile="tongue & groove, dressed", material="white_cedar",
+        label="board",
+    )
+    assert board.width_mm == pytest.approx(130.2)
+    assert board.face_width_mm == pytest.approx(139.7)
+    assert board.bounding_box().size.Y == pytest.approx(130.2)
+
+
+def test_it_is_still_bought_by_its_nominal_size():
+    board = Board(
+        length_mm=1168.4, nominal="1x6", covers_mm=130.2, grade="STK",
+        stock_profile="tongue & groove, dressed", material="white_cedar",
+        label="board",
+    )
+    part = extract(board)[0]
+    assert part.stock_spec == "1x6 tongue & groove, dressed (STK)"
+
+
+def test_a_covering_width_wider_than_the_face_is_refused():
+    with pytest.raises(ValueError, match="no wider than"):
+        Board(
+            length_mm=1000.0, nominal="1x6", covers_mm=200.0,
+            material="white_cedar", label="board",
+        )
+
+
+def test_covers_without_a_nominal_size_is_refused():
+    with pytest.raises(ValueError, match="covers_mm"):
+        Board(
+            length_mm=1000.0, thickness_mm=19.0, width_mm=140.0, covers_mm=130.0,
+            material="white_cedar", label="board",
+        )

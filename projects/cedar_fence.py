@@ -78,6 +78,7 @@ import copy
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from build123d import Compound, Pos, Rotation
 
@@ -96,8 +97,13 @@ from woodshop.checks import (
 from woodshop.cutlist.dimensional import LinealPlan, plan_dimensional
 from woodshop.cutlist.extract import CutPart, extract
 from woodshop.inventory import Inventory
-from woodshop.lumber import mm_to_fractional_inch, rough_dimensions_mm
+from woodshop.lumber import (
+    actual_dimensions_mm,
+    mm_to_fractional_inch,
+    rough_dimensions_mm,
+)
 from woodshop.parts import Board
+from woodshop.pricing import format_money
 from woodshop.project import ProjectSpec
 from woodshop.render import export_assembly, render_assembly, render_cut_list
 
@@ -150,6 +156,136 @@ def inches(value: float) -> float:
         Length in mm.
     """
     return value * IN
+
+
+#: What a milled profile *covers* when it is butted to its neighbour, in
+#: inches, keyed by ``(nominal, profile)``.
+#:
+#: ASSUMED, every one of them.  Lumbery prices twelve milled profiles and
+#: publishes the coverage of none: what a tongue and groove board shows is set
+#: by how deep the groove is cut, and that is a property of the moulder rather
+#: than of the price list.  These are the industry-standard figures for stock
+#: of this nominal size, and a fence built on them is a fence whose board count
+#: is right to about one board in forty — worth having, and worth a finding
+#: that says where the number came from.
+#:
+#: A clapboard is the odd one out: it is tapered, and its coverage is the
+#: *exposure* the person nailing it up chooses, not a property of the board.
+#: 4" is a common exposure for a 6" clapboard and nothing more authoritative
+#: than that.
+ASSUMED_COVERAGE_IN: dict[tuple[str, str], float] = {
+    ("1x4", "tongue & groove, dressed"): 3.125,
+    ("1x6", "tongue & groove, dressed"): 5.125,
+    ("1x6", "nickel gap shiplap, dressed"): 5.125,
+    ("1x6", "shiplap (standard), dressed"): 5.125,
+    ("1x6", "drop siding, tongue & groove"): 5.125,
+    ("1x6", "clapboard"): 4.0,
+}
+
+
+@dataclass(frozen=True)
+class StockChoice:
+    """One inventory entry chosen for one role, and what it measures.
+
+    A fence is four material decisions — boards, rails, line posts, gate posts
+    — and each of them is a choice among entries that share a nominal size and
+    do not share a price.  This is the object that makes the choice explicit,
+    so that "the boards" can be rough sawn 1x6 in STK at $2.30/LF or dressed
+    1x6 tongue and groove at $3.60/LF without anything else in the model
+    caring which.
+
+    Parameters
+    ----------
+    nominal : str
+        Nominal size, e.g. ``"1x6"``.
+    grade : str, optional
+        Grade as the supplier names it, default ``"STK"``.
+    profile : str, optional
+        How the stock is worked, exactly as ``stock.yaml`` spells it, default
+        ``"rough sawn"``.
+
+    Raises
+    ------
+    ValueError
+        If the nominal size is not one this toolkit can size.
+    """
+
+    nominal: str
+    grade: str = "STK"
+    profile: str = "rough sawn"
+
+    @property
+    def rough(self) -> bool:
+        """``True`` if this is rough sawn stock, and therefore full dimension."""
+        return "rough sawn" in self.profile
+
+    @property
+    def thickness(self) -> float:
+        """Thickness, mm."""
+        return self._dims()[0]
+
+    @property
+    def width(self) -> float:
+        """Width across the face — what the board measures, mm."""
+        return self._dims()[1]
+
+    @property
+    def milled(self) -> bool:
+        """``True`` if the face is worked so that it covers less than it measures."""
+        return (self.nominal, self.profile) in ASSUMED_COVERAGE_IN
+
+    @property
+    def covers(self) -> float:
+        """Width one board covers when butted to its neighbour, mm.
+
+        The same as :attr:`width` for a square-edged board.  Less for anything
+        milled to interlock, and that difference is assumed rather than
+        published — see :data:`ASSUMED_COVERAGE_IN`.
+        """
+        assumed = ASSUMED_COVERAGE_IN.get((self.nominal, self.profile))
+        return self.width if assumed is None else inches(assumed)
+
+    @property
+    def label(self) -> str:
+        """Name this choice the way ``stock.yaml`` names the entry."""
+        label = f"{self.nominal} {self.profile}" if self.profile else self.nominal
+        return f"{label} ({self.grade})" if self.grade else label
+
+    def entry(self, inventory: Inventory, species: str = "white_cedar"):
+        """Return the :class:`~woodshop.inventory.DimensionalStock` this buys.
+
+        Parameters
+        ----------
+        inventory : Inventory
+            Stock to look it up in.
+        species : str, optional
+            Species, default ``"white_cedar"``.
+
+        Returns
+        -------
+        DimensionalStock
+            The one matching entry.
+
+        Raises
+        ------
+        KeyError
+            If nothing matches, or if more than one entry does.
+        """
+        return inventory.dimensional_for(
+            species, self.nominal, grade=self.grade or None, profile=self.profile or None
+        )
+
+    def _dims(self) -> tuple[float, float]:
+        """Return (thickness, width) in mm, from the table this profile lives in."""
+        sizes = rough_dimensions_mm if self.rough else actual_dimensions_mm
+        try:
+            thickness, width = sizes(self.nominal)
+        except KeyError as exc:
+            raise ValueError(
+                f"{self.nominal!r} is not a size this toolkit can dress; add it "
+                "to lumber.NOMINAL_TO_ACTUAL or specify rough sawn stock"
+            ) from exc
+        return float(thickness.magnitude), float(width.magnitude)
 
 
 @dataclass(frozen=True)
@@ -212,14 +348,25 @@ class BoardRun:
     count : int
         Boards in the row.
     gap : float
-        Gap between adjacent boards, mm.
+        Gap between adjacent boards, mm.  Zero for stock milled to interlock,
+        which has no gap to set.
     cover : float
         Length the row spans, mm.
+    last_width : float or None
+        Width the final board is ripped to, mm, where the row cannot be made
+        of whole boards.  ``None`` when every board is full width, which is
+        the case whenever a gap exists to absorb the remainder.
     """
 
     count: int
     gap: float
     cover: float
+    last_width: float | None = None
+
+    @property
+    def full_boards(self) -> int:
+        """Boards in the row that are not ripped."""
+        return self.count - 1 if self.last_width is not None else self.count
 
 
 @dataclass
@@ -267,14 +414,13 @@ class CedarFence:
         ``board_on_board`` style, default 1.
     horizontal_gap_in : float, optional
         Target gap between courses in the ``horizontal`` style, default 0.5.
-    board_nominal, rail_nominal, post_nominal, gate_post_nominal : str, optional
-        Nominal stock sizes, default ``"1x6"``, ``"2x4"``, ``"4x4"``,
-        ``"6x6"``.
-    grade, stock_profile : str, optional
-        The grade and profile every part is specified in, default ``"STK"``
-        and ``"rough sawn"``.  These are not decoration: rough sawn 1x6 in STK
-        is $2.30/LF and the same board in low grade is $1.30, so a design that
-        does not name them cannot be priced to better than 77%.
+    board, rail, post, gate_post : StockChoice, optional
+        Which inventory entry fills each role, default rough sawn STK in
+        1x6, 2x4, 4x4 and 6x6.  A choice names a grade and a profile as well
+        as a size, and that is not decoration: rough sawn 1x6 in STK is
+        $2.30/LF and the same board in low grade is $1.30, so a design that
+        does not name them cannot be priced to better than 77%.  See
+        :func:`board_variants` for every entry that will serve.
     species : str, optional
         Species, default ``"white_cedar"``.
     inventory : Inventory, optional
@@ -306,12 +452,10 @@ class CedarFence:
     horizontal_gap_in: float = 0.5
     hinge_gap_in: float = 0.375
     leaf_gap_in: float = 0.75
-    board_nominal: str = "1x6"
-    rail_nominal: str = "2x4"
-    post_nominal: str = "4x4"
-    gate_post_nominal: str = "6x6"
-    grade: str = "STK"
-    stock_profile: str = "rough sawn"
+    board: StockChoice = field(default_factory=lambda: StockChoice("1x6"))
+    rail: StockChoice = field(default_factory=lambda: StockChoice("2x4"))
+    post: StockChoice = field(default_factory=lambda: StockChoice("4x4"))
+    gate_post: StockChoice = field(default_factory=lambda: StockChoice("6x6"))
     species: str = "white_cedar"
     inventory: Inventory = field(default_factory=Inventory.load)
 
@@ -323,6 +467,13 @@ class CedarFence:
             raise ValueError(
                 f"gate_leaves must be 1 or 2, got {self.gate_leaves!r}: a gate "
                 "with three leaves is a folding screen"
+            )
+        if self.board.milled and self.style == "board_on_board":
+            raise ValueError(
+                f"{self.board.label} interlocks, so it cannot be laid board on "
+                "board — there is nothing to lap over, and the second course "
+                "would have no gap to cover; use picket, which butts milled "
+                "stock into a solid fence, or horizontal"
             )
         if self.gate_leaves == 1 and inches(self.walk_gate_in) >= self.gate_section:
             raise ValueError(
@@ -340,32 +491,37 @@ class CedarFence:
     @property
     def board_t(self) -> float:
         """Board thickness, mm."""
-        return float(rough_dimensions_mm(self.board_nominal)[0].magnitude)
+        return self.board.thickness
 
     @property
     def board_w(self) -> float:
-        """Board width, mm."""
-        return float(rough_dimensions_mm(self.board_nominal)[1].magnitude)
+        """Width one board covers, mm.
+
+        What it *covers*, not what it measures, because that is the number the
+        layout runs on.  They differ only for stock milled to interlock, where
+        the tongue lives inside the next board.
+        """
+        return self.board.covers
 
     @property
     def rail_t(self) -> float:
         """Rail thickness, mm — across the fence."""
-        return float(rough_dimensions_mm(self.rail_nominal)[0].magnitude)
+        return self.rail.thickness
 
     @property
     def rail_w(self) -> float:
         """Rail width, mm — vertical, which is the dimension that carries."""
-        return float(rough_dimensions_mm(self.rail_nominal)[1].magnitude)
+        return self.rail.width
 
     @property
     def post_size(self) -> float:
         """Line post face dimension, mm."""
-        return float(rough_dimensions_mm(self.post_nominal)[1].magnitude)
+        return self.post.width
 
     @property
     def gate_post_size(self) -> float:
         """Gate post face dimension, mm."""
-        return float(rough_dimensions_mm(self.gate_post_nominal)[1].magnitude)
+        return self.gate_post.width
 
     # ------------------------------------------------------------------
     # Derived dimensions
@@ -494,7 +650,7 @@ class CedarFence:
                 PostPlan(
                     x=x,
                     nominal=(
-                        self.gate_post_nominal if is_gate_post else self.post_nominal
+                        self.gate_post.nominal if is_gate_post else self.post.nominal
                     ),
                     size=self.gate_post_size if is_gate_post else self.post_size,
                     embedment=inches(
@@ -590,7 +746,22 @@ class CedarFence:
             absorbs the remainder — which is why a fence laid out this way has
             no sliver at the end and a fence laid out by dividing the cover by
             a fixed pitch always does.
+
+            Milled stock is the exception, and it is not a gap problem: a
+            tongue and groove board has nowhere to put a remainder, so the
+            boards butt at their published coverage and the last one in each
+            stretch is ripped narrow.  That is how the stuff is laid, and the
+            rip is reported rather than hidden.
         """
+        if self.board.milled:
+            count = max(1, math.ceil(cover / self.board_w - 1e-9))
+            last = cover - (count - 1) * self.board_w
+            return BoardRun(
+                count=count,
+                gap=0.0,
+                cover=cover,
+                last_width=None if abs(last - self.board_w) < 0.5 else last,
+            )
         pitch = self.board_w + target_gap
         count = max(2, round((cover + target_gap) / pitch))
         gap = (cover - count * self.board_w) / (count - 1)
@@ -683,13 +854,31 @@ class CedarFence:
             children.extend(self._gate(span))
         return Compound(children=children, label=f"cedar_fence_{self.style}")
 
-    def _stock(self, **kwargs: object) -> dict[str, object]:
-        """Return the keyword arguments every part shares."""
+    def _stock(
+        self, choice: StockChoice, covers_mm: float | None = None, **kwargs: object
+    ) -> dict[str, object]:
+        """Return the keyword arguments a part cut from *choice* needs.
+
+        Parameters
+        ----------
+        choice : StockChoice
+            The entry this part is cut from.
+        covers_mm : float, optional
+            Override the covering width — used for the last board in a run of
+            milled stock, which is ripped narrow to finish the stretch.
+        **kwargs
+            Anything else to pass to :class:`~woodshop.parts.Board`.
+        """
+        covers = covers_mm
+        if covers is None and choice.milled:
+            covers = choice.covers
         return dict(
             material=self.species,
-            rough=self.stock_profile == "rough sawn",
-            grade=self.grade,
-            stock_profile=self.stock_profile,
+            nominal=choice.nominal,
+            rough=choice.rough,
+            grade=choice.grade,
+            stock_profile=choice.profile,
+            covers_mm=covers,
             **kwargs,
         )
 
@@ -697,9 +886,9 @@ class CedarFence:
         """Return every post, positioned with its front face on ``y = 0``."""
         out: list[object] = []
         for post in self.posts():
+            choice = self.gate_post if post.is_gate_post else self.post
             board = Board(
                 length_mm=post.length,
-                nominal=post.nominal,
                 label="gate_post" if post.is_gate_post else "line_post",
                 notes=(
                     f"{post.embedment / IN:.0f}\" in the ground, "
@@ -711,7 +900,7 @@ class CedarFence:
                         else ""
                     )
                 ),
-                **self._stock(),
+                **self._stock(choice),
             )
             z = post.length / 2 - post.embedment
             out.append(Pos(post.x, -post.size / 2, z) * UPRIGHT_POST * board)
@@ -734,19 +923,16 @@ class CedarFence:
         z = inches(self.ground_clearance_in) + self.board_length / 2
 
         for i in range(run.count):
-            x = x_start + self.board_w / 2 + i * pitch
+            width = self._board_width(run, i)
+            x = x_start + self._board_offset(run, i, pitch) + width / 2
             out.append(
                 Pos(x, self.board_t / 2, z)
                 * UPRIGHT
                 * Board(
                     length_mm=self.board_length,
-                    nominal=self.board_nominal,
                     label="board" if self.style == "picket" else "under_board",
-                    notes=(
-                        f"{mm_to_fractional_inch(run.gap, 32)} gap, "
-                        f"{self.ground_clearance_in:g}\" off the ground"
-                    ),
-                    **self._stock(),
+                    notes=self._board_note(run, i),
+                    **self._stock(self.board, covers_mm=width),
                 )
             )
         if self.style == "board_on_board":
@@ -757,17 +943,45 @@ class CedarFence:
                     * UPRIGHT
                     * Board(
                         length_mm=self.board_length,
-                        nominal=self.board_nominal,
                         label="over_board",
                         notes=(
                             "centred on the gap, lapping "
                             f"{mm_to_fractional_inch((self.board_w - run.gap) / 2, 32)}"
                             " each side"
                         ),
-                        **self._stock(),
+                        **self._stock(self.board),
                     )
                 )
         return out
+
+    def _board_width(self, run: BoardRun, index: int) -> float:
+        """Return the width of board *index* in *run*, ripped or full."""
+        if run.last_width is not None and index == run.count - 1:
+            return run.last_width
+        return self.board_w
+
+    def _board_offset(self, run: BoardRun, index: int, pitch: float) -> float:
+        """Return the distance from the start of the row to board *index*."""
+        return index * pitch
+
+    def _board_note(self, run: BoardRun, index: int) -> str:
+        """Return the cut-list note for board *index* in *run*."""
+        if run.last_width is not None and index == run.count - 1:
+            return (
+                "ripped to "
+                f"{mm_to_fractional_inch(run.last_width, 32)} to finish the "
+                "stretch — the tongue edge comes off, so plan it for the end "
+                "that meets a post"
+            )
+        if self.board.milled:
+            return (
+                f"butted, covering {mm_to_fractional_inch(self.board_w, 32)} "
+                f"of a {mm_to_fractional_inch(self.board.width)} face"
+            )
+        return (
+            f"{mm_to_fractional_inch(run.gap, 32)} gap, "
+            f"{self.ground_clearance_in:g}\" off the ground"
+        )
 
     def _rails(self, group: list[Span]) -> list[object]:
         """Return the two rails in each bay of *group*."""
@@ -783,14 +997,13 @@ class CedarFence:
                     * ALONG_RUN
                     * Board(
                         length_mm=length,
-                        nominal=self.rail_nominal,
                         label="rail",
                         notes=(
                             f"{where} rail, cut to fit between posts; hang it "
                             "on galvanised rail brackets or toe-screw it — end "
                             "grain holds no screw"
                         ),
-                        **self._stock(),
+                        **self._stock(self.rail),
                     )
                 )
         return out
@@ -815,20 +1028,19 @@ class CedarFence:
             x1 = self.edge_x(span.x1, is_left=False)
             length = x1 - x0
             for row in range(rows.count):
-                z = inches(self.ground_clearance_in) + self.board_w / 2 + row * pitch
+                width = self._board_width(rows, row)
+                z = inches(self.ground_clearance_in) + row * pitch + width / 2
                 out.append(
                     Pos((x0 + x1) / 2, self.board_t / 2, z)
                     * ALONG_RUN
                     * Board(
                         length_mm=length,
-                        nominal=self.board_nominal,
                         label="course",
                         notes=(
                             "spans one bay, joints centred on the posts; "
-                            f"{mm_to_fractional_inch(rows.gap, 32)} between "
-                            "courses"
+                            + self._board_note(rows, row)
                         ),
-                        **self._stock(),
+                        **self._stock(self.board, covers_mm=width),
                     )
                 )
         return out
@@ -865,10 +1077,9 @@ class CedarFence:
                 * UPRIGHT
                 * Board(
                     length_mm=height,
-                    nominal=self.rail_nominal,
                     label="gate_stile",
                     notes="hinge stile" if side == 0 else "latch stile",
-                    **self._stock(),
+                    **self._stock(self.rail),
                 )
             )
 
@@ -882,10 +1093,9 @@ class CedarFence:
                 * ALONG_RUN
                 * Board(
                     length_mm=rail_length,
-                    nominal=self.rail_nominal,
                     label="gate_rail",
                     notes=f"{where} rail, half-lapped into the stiles",
-                    **self._stock(),
+                    **self._stock(self.rail),
                 )
             )
 
@@ -901,14 +1111,13 @@ class CedarFence:
             * UPRIGHT
             * Board(
                 length_mm=brace_length,
-                nominal=self.rail_nominal,
                 label="gate_brace",
                 notes=(
                     f"{angle:.0f}° from horizontal, foot at the "
                     f"{'hinge' if hinged_left else 'latch'} side, in "
                     "compression; mitre both ends to the frame"
                 ),
-                **self._stock(),
+                **self._stock(self.rail),
             )
         )
 
@@ -924,19 +1133,19 @@ class CedarFence:
             rows = self.board_run(height, self.target_gap)
             pitch = self.board_w + rows.gap
             for row in range(rows.count):
+                course_w = self._board_width(rows, row)
                 out.append(
                     Pos(
                         x0 + width / 2,
                         self.board_t / 2,
-                        z0 + self.board_w / 2 + row * pitch,
+                        z0 + row * pitch + course_w / 2,
                     )
                     * ALONG_RUN
                     * Board(
                         length_mm=width,
-                        nominal=self.board_nominal,
                         label="gate_course",
                         notes="gate infill, flush with the leaf",
-                        **self._stock(),
+                        **self._stock(self.board, covers_mm=course_w),
                     )
                 )
             return out
@@ -944,15 +1153,15 @@ class CedarFence:
         run = self.board_run(width, self.target_gap)
         pitch = self.board_w + run.gap
         for i in range(run.count):
+            board_w = self._board_width(run, i)
             out.append(
-                Pos(x0 + self.board_w / 2 + i * pitch, self.board_t / 2, z0 + height / 2)
+                Pos(x0 + i * pitch + board_w / 2, self.board_t / 2, z0 + height / 2)
                 * UPRIGHT
                 * Board(
                     length_mm=height,
-                    nominal=self.board_nominal,
                     label="gate_board",
                     notes="gate infill, flush with the leaf",
-                    **self._stock(),
+                    **self._stock(self.board, covers_mm=board_w),
                 )
             )
         if self.style == "board_on_board":
@@ -966,10 +1175,9 @@ class CedarFence:
                     * UPRIGHT
                     * Board(
                         length_mm=height,
-                        nominal=self.board_nominal,
                         label="gate_over_board",
                         notes="gate infill, over course",
-                        **self._stock(),
+                        **self._stock(self.board),
                     )
                 )
         return out
@@ -986,9 +1194,11 @@ class CedarFence:
             rows = self.course_rows()
             volume_per_mm = rows.count * self.board_w * self.board_t
         else:
-            pitch = self.board_w + self.target_gap
+            pitch = self.board_w + (0.0 if self.board.milled else self.target_gap)
             layers = 2 if self.style == "board_on_board" else 1
-            volume_per_mm = layers * (self.board_w / pitch) * (
+            # Milled stock is billed by the face you buy, not the face that
+            # shows, and it is the bought width that weighs something.
+            volume_per_mm = layers * (self.board.width / pitch) * (
                 self.board_length * self.board_t
             )
         return volume_per_mm * density / 1e9
@@ -1058,7 +1268,7 @@ class CedarFence:
                 f"{bay_text} on centre, plus {self.gates} gate "
                 f"section{'s' if self.gates != 1 else ''} of "
                 f"{self.gate_section_ft:g} ft — {len(posts)} posts, "
-                f"{len(gate_posts)} of them {self.gate_post_nominal}",
+                f"{len(gate_posts)} of them {self.gate_post.nominal}",
             )
         ]
         longest = max((s.length for s in panels), default=0.0)
@@ -1079,16 +1289,41 @@ class CedarFence:
     def _check_infill(self) -> list[Finding]:
         """Report the board layout: gaps, laps, and what happens as it dries."""
         findings: list[Finding] = []
+        if self.board.milled:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "coverage",
+                    f"{self.board.label} covers "
+                    f"{mm_to_fractional_inch(self.board_w, 32)} of its "
+                    f"{mm_to_fractional_inch(self.board.width)} face — an "
+                    "ASSUMED figure. Lumbery prices the profile and publishes "
+                    "no coverage, because what a board shows is set by the "
+                    "moulder that cut it. Every board count below rests on "
+                    "that number; measure a sample before ordering",
+                )
+            )
         if self.style == "horizontal":
             rows = self.course_rows()
+            spacing = (
+                "butted"
+                if self.board.milled
+                else f"with {mm_to_fractional_inch(rows.gap, 32)} between them"
+            )
+            ripped = (
+                ""
+                if rows.last_width is None
+                else ", the top course ripped to "
+                f"{mm_to_fractional_inch(rows.last_width, 32)}"
+            )
             findings.append(
                 Finding(
                     Severity.INFO,
                     "infill",
                     f"{rows.count} courses of "
-                    f"{mm_to_fractional_inch(self.board_w)} board with "
-                    f"{mm_to_fractional_inch(rows.gap, 32)} between them, "
-                    f"filling {mm_to_fractional_inch(rows.cover)} from the "
+                    f"{mm_to_fractional_inch(self.board_w)} board {spacing}"
+                    f"{ripped}, filling "
+                    f"{mm_to_fractional_inch(rows.cover)} from the "
                     f"{self.ground_clearance_in:g}\" ground gap to the top",
                 )
             )
@@ -1098,6 +1333,24 @@ class CedarFence:
             _, cover = self.cover_of(group)
             target = self.target_gap
             run = self.board_run(cover, target)
+            if self.board.milled:
+                ripped = (
+                    "every board full width"
+                    if run.last_width is None
+                    else "the last ripped to "
+                    f"{mm_to_fractional_inch(run.last_width, 32)}"
+                )
+                findings.append(
+                    Finding(
+                        Severity.INFO,
+                        "infill",
+                        f"{mm_to_fractional_inch(cover)} of fence takes "
+                        f"{run.count} boards butted, {ripped} — an "
+                        "interlocking board has no gap to stretch, so the "
+                        "remainder comes off the last one",
+                    )
+                )
+                continue
             findings.append(
                 Finding(
                     Severity.INFO,
@@ -1195,7 +1448,7 @@ class CedarFence:
             Finding(
                 severity,
                 "deflection",
-                f"{self.rail_nominal} rail over the longest bay "
+                f"{self.rail.nominal} rail over the longest bay "
                 f"({mm_to_fractional_inch(span)} clear) carries "
                 f"{panel_kg / 2:.0f} kg of boards and deflects "
                 f"{deflection:.1f} mm (span/{span / max(deflection, 1e-9):.0f}; "
@@ -1236,8 +1489,8 @@ class CedarFence:
         )
 
         for nominal, length in (
-            (self.post_nominal, self.post_length),
-            (self.gate_post_nominal, self.gate_post_length),
+            (self.post.nominal, self.post_length),
+            (self.gate_post.nominal, self.gate_post_length),
         ):
             length_ft = length / FT
             fits = [ft for ft in COMMON_LENGTHS_FT if ft >= length_ft - 1e-6]
@@ -1439,6 +1692,277 @@ class CedarFence:
 
 
 # ---------------------------------------------------------------------------
+# What Lumbery sells, and what a fence can do with it
+# ---------------------------------------------------------------------------
+
+#: Nominal sizes that will serve as fence infill.
+BOARD_NOMINALS: frozenset[str] = frozenset(
+    {"1x3", "1x4", "1x6", "1x8", "5/4x3", "5/4x4", "5/4x6"}
+)
+
+#: Nominal sizes that will serve as rails and gate frames.
+RAIL_NOMINALS: frozenset[str] = frozenset({"2x4", "2x6"})
+
+#: Nominal sizes that will serve as posts.
+POST_NOMINALS: frozenset[str] = frozenset({"4x4", "6x6"})
+
+
+@dataclass(frozen=True)
+class Variant:
+    """One inventory entry, the role it can fill, and what it costs.
+
+    Parameters
+    ----------
+    choice : StockChoice
+        The entry, as a design would name it.
+    role : str
+        ``"board"``, ``"rail"`` or ``"post"``.
+    stock : DimensionalStock
+        The inventory entry itself, for its rate and provenance.
+    note : str, optional
+        What is worth knowing before choosing it.
+    """
+
+    choice: StockChoice
+    role: str
+    stock: Any
+    note: str = ""
+
+    @property
+    def rate(self) -> float | None:
+        """Cost of one unit of this entry."""
+        return self.stock.price
+
+
+def variants(
+    inventory: Inventory, species: str = "white_cedar"
+) -> tuple[list[Variant], list[tuple[str, str]]]:
+    """Return every stocked entry a fence can use, and every one it cannot.
+
+    The point of the second list is that a catalogue which silently drops what
+    it cannot handle reads exactly like a catalogue of everything available.
+    Lumbery sells shakes by the bundle and lattice by the sheet, and this
+    fence can use neither; that is a fact about the fence, and it belongs on
+    the page next to the things it can use.
+
+    Parameters
+    ----------
+    inventory : Inventory
+        Stock to read.
+    species : str, optional
+        Species, default ``"white_cedar"``.
+
+    Returns
+    -------
+    usable : list[Variant]
+        Entries that will serve, in role then price order.
+    unusable : list[tuple[str, str]]
+        ``(stock_label, reason)`` for everything else the supplier sells.
+    """
+    usable: list[Variant] = []
+    unusable: list[tuple[str, str]] = []
+
+    for entry in inventory.dimensional:
+        if entry.species != species:
+            continue
+        choice = StockChoice(entry.nominal, entry.grade, entry.profile)
+        if entry.price_per_piece is not None:
+            unusable.append(
+                (
+                    entry.stock_label,
+                    f"sold as a {entry.priced_length_ft:g} ft piece — shorter "
+                    "than anything in this fence",
+                )
+            )
+            continue
+        if entry.nominal in BOARD_NOMINALS:
+            note = ""
+            if choice.milled:
+                note = (
+                    f"covers {mm_to_fractional_inch(choice.covers, 32)} of a "
+                    f"{mm_to_fractional_inch(choice.width)} face (assumed); "
+                    "butts solid, so it cannot be spaced or lapped"
+                )
+            elif not choice.rough:
+                note = "dressed, so narrower than its nominal size"
+            usable.append(Variant(choice, "board", entry, note))
+        elif entry.nominal in RAIL_NOMINALS:
+            usable.append(Variant(choice, "rail", entry))
+        elif entry.nominal in POST_NOMINALS:
+            note = "" if entry.nominal == "6x6" else "line posts; a gate wants 6x6"
+            usable.append(Variant(choice, "post", entry, note))
+        else:  # pragma: no cover - every stocked size is classified today
+            unusable.append((entry.stock_label, "no role in this fence"))
+
+    for entry in inventory.unit_goods:
+        if entry.species != species:
+            continue
+        unusable.append(
+            (
+                entry.stock_label,
+                f"sold by the {entry.unit}, and this fence is built of boards"
+                + (
+                    ""
+                    if entry.coverage_sqft is not None
+                    else " — the guide publishes no coverage for it either"
+                ),
+            )
+        )
+
+    order = {"board": 0, "rail": 1, "post": 2}
+    usable.sort(key=lambda v: (order[v.role], v.rate or 0.0))
+    return usable, unusable
+
+
+def style_for(choice: StockChoice, style: str) -> str:
+    """Return the style *choice* can actually be built in.
+
+    Milled stock interlocks, so it cannot be lapped: a board-on-board fence in
+    tongue and groove is a contradiction, and the honest resolution is to butt
+    it into a solid fence rather than to refuse to price it.
+    """
+    if choice.milled and style == "board_on_board":
+        return "picket"
+    return style
+
+
+def price_variants(
+    role: str,
+    inventory: Inventory | None = None,
+    style: str = "board_on_board",
+    **fence_kwargs: Any,
+) -> list[tuple[Variant, CedarFence, LinealPlan]]:
+    """Build and price the same fence in every entry that fills *role*.
+
+    Parameters
+    ----------
+    role : str
+        ``"board"``, ``"rail"`` or ``"post"``.
+    inventory : Inventory, optional
+        Stock to price against.  ``None`` loads ``stock.yaml``.
+    style : str, optional
+        Style to build, default ``"board_on_board"``.  Adjusted per variant by
+        :func:`style_for`.
+    **fence_kwargs
+        Passed through to :class:`CedarFence`.
+
+    Returns
+    -------
+    list of (Variant, CedarFence, LinealPlan)
+        One entry per variant, in price order.
+    """
+    inv = inventory or Inventory.load()
+    out = []
+    for variant in (v for v in variants(inv)[0] if v.role == role):
+        kwargs = dict(fence_kwargs)
+        kwargs[role] = variant.choice
+        # A gate post has to be the big one whatever the line posts are.
+        fence = CedarFence(
+            style=style_for(variant.choice, style), inventory=inv, **kwargs
+        )
+        plan = fence.plan(extract(fence.build()))
+        out.append((variant, fence, plan))
+    return sorted(out, key=lambda row: row[2].cost or 0.0)
+
+
+def discount_note(total: float, inventory: Inventory, supplier: str = "Lumbery") -> str:
+    """Say what an order of *total* is worth after the supplier's volume terms.
+
+    A discount is the one price that is a property of the order rather than of
+    any board in it, so nothing in the cut list can know about it and every
+    total printed elsewhere is the pre-discount one.
+    """
+    try:
+        yard = inventory.supplier(supplier)
+    except KeyError:
+        return f"no volume terms recorded for {supplier}"
+    if not yard.volume_discounts:
+        return f"{supplier} publishes no volume discount"
+
+    tier = yard.discount_for(total)
+    ahead = yard.next_tier(total)
+    if tier is None:
+        assert ahead is not None
+        short = ahead.over - total
+        return (
+            f"{format_money(total)} is below {supplier}'s first volume tier: "
+            f"{ahead.percent:g}% starts at {format_money(ahead.over)}, "
+            f"{format_money(short)} away"
+        )
+    after = total * (1 - tier.percent / 100)
+    text = (
+        f"{format_money(total)} qualifies for {supplier}'s "
+        f"{tier.percent:g}% tier (over {format_money(tier.over)}) — "
+        f"{format_money(after)} after it"
+    )
+    if ahead is not None:
+        text += (
+            f"; {ahead.percent:g}% starts at {format_money(ahead.over)}, "
+            f"{format_money(ahead.over - total)} away"
+        )
+    return text
+
+
+def catalogue(
+    inventory: Inventory | None = None,
+    style: str = "board_on_board",
+) -> str:
+    """Return every Lumbery cedar variant, priced as this fence would buy it.
+
+    Parameters
+    ----------
+    inventory : Inventory, optional
+        Stock to read and price against.  ``None`` loads ``stock.yaml``.
+    style : str, optional
+        Style to price the infill variants in, default ``"board_on_board"``.
+
+    Returns
+    -------
+    str
+        Three tables — infill, rails, posts — plus what the guide sells that
+        this fence cannot use, and the volume terms that apply to the order.
+    """
+    inv = inventory or Inventory.load()
+    lines: list[str] = []
+    baseline = None
+
+    for role, title in (
+        ("board", "INFILL — 38 ft of fence and two gates, boards varied"),
+        ("rail", "RAILS AND GATE FRAMES — infill and posts held at the default"),
+        ("post", "LINE POSTS — gate posts stay 6x6, infill and rails default"),
+    ):
+        lines.append(f"\n{title}")
+        lines.append(
+            f"  {'stock':<38s}{'$/LF':>7s}{'lineal ft':>11s}{'total':>10s}  notes"
+        )
+        for variant, fence, plan in price_variants(role, inv, style):
+            total = plan.cost
+            if baseline is None:
+                baseline = total
+            built = style_for(variant.choice, style)
+            note = variant.note
+            if built != style:
+                note = f"built as {built}; {note}" if note else f"built as {built}"
+            lines.append(
+                f"  {variant.choice.label:<38s}"
+                f"{variant.rate or 0.0:>7.2f}{plan.lineal_ft:>11.0f}"
+                f"{format_money(total or 0.0):>10s}  {note}"
+            )
+
+    lines.append("\nSOLD BY LUMBERY, NOT USABLE HERE")
+    for label, reason in variants(inv)[1]:
+        lines.append(f"  {label:<38s} {reason}")
+
+    default = CedarFence(style=style, inventory=inv)
+    default_total = default.plan(extract(default.build())).cost or 0.0
+    lines.append(
+        f"\nEvery rate above is per lineal foot, quoted 2026-08-17, and every "
+        f"total is lumber only.\nOn the default build: {discount_note(default_total, inv)}."
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1495,6 +2019,8 @@ def run(
 
     print(f"\n-- prices {'-' * 68}")
     print(fence.check_prices(plan).to_text())
+    if plan.cost is not None:
+        print(f"      {discount_note(plan.cost, fence.inventory)}")
 
     if assume_lengths_ft:
         print(f"\n-- cut plan against ASSUMED lengths {'-' * 42}")
@@ -1596,9 +2122,27 @@ def compare(styles: tuple[str, ...] = STYLES) -> str:
     return "\n".join(rows)
 
 
-def _spec(style: str) -> ProjectSpec:
-    """Return the gallery entry for one style."""
-    fence = CedarFence(style=style)
+def _spec(
+    style: str,
+    board: StockChoice | None = None,
+    slug: str | None = None,
+    name: str | None = None,
+    summary: str | None = None,
+) -> ProjectSpec:
+    """Return the gallery entry for one style, optionally in a chosen board.
+
+    Parameters
+    ----------
+    style : str
+        One of :data:`STYLES`.
+    board : StockChoice, optional
+        Infill stock, default rough sawn 1x6 in STK.
+    slug, name, summary : str, optional
+        Override the defaults derived from *style*, for a variant that is not
+        just a style — a solid tongue and groove fence is built as a picket
+        and looks nothing like one.
+    """
+    fence = CedarFence(style=style, **({"board": board} if board else {}))
     summaries = {
         "picket": (
             "1x6 rough sawn cedar boards spaced 1-3/4\" apart on 2x4 rails — "
@@ -1614,9 +2158,9 @@ def _spec(style: str) -> ProjectSpec:
         ),
     }
     return ProjectSpec(
-        slug=f"cedar-fence-{style.replace('_', '-')}",
-        name=f"Cedar fence — {style.replace('_', ' ')}",
-        summary=summaries[style],
+        slug=slug or f"cedar-fence-{style.replace('_', '-')}",
+        name=name or f"Cedar fence — {style.replace('_', ' ')}",
+        summary=summary or summaries[style],
         species="white_cedar",
         build=fence.build,
         check=fence.check,
@@ -1634,7 +2178,26 @@ def _spec(style: str) -> ProjectSpec:
 
 
 #: Projects this module contributes to the gallery.
-PROJECTS: list[ProjectSpec] = [_spec(style) for style in STYLES]
+#:
+#: Three styles in the default board, and a fourth that changes the board
+#: instead of the style: milled stock butts into a solid fence and is the
+#: dearest way to build one, which is worth a page of its own beside the
+#: cheapest.  Every other combination is priced without being drawn — see
+#: :func:`catalogue`.
+PROJECTS: list[ProjectSpec] = [
+    *(_spec(style) for style in STYLES),
+    _spec(
+        "picket",
+        board=StockChoice("1x6", "STK", "tongue & groove, dressed"),
+        slug="cedar-fence-tongue-and-groove",
+        name="Cedar fence — tongue and groove",
+        summary=(
+            "1x6 dressed cedar tongue and groove, butted into a solid wall: "
+            "no gaps to open, no laps to keep, and the last board in each "
+            "stretch ripped to fit."
+        ),
+    ),
+]
 
 
 def main() -> None:
@@ -1655,10 +2218,21 @@ def main() -> None:
         action="store_true",
         help="print a cost comparison of every style and stop",
     )
+    parser.add_argument(
+        "--variants",
+        action="store_true",
+        help="print every cedar variant Lumbery stocks, priced as this fence "
+        "would buy it, and stop",
+    )
     args = parser.parse_args()
 
     if args.compare:
         print(compare())
+        return
+
+    if args.variants:
+        style = "board_on_board" if args.style == "all" else args.style
+        print(catalogue(style=style))
         return
 
     lengths = [float(v) for v in args.assume_lengths.split(",") if v.strip()]

@@ -28,7 +28,11 @@
 # Which prices are real, as of 2026-08-17:
 #
 #   white cedar     REAL, and a shelf price. Lumbery's published pricing
-#                   guide, per lineal foot. See the block above those entries.
+#                   guide, read 2026-08-17. Every line of that guide is in
+#                   this file: 30 profiles priced per lineal foot (one per
+#                   piece) under `dimensional`, three shake grades and the
+#                   lattice sheet under `unit_goods`, and the volume
+#                   discount tiers under `suppliers`.
 #   cherry 6/4      REAL, but a SALE price ending 2026-08-31 (O'Brien's
 #   red oak 4/4     August specials). Good numbers with a fuse on them: the
 #   white oak 5/4   check warns the day they lapse, and the shelf price
@@ -107,11 +111,11 @@ dimensional:
   # rough 1x6 is about a full 1" x 6" — so `lumber.NOMINAL_TO_ACTUAL`,
   # which holds dressed sizes, does not describe those entries.
   #
-  # Not recorded here, for want of a unit the schema can express: cedar
-  # shakes 3/8" at $155.00/bundle (clear), $85.00 (wall), $20.00 (low),
-  # and 4x8 lattice sheets at $250 each, whose thickness the guide does
-  # not give. Volume discounts are not modelled either: 5% over $5,000,
-  # 10% over $7,500, 15% over $10,000.
+  # The rest of the guide — shakes by the bundle and lattice by the sheet —
+  # is under `unit_goods` at the foot of this file, and the volume discounts
+  # are under `suppliers`. Both used to be comments here, for want of a unit
+  # the schema could express; the effect was that the only prices missing
+  # from a complete price list were the two nobody could model.
   # ---------------------------------------------------------------------
   - species: white_cedar
     nominal: "1x3"
@@ -671,3 +675,91 @@ sheet_goods:
     price_source: "O'Brien Hardwoods, August 2026 specials sheet"
     price_url: "https://obrienhardwoods.com/specials"
     notes: "B/BB, 6 mm — sold as a 1/4\" nominal here, and it is not 1/4\""
+
+# Stock sold by the item, where the item has no dimension this file can
+# reason about. The guide prices these and says nothing else about them: how
+# much wall a bundle of shakes covers depends on the exposure it is laid at,
+# and the lattice thickness is simply not published. Both are recorded as
+# unknown rather than guessed — a price is worth having whether or not the
+# geometry is.
+unit_goods:
+  - species: white_cedar
+    item: shakes 3/8"
+    grade: clear
+    unit: bundle
+    qty: 0
+    price_per_unit: 155.00
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    notes: "coverage per bundle not published — it depends on the exposure"
+
+  - species: white_cedar
+    item: shakes 3/8"
+    grade: wall
+    unit: bundle
+    qty: 0
+    price_per_unit: 85.00
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    notes: "coverage per bundle not published"
+
+  - species: white_cedar
+    item: shakes 3/8"
+    grade: low
+    unit: bundle
+    qty: 0
+    price_per_unit: 20.00
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    notes: "coverage per bundle not published"
+
+  - species: white_cedar
+    item: lattice, square grids
+    unit: sheet
+    size: "4x8"
+    qty: 0
+    price_per_unit: 250.00
+    price_as_of: 2026-08-17
+    price_source: "Lumbery, White Cedar Lumber Pricing Guide"
+    price_url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    notes: >-
+      thickness not published, which is why this is not a SheetStock: nothing
+      can check whether it fits a groove
+
+# Terms that apply to an order rather than to a board. A discount cannot live
+# on a stock entry because it changes every line at once or none of them.
+suppliers:
+  - name: Lumbery
+    location: "287 Ocean House Rd, Cape Elizabeth ME"
+    phone: "(207) 835-7023"
+    url: "https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/"
+    volume_discounts:
+      - over: 5000.00
+        percent: 5
+      - over: 7500.00
+        percent: 10
+      - over: 10000.00
+        percent: 15
+    notes: >-
+      Curated Maine-grown softwood — white cedar, premium pine, reclaimed
+      stock. No hardwood and no hardwood plywood. The guide prices every
+      profile and lists no lengths at all.
+
+  - name: "O'Brien Hardwoods"
+    location: "142 Presumpscot St, Portland ME"
+    phone: "(207) 536-7860"
+    url: "https://obrienhardwoods.com/specials"
+    notes: >-
+      Publishes a handful of specials each month as an image, and no full
+      price list. The cherry and plywood placeholders in this file are
+      waiting on a phone call — see issue #3.
+
+  - name: Atlantic Hardwoods
+    url: "https://www.atlantichardwoods.com/specials"
+    notes: >-
+      One standing lumber special (4/4 walnut shorts). Stair treads by the
+      piece and prefinished flooring by the square foot are not stock this
+      schema can hold.

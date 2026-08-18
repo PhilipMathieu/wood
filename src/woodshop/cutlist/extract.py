@@ -73,6 +73,20 @@ class CutPart:
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @property
+    def stock_spec(self) -> str:
+        """Name the stock without its species, e.g. ``'1x6 rough sawn (STK)'``.
+
+        What to write on an order beside a species you have already named —
+        the cut list has a material column of its own.
+        """
+        spec = self.nominal
+        if self.stock_profile:
+            spec = f"{spec} {self.stock_profile}"
+        if self.grade:
+            spec = f"{spec} ({self.grade})"
+        return spec
+
+    @property
     def stock_label(self) -> str:
         """Name the stock this part buys, e.g. ``'white_cedar 1x6 rough sawn (STK)'``.
 
@@ -80,12 +94,7 @@ class CutPart:
         is, so a part and the inventory entry it lands on print as the same
         thing.
         """
-        label = f"{self.material} {self.nominal}".strip()
-        if self.stock_profile:
-            label = f"{label} {self.stock_profile}"
-        if self.grade:
-            label = f"{label} ({self.grade})"
-        return label
+        return f"{self.material} {self.stock_spec}".strip()
 
     # ------------------------------------------------------------------
     # Convenience properties

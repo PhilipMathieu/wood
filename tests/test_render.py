@@ -23,6 +23,7 @@ from woodshop.render import (  # noqa: E402
     export_assembly,
     render_assembly,
     render_board_diagram,
+    render_cut_list,
     render_sheet_diagram,
     save_figures,
 )
@@ -327,3 +328,19 @@ def test_the_shape_column_appears_only_when_something_is_not_a_rectangle():
     shaped = render_cut_list([_disc()])
     assert "shape" in shaped.columns
     assert "round" in shaped["shape"].iloc[0]
+
+
+def test_the_stock_column_appears_only_when_a_part_names_its_nominal_size():
+    milled = CutPart(
+        "picket", "white_cedar", "length", 1168.4, 130.2, 19.05, qty=60,
+        nominal="1x6", grade="STK", stock_profile="tongue & groove, dressed",
+    )
+    plain = CutPart("slat", "cherry", "length", 1587.5, 63.5, 19.05, qty=16)
+
+    assert "stock" not in render_cut_list([plain]).columns
+
+    df = render_cut_list([milled])
+    assert df["stock"].iloc[0] == "1x6 tongue & groove, dressed (STK)"
+    # The width column is what it covers; the stock column is what to order,
+    # and a shop given only the first would go looking for 5-1/8" boards.
+    assert df["width"].iloc[0] == "5-1/8\""

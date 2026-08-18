@@ -55,6 +55,9 @@ __all__ = [
     "DimensionalStock",
     "HardwoodStock",
     "SheetStock",
+    "UnitStock",
+    "Supplier",
+    "VolumeDiscount",
     "Inventory",
     "DEFAULT_STOCK_PATH",
 ]
@@ -489,6 +492,16 @@ class SheetStock(PricedStock):
         return any(dx <= self.width_mm and dy <= self.height_mm for dx, dy in options)
 
 
+def _supplier(entry: dict[str, Any]) -> Supplier:
+    """Build a :class:`Supplier` from a parsed YAML mapping."""
+    data = dict(entry)
+    tiers = data.pop("volume_discounts", None) or []
+    return Supplier(
+        volume_discounts=[VolumeDiscount(**t) for t in tiers],
+        **data,
+    )
+
+
 def _with_dates(entry: dict[str, Any]) -> dict[str, Any]:
     """Return *entry* with ``price_as_of`` coerced to a :class:`datetime.date`.
 
@@ -519,6 +532,163 @@ def _with_dates(entry: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+@dataclass(frozen=True)
+class UnitStock(PricedStock):
+    """Stock sold by the item, where the item is neither a length nor a sheet.
+
+    A bundle of shakes and a lattice panel are real products with real prices
+    and no dimension this file can reason about: the guide does not say how
+    much wall a bundle covers, or how thick a lattice sheet is.  They were left
+    out of ``stock.yaml`` for exactly that reason, which had the perverse
+    effect that the only prices *missing* from a complete price list were the
+    two nobody could model.
+
+    A price is worth recording whether or not the geometry is.  This class
+    records it, and records the missing figures as missing — ``coverage_sqft``
+    and ``thickness_in`` default to ``None`` and stay ``None`` until somebody
+    asks the yard.
+
+    Parameters
+    ----------
+    species : str
+        Species name, e.g. ``"white_cedar"``.
+    item : str
+        What the thing is, as the supplier names it, e.g. ``'shakes 3/8"'``.
+    unit : str
+        What one of them is sold as — ``"bundle"``, ``"sheet"``, ``"each"``.
+    grade : str, optional
+        Grade as the supplier names it, e.g. ``"clear"``, ``"wall"``.
+    qty : int, optional
+        Units on hand.
+    size : str, optional
+        Size as published, e.g. ``"4x8"``.  Free text, because a bundle has no
+        size and a lattice sheet's is quoted in feet.
+    coverage_sqft : float or None, optional
+        Square feet one unit covers, where the supplier says.  ``None`` means
+        nobody has said, and a design that needs the number has to ask rather
+        than assume one.
+    thickness_in : float or None, optional
+        Thickness where published.  ``None`` for the same reason.
+    price_per_unit : float or None, optional
+        Cost of one *unit*.
+    price_as_of : datetime.date or None, optional
+        The day the price was true.  ``None`` marks it unverified.
+    price_valid_until : datetime.date or None, optional
+        Last day a *sale* price holds.  See :class:`PricedStock`.
+    price_source : str, optional
+        Where the price came from.
+    price_url : str, optional
+        A link to that source.
+    notes : str, optional
+        Free text.
+    """
+
+    species: str
+    item: str
+    unit: str
+    grade: str = ""
+    qty: int = 0
+    size: str = ""
+    coverage_sqft: float | None = None
+    thickness_in: float | None = None
+    price_per_unit: float | None = None
+    price_as_of: date | None = None
+    price_valid_until: date | None = None
+    price_source: str = ""
+    price_url: str = ""
+    notes: str = ""
+
+    @property
+    def price(self) -> float | None:
+        """Cost of one unit, if known."""
+        return self.price_per_unit
+
+    @property
+    def price_unit(self) -> str:
+        """Unit the price is quoted in, e.g. ``"bundle"``."""
+        return self.unit
+
+    @property
+    def stock_label(self) -> str:
+        """Human-readable name, e.g. ``'white_cedar shakes 3/8" (clear)'``."""
+        label = f"{self.species} {self.item}"
+        if self.size:
+            label = f"{label} {self.size}"
+        if self.grade:
+            label = f"{label} ({self.grade})"
+        return label
+
+
+@dataclass(frozen=True)
+class VolumeDiscount:
+    """One tier of a supplier's volume discount.
+
+    Parameters
+    ----------
+    over : float
+        Order total above which the tier applies.
+    percent : float
+        Percentage off.
+    """
+
+    over: float
+    percent: float
+
+
+@dataclass(frozen=True)
+class Supplier:
+    """A yard, and the terms that apply to an order rather than to a board.
+
+    A discount is a property of the *order*, not of any entry in it, which is
+    why it cannot live on a stock entry: 15% off a $10,000 order changes every
+    line at once or none of them.
+
+    Parameters
+    ----------
+    name : str
+        Supplier name.
+    location : str, optional
+        Street address, as published.
+    phone : str, optional
+        Phone number — the thing that turns a published guide into a quote.
+    url : str, optional
+        Where the prices are published.
+    volume_discounts : list[VolumeDiscount], optional
+        Tiers, in any order.
+    notes : str, optional
+        Free text.
+    """
+
+    name: str
+    location: str = ""
+    phone: str = ""
+    url: str = ""
+    volume_discounts: list[VolumeDiscount] = field(default_factory=list)
+    notes: str = ""
+
+    def discount_for(self, total: float) -> VolumeDiscount | None:
+        """Return the best tier an order of *total* qualifies for.
+
+        Parameters
+        ----------
+        total : float
+            Order total before discount.
+
+        Returns
+        -------
+        VolumeDiscount or None
+            The largest applicable tier, or ``None`` if the order is below
+            every threshold.
+        """
+        applicable = [t for t in self.volume_discounts if total >= t.over]
+        return max(applicable, key=lambda t: t.percent) if applicable else None
+
+    def next_tier(self, total: float) -> VolumeDiscount | None:
+        """Return the cheapest tier an order of *total* has not yet reached."""
+        ahead = [t for t in self.volume_discounts if total < t.over]
+        return min(ahead, key=lambda t: t.over) if ahead else None
+
+
 @dataclass
 class Inventory:
     """The shop's stock on hand.
@@ -531,11 +701,18 @@ class Inventory:
         Rough hardwood.
     sheet_goods : list[SheetStock]
         Sheet materials.
+    unit_goods : list[UnitStock]
+        Stock sold by the item — bundles, panels — whose geometry the supplier
+        does not publish.
+    suppliers : list[Supplier]
+        Yards, and the order-level terms they publish.
     """
 
     dimensional: list[DimensionalStock] = field(default_factory=list)
     hardwood: list[HardwoodStock] = field(default_factory=list)
     sheet_goods: list[SheetStock] = field(default_factory=list)
+    unit_goods: list[UnitStock] = field(default_factory=list)
+    suppliers: list[Supplier] = field(default_factory=list)
 
     # ------------------------------------------------------------------
     # Loading
@@ -571,8 +748,8 @@ class Inventory:
         Parameters
         ----------
         data : dict
-            Mapping with optional ``dimensional``, ``hardwood``, and
-            ``sheet_goods`` keys.
+            Mapping with optional ``dimensional``, ``hardwood``,
+            ``sheet_goods``, ``unit_goods`` and ``suppliers`` keys.
 
         Returns
         -------
@@ -596,6 +773,10 @@ class Inventory:
             sheet_goods=[
                 SheetStock(**_with_dates(e)) for e in data.get("sheet_goods") or []
             ],
+            unit_goods=[
+                UnitStock(**_with_dates(e)) for e in data.get("unit_goods") or []
+            ],
+            suppliers=[_supplier(e) for e in data.get("suppliers") or []],
         )
 
     # ------------------------------------------------------------------
@@ -608,7 +789,45 @@ class Inventory:
         Useful to anything that asks a question of the whole inventory rather
         than of one material — auditing price provenance, for instance.
         """
-        return [*self.dimensional, *self.hardwood, *self.sheet_goods]
+        return [
+            *self.dimensional,
+            *self.hardwood,
+            *self.sheet_goods,
+            *self.unit_goods,
+        ]
+
+    def supplier(self, name: str) -> Supplier:
+        """Return the supplier called *name*.
+
+        Parameters
+        ----------
+        name : str
+            Supplier name as recorded.
+
+        Returns
+        -------
+        Supplier
+            The matching entry.
+
+        Raises
+        ------
+        KeyError
+            If no supplier matches.
+        """
+        for entry in self.suppliers:
+            if entry.name == name:
+                return entry
+        raise KeyError(
+            f"no supplier named {name!r}; stock.yaml has: "
+            f"{sorted(s.name for s in self.suppliers)}"
+        )
+
+    def unit_goods_for(self, species: str) -> list[UnitStock]:
+        """Return every unit-priced entry in *species*, in label order."""
+        return sorted(
+            (u for u in self.unit_goods if u.species == species),
+            key=lambda u: u.stock_label,
+        )
 
     def sheets_for(
         self, material: str, nominal_thickness: str | None = None
