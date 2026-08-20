@@ -24,28 +24,47 @@ posts, a frame-and-panel headboard, and a footboard.  The bed has none of
 those.
 
 The product page carries a **Cylindo 360 viewer** (customer 6989, product code
-``MYSABED``), which serves an orthographic-ish frame every 11.25°.  Frames 1,
-9 and 17 are the foot, side and head elevations.  Measured against the
-published 87" x 64" x 40" envelope on 2026-08-17, they give:
+``MYSABED``), which serves a frame every 11.25°.  Frames 1, 9, 17 and 25 are
+the foot, side, head and far-side elevations — the aspect ratios of all 32
+frames are mirror-symmetric about the 1–17 axis, which pins the orientation.
+
+The first measuring pass (2026-08-17) scaled those frames against the queen's
+published 87" x 64" envelope.  **The render is not the queen.**  The CDN's own
+error message names the underlying product ``MYSABEDCK`` — the California
+King — and the side elevation's silhouette aspect is 91/40 to four figures.
+Re-measured against the Cal King envelope (2026-08-20, silhouette contours
+extracted programmatically, cross-checked frame against frame), the horizontal
+scale error of the first pass disappears: with L = 91" the side frame's
+vertical and horizontal scales agree to 0.02%, where the queen calibration
+left them 4.5% apart.  Sections and shapes below are size-invariant; lengths
+are re-derived per size from the published envelopes.
 
 ===========================  =========================================
-Head stiles                  2" thick across the bed, outer faces flush
-                             with the overall width.  Seen from the
-                             side they are *shaped*: the back edge is
-                             straight and vertical at the head end, and
-                             the front edge is a curve — 3-3/8" deep at
-                             the floor, swelling to 6" at rail height,
-                             tapering to about 3-1/4" at a rounded top.
-Headboard panel              One slab, not a frame and panel.  Bottom
-                             edge 23-5/8" off the floor, top just below
-                             the stile tops, **raked back about 10°**.
+Head stiles                  1-3/4" thick across the bed, outer faces
+                             flush with the overall width.  Back edge
+                             dead straight and vertical.  The front
+                             edge: 3-1/4" deep at the floor, swelling
+                             (a quarter sine) to 5-3/4" by rail height,
+                             **held at full depth to the panel's bottom
+                             edge**, then tapering parallel to the
+                             panel's rake to a rounded 2"-ish tip.
+Headboard panel              One flat slab housed between the stiles,
+                             raked back about 11°.  Bottom edge derived
+                             from the published gap; top edge about
+                             1-1/2" below the stile tips.
 Footboard                    There isn't one.  The foot is the rail.
-Rails                        Top 15" off the floor, about 5-1/2" deep.
-Foot legs                    1-3/4" thick across the bed, at the
-                             corners with their outer faces flush.
-                             Shaped: outer edge vertical, inner edge
-                             sweeping from 5-5/8" deep at the rail to
-                             2-3/4" at the floor.
+Rails                        Top 15" off the floor, 4-1/2" deep — not
+                             the 5-1/2" the first pass measured.  A
+                             head rail spans post-to-post at the same
+                             height, its top flush with the side rails.
+Foot legs                    1-1/2" thick, outer faces flush.  Outer
+                             edge vertical; inner edge sweeps (again a
+                             quarter sine) from 5-3/4" at the rail
+                             bottom to 3" at the floor.  **The leg runs
+                             up past the rail** — it forms the corner,
+                             the rails butt into it, and a small
+                             rounded runner tip stands about 3/4" proud
+                             of the rail top.
 ===========================  =========================================
 
 The published 9-3/4" headboard gap and 14" slat height both check out
@@ -56,11 +75,16 @@ What is still inferred
 ----------------------
 * **Thicknesses of the panel and rails** (1"): the elevations give outlines,
   not sections, and 1" is what the listing quotes for the rails.
-* **How the panel is held** — housed in a shallow rebate in the stiles' front
-  faces here.  The joint is not visible in any frame.
+* **How the panel is held** — housed in a shallow rebate in the stiles here.
+  The seam is visible (tight, top to bottom) but the joint inside it is not.
+* **The stile's front edge between the panel's bottom edge and the tip** —
+  hidden behind the panel in every elevation.  Drawn as a straight taper
+  parallel to the panel's rake, which is what the obliques suggest.
 * **The ledger and centre rail.** The slats plainly sit on something; a ledger
   strip inside each rail and a centre rail down the middle is the ordinary way
-  to do it, and the centre rail is mentioned in the listing.
+  to do it, and the centre rail is mentioned in the listing.  The render shows
+  a bare frame — no slats, and nothing down the middle — so the centre rail
+  rests on the listing's word alone.
 * **Spacers** between slat ends, to hold the published 2" spacing.
 
 Two variants are modelled:
@@ -213,19 +237,26 @@ class MysaBed:
     species : str, optional
         Solid-wood species, default ``"cherry"``.
     stile_thickness_in : float, optional
-        Head stile thickness across the bed, default 2" (measured).
+        Head stile thickness across the bed, default 1-3/4" (measured).
     stile_depth_foot_in, stile_depth_max_in, stile_depth_top_in : float, optional
         The stile's shaped front edge: depth from the head end at the floor,
-        at its widest, and at the top.  Default 3-3/8", 6", 3-1/4".
+        over the full-depth band, and at the shoulder of the rounded tip.
+        Default 3-1/4", 5-3/4", 2-3/4".
     stile_widest_at_in : float, optional
-        Height at which the stile is deepest, default 16".
+        Height by which the stile reaches full depth, default 12".
+    stile_depth_at_panel_in : float, optional
+        Stile depth where the panel's bottom edge lands, default 5.55" — the
+        full-depth band eases off very slightly on the way up.
     rail_top_in, rail_height_in, rail_thickness_in : float, optional
-        Rail section and height, default top at 15", 5-1/2" deep, 1" thick.
+        Rail section and height, default top at 15", 4-1/2" deep, 1" thick.
     leg_thickness_in : float, optional
-        Foot leg thickness across the bed, default 1-3/4".
+        Foot leg thickness across the bed, default 1-1/2".
     leg_depth_top_in, leg_depth_foot_in : float, optional
-        Foot leg depth at the rail and at the floor, default 5-5/8" and
-        2-3/4".
+        Foot leg depth at the rail bottom and at the floor, default 5-3/4"
+        and 3".
+    leg_tip_above_rail_in : float, optional
+        How far the leg's rounded runner tip stands proud of the rail top,
+        default 3/4".
     slat_top_in, slat_width_in, slat_thickness_in, slat_gap_in : float, optional
         Published slat deck, default 14" off the floor, 2-1/2" x 3/4" at 2".
     n_slats : int, optional
@@ -253,21 +284,23 @@ class MysaBed:
     species: str = "cherry"
 
     # Head stiles — measured from the 360.
-    stile_thickness_in: float = 2.0
-    stile_depth_foot_in: float = 3.375
-    stile_depth_max_in: float = 6.0
-    stile_depth_top_in: float = 3.25
-    stile_widest_at_in: float = 16.0
+    stile_thickness_in: float = 1.75
+    stile_depth_foot_in: float = 3.25
+    stile_depth_max_in: float = 5.75
+    stile_depth_top_in: float = 2.75
+    stile_widest_at_in: float = 12.0
+    stile_depth_at_panel_in: float = 5.55
 
     # Rails.
     rail_top_in: float = 15.0
-    rail_height_in: float = 5.5
+    rail_height_in: float = 4.5
     rail_thickness_in: float = 1.0
 
     # Foot legs — measured from the 360.
-    leg_thickness_in: float = 1.75
-    leg_depth_top_in: float = 5.625
-    leg_depth_foot_in: float = 2.75
+    leg_thickness_in: float = 1.5
+    leg_depth_top_in: float = 5.75
+    leg_depth_foot_in: float = 3.0
+    leg_tip_above_rail_in: float = 0.75
 
     # Slat deck — published.
     slat_top_in: float = 14.0
@@ -281,8 +314,8 @@ class MysaBed:
     # Headboard.
     headboard_gap_in: float = 9.75
     panel_thickness_in: float = 1.0
-    panel_rake_deg: float = 10.0
-    panel_reveal_in: float = 0.75
+    panel_rake_deg: float = 11.0
+    panel_reveal_in: float = 1.5
     panel_housing_in: float = 0.375
 
     centre_rail_h_in: float = 3.5
@@ -378,13 +411,13 @@ class MysaBed:
 
     @property
     def deck_length(self) -> float:
-        """Clear mattress length, stile face to foot rail, mm.
+        """Clear mattress length, head rail face to foot rail, mm.
 
         The head stile is deep and runs the full height, so it eats into the
-        deck.  The foot legs do not: they stop at the underside of the rails,
-        and only the 1" foot rail intrudes at mattress level.  For a queen
-        that leaves exactly the 80" a queen mattress needs, which is a good
-        sign the measured stile depth is right.
+        deck; the head rail's front face is flush with the stile's deepest
+        point.  The foot legs stop at the rail top, below the mattress, and
+        only the 1" foot rail intrudes at mattress level.  For a queen that
+        leaves 80-1/4" for an 80" mattress.
         """
         return self.overall_l - inches(
             self.stile_depth_max_in + self.rail_thickness_in
@@ -417,13 +450,15 @@ class MysaBed:
 
     @property
     def side_rail_length(self) -> float:
-        """Side rail length, stile face to the foot end of the bed, mm.
+        """Side rail length, stile face to foot leg, mm.
 
-        Longer than :attr:`deck_length`, because the rail runs right out to
-        the foot end and wraps the corner with the foot rail; the mattress
-        stops one rail thickness short of that.
+        The 360 shows the legs forming the corners: each side rail butts
+        into the shaped foot leg at one end and the head stile at the other,
+        so it spans neither member's depth.
         """
-        return self.overall_l - inches(self.stile_depth_max_in)
+        return self.overall_l - inches(
+            self.stile_depth_max_in + self.leg_depth_top_in
+        )
 
     @property
     def deck_centre_y(self) -> float:
@@ -438,15 +473,25 @@ class MysaBed:
     def rail_centre_y(self) -> float:
         """Mid-length of the side rails, mm.
 
-        The rails are not centred on the bed: the head stile eats into the
-        length at one end only.
+        The rails span between the stile's front face and the foot leg's
+        inner face; with the two members equally deep the rails sit centred,
+        but the formula does not assume it.
         """
-        return -inches(self.stile_depth_max_in) / 2
+        return inches(self.leg_depth_top_in - self.stile_depth_max_in) / 2
 
     @property
     def end_rail_length(self) -> float:
-        """Foot rail length across the bed, between the side rails, mm."""
-        return self.deck_width
+        """Foot rail length across the bed, between the foot legs, mm.
+
+        The foot rail's face is flush with the legs' foot-facing faces, so
+        it spans between the legs, not between the side rails.
+        """
+        return self.overall_w - 2 * inches(self.leg_thickness_in)
+
+    @property
+    def head_rail_length(self) -> float:
+        """Head rail length across the bed, between the stiles, mm."""
+        return self.overall_w - 2 * inches(self.stile_thickness_in)
 
     @property
     def headboard_panel_bottom_z(self) -> float:
@@ -524,9 +569,13 @@ class MysaBed:
         cut list should read it; depth is negative because the bed's head is
         at +Y and the stile reaches back from it.
 
-        The back edge is straight and vertical; the front edge is the measured
-        curve — narrow at the floor, deepest at rail height, tapering to a
-        rounded top.
+        The back edge is straight and vertical.  The front edge is the
+        measured curve: a quarter-sine swell from the floor to full depth by
+        rail height, held (with a slight ease) to the panel's bottom edge,
+        then a straight taper parallel to the panel's rake into a rounded
+        tip.  The taper is the one stretch the elevations do not show — the
+        panel hides it — so it is drawn as the line the two visible ends and
+        the obliques imply.
 
         Returns
         -------
@@ -534,10 +583,12 @@ class MysaBed:
             A closed polygon, first point not repeated.
         """
         h = self.size.overall_h_in
-        widest = self.stile_widest_at_in
-        foot, deep, top = (
+        rise = self.stile_widest_at_in
+        panel_bottom = self.slat_top_in + self.headboard_gap_in
+        foot, deep, at_panel, top = (
             self.stile_depth_foot_in,
             self.stile_depth_max_in,
+            self.stile_depth_at_panel_in,
             self.stile_depth_top_in,
         )
         nose = 1.5
@@ -545,15 +596,26 @@ class MysaBed:
         # Sampled rather than splined: a polygon's area is exact, and the
         # yield figures are computed from it.
         profile: list[tuple[float, float]] = [(0.0, 0.0), (0.0, -foot)]
-        # Front edge, floor up to the widest point: a quick sweep out.
+        # Front edge, floor up to full depth: a quarter sine.
         for i in range(1, 9):
             f = i / 8
-            profile.append((widest * f, -(foot + (deep - foot) * f**0.7)))
-        # Front edge, widest point up to the nose: a long slow taper back.
-        for i in range(1, 13):
-            f = i / 12
             profile.append(
-                (widest + (shoulder - widest) * f, -(deep + (top - deep) * f**1.3))
+                (rise * f, -(foot + (deep - foot) * math.sin(math.pi / 2 * f)))
+            )
+        # The full-depth band, easing off slightly up to the panel's bottom.
+        for i in range(1, 5):
+            f = i / 4
+            profile.append(
+                (rise + (panel_bottom - rise) * f, -(deep + (at_panel - deep) * f))
+            )
+        # The hidden stretch: straight, parallel to the panel's rake.
+        for i in range(1, 9):
+            f = i / 8
+            profile.append(
+                (
+                    panel_bottom + (shoulder - panel_bottom) * f,
+                    -(at_panel + (top - at_panel) * f),
+                )
             )
         # The nose itself, a half ellipse from the front edge over to the back.
         for i in range(1, 13):
@@ -567,21 +629,50 @@ class MysaBed:
         """Return a foot leg's outline, in mm, as (height, into the bed).
 
         The origin is the foot end of the bed at floor level.  The outer edge
-        is vertical and the inner edge sweeps, so the leg is deep where it
-        meets the rail and narrow at the floor.
+        is vertical; the inner edge sweeps in a quarter sine from full depth
+        at the rail bottom down to the floor.  The leg runs up past the rail
+        — the rails butt into it — topping out flush with the rail top except
+        for a small rounded runner tip at the outer corner.
 
         Returns
         -------
         list[tuple[float, float]]
             A closed polygon, first point not repeated.
         """
-        top = self.rail_top_in - self.rail_height_in
+        rail_top = self.rail_top_in
+        rail_bottom = rail_top - self.rail_height_in
         deep, foot = self.leg_depth_top_in, self.leg_depth_foot_in
-        profile = [(0.0, 0.0), (top, 0.0), (top, deep)]
+        tip = self.leg_tip_above_rail_in
+        nub_depth = 2.2  # where the tip's inner curve lands on the rail top
+        run_in = 0.5     # where the outer edge starts rounding over
+
+        profile: list[tuple[float, float]] = [(0.0, 0.0), (rail_top - run_in, 0.0)]
+        # Up and over the runner tip: two quarter ellipses.
+        for i in range(1, 7):
+            a = math.pi / 2 * i / 6
+            profile.append(
+                (
+                    rail_top - run_in + (run_in + tip) * math.sin(a),
+                    nub_depth / 2 * (1 - math.cos(a)),
+                )
+            )
+        for i in range(1, 7):
+            a = math.pi / 2 * i / 6
+            profile.append(
+                (
+                    rail_top + tip - tip * (1 - math.cos(a)),
+                    nub_depth / 2 * (1 + math.sin(a)),
+                )
+            )
+        # Flush along the rail top, then down the butt line the rails land on.
+        profile.append((rail_top, deep))
+        profile.append((rail_bottom, deep))
+        # The inner sweep, rail bottom to the floor: a quarter sine.
         for i in range(1, 9):
             f = i / 8
+            z = rail_bottom * (1 - f)
             profile.append(
-                (top * (1 - f), deep + (foot - deep) * f**0.8)
+                (z, foot + (deep - foot) * math.sin(math.pi / 2 * z / rail_bottom))
             )
         return _profile_mm(profile)
 
@@ -624,7 +715,7 @@ class MysaBed:
                     label="head_stile",
                     notes=(
                         "bandsawn to the profile and cleaned up on a spindle "
-                        "sander; 10/4 stock, grain running up the stile"
+                        "sander; 8/4 stock, grain running up the stile"
                     ),
                 )
             )
@@ -633,9 +724,10 @@ class MysaBed:
         leg_t = inches(self.leg_thickness_in)
         x_leg = self.overall_w / 2 - leg_t / 2
         leg_depth = inches(self.leg_depth_top_in)
+        leg_top = self.rail_top_z + inches(self.leg_tip_above_rail_in)
         for sign in (-1, 1):
             children.append(
-                Pos(sign * x_leg, y_foot + leg_depth / 2, self.rail_bottom_z / 2)
+                Pos(sign * x_leg, y_foot + leg_depth / 2, leg_top / 2)
                 * PROFILE_TO_BED
                 * ShapedBoard(
                     profile=self.leg_profile(),
@@ -643,8 +735,8 @@ class MysaBed:
                     material=self.species,
                     label="foot_leg",
                     notes=(
-                        "bandsawn; outer faces flush with the rails, top under "
-                        "the rail rather than beside it"
+                        "bandsawn; forms the corner — the rails butt into it, "
+                        "and the rounded runner tip stands proud of the rail"
                     ),
                 )
             )
@@ -677,7 +769,30 @@ class MysaBed:
                 width_mm=inches(self.rail_height_in),
                 material=self.species,
                 label="foot_rail",
-                notes="the foot of the bed is this rail and nothing above it",
+                notes=(
+                    "the foot of the bed is this rail and nothing above it; "
+                    "face flush with the legs' outer faces, spans between them"
+                ),
+            )
+        )
+        children.append(
+            Pos(
+                0.0,
+                y_head - inches(self.stile_depth_max_in) + rail_t / 2,
+                rail_z,
+            )
+            * Rotation(90, 0, 0)
+            * Board(
+                length_mm=self.head_rail_length,
+                thickness_mm=rail_t,
+                width_mm=inches(self.rail_height_in),
+                material=self.species,
+                label="head_rail",
+                notes=(
+                    "spans post to post below the headboard gap, top flush "
+                    "with the side rails; front face flush with the stiles' "
+                    "deepest point, so the mattress lands on it"
+                ),
             )
         )
 
@@ -689,12 +804,12 @@ class MysaBed:
             children.append(
                 Pos(
                     sign * ledger_x,
-                    self.deck_centre_y,
+                    self.rail_centre_y,
                     self.slat_bearing_z - ledger_t / 2,
                 )
                 * Rotation(0, 0, 90)
                 * Board(
-                    length_mm=self.deck_length,
+                    length_mm=self.side_rail_length,
                     thickness_mm=ledger_t,
                     width_mm=ledger_w,
                     material=self.species,
@@ -798,15 +913,29 @@ class MysaBed:
         return Compound(children=children, label=f"mysa_{self.size.name}_{self.variant}")
 
     def _placed_panel(self):
-        """Return the headboard panel, raked back and positioned."""
+        """Return the headboard panel, raked back and positioned.
+
+        The panel's front face lies on the stile's tapering front edge — the
+        taper and the rake are the same line, which is what makes the housed
+        joint possible along the panel's whole height.
+        """
         panel = self._headboard_panel()
+        rake = math.radians(self.panel_rake_deg)
         z_mid = (self.headboard_panel_bottom_z + self.headboard_panel_top_z) / 2
-        # The panel leans back, so its face sits against the stiles' front
-        # edge at mid height; the stile is deepest lower down, which is what
-        # gives the headboard its rake.
-        y_mid = self.overall_l / 2 - inches(self.stile_depth_max_in) * 0.72
+        # The stile's front edge, interpolated at the panel's mid height.
+        panel_bottom_in = self.slat_top_in + self.headboard_gap_in
+        shoulder_in = self.size.overall_h_in - 1.5
+        f = (z_mid / IN - panel_bottom_in) / (shoulder_in - panel_bottom_in)
+        front_mid_in = self.stile_depth_at_panel_in + f * (
+            self.stile_depth_top_in - self.stile_depth_at_panel_in
+        )
+        y_mid = (
+            self.overall_l / 2
+            - inches(front_mid_in)
+            + self.panel_thickness_mm / 2 * math.cos(rake)
+        )
         return (
-            Pos(0.0, y_mid, z_mid)
+            Pos(0.0, y_mid, z_mid + self.panel_thickness_mm / 2 * math.sin(rake))
             * Rotation(90 - self.panel_rake_deg, 0, 0)
             * panel
         )
@@ -1150,7 +1279,9 @@ def _spec(size_name: str, variant: str) -> ProjectSpec:
         inventory=bed.inventory,
         notes=(
             "Geometry measured off the manufacturer's 360 viewer, not inferred "
-            "from the listing's prose — which got it wrong."
+            "from the listing's prose — which got it wrong.  Re-measured "
+            "photogrammetrically once the render turned out to be the Cal "
+            "King, not the queen the first pass scaled it as."
         ),
         tags=["bed", variant],
     )
