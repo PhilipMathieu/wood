@@ -1295,3 +1295,74 @@ for two other things:
 
 That is the sort of thing a check is for: the design got a new use, and the
 consequences of that use are now printed next to it rather than remembered.
+
+## Addendum: the bed was the wrong bed
+
+The Mysa's shapes still looked off next to the product photos, so the 360
+frames got a second, more careful pass — all 32 of them this time, measured
+programmatically (silhouette masks, contour tables every quarter inch) rather
+than by eye, with a vision pass over the key frames to settle what the numbers
+could not.
+
+### The render is the California King
+
+The first pass scaled the elevations against the queen's published
+87" x 64" x 40". Two findings say that was the wrong envelope:
+
+- The CDN's own error message, on a failed frame fetch, names the underlying
+  product **`MYSABEDCK`** — the Cal King.
+- The side elevation's silhouette aspect ratio is 91/40 **to four
+  figures** (2.2754 measured, 2.2750 published for the Cal King's
+  91" x 79" x 40"; the queen predicts 2.175). Recalibrated at L = 91", the
+  frame's vertical and horizontal scales agree to 0.02%; at L = 87" they
+  disagreed by 4.5%.
+
+Every cross-bed dimension in the first pass was therefore ~19% small at the
+source and every lengthwise one ~4.5% small, error that landed unevenly in
+whichever member was being read. That is where the 2" stile came from: it was
+never 2".
+
+### What the second pass changed
+
+| | first pass | second pass |
+|---|---|---|
+| Stile thickness | 2" (needs 10/4) | 1-3/4" (8/4, exactly) |
+| Stile front edge | peak 6" at 16", long taper to 3-1/4" | quarter-sine to 5-3/4", **held to the panel's bottom edge**, then raked with the panel to a ~2" bullnose |
+| Foot leg | stops under the rail, 1-3/4" thick | **forms the corner** — rails butt into it, rounded runner tip ~3/4" proud of the rail top; 1-1/2" thick |
+| Rails | 5-1/2" deep | 4-1/2" deep |
+| Head rail | none | spans post-to-post at rail height, under the gap |
+| Panel rake | 10° | 11°, and the stile's hidden front edge is the same line |
+| Panel reveal | 3/4" | 1-1/2" |
+
+The interpenetration count survives the rebuild: still exactly one legitimate
+overlap, the panel housed in the stiles. The rails no longer overlap anything
+— they butt.
+
+### What a projection is allowed to say
+
+The lesson of the pass is about trust boundaries. Within one frame, at the
+**near plane**, a silhouette is honest: the side view's bounding box is set by
+members at the near side, so lengths and depths read there are true once the
+envelope is right — that is what the 0.02% isotropy check certifies. Across
+planes it is not: the far half of the bed projects shifted, scaled, and
+half-swallowed by nearer members, and no single pinhole model reconciled all
+three dead-on frames (Cylindo evidently reframes per shot). Two early
+"discoveries" — a full-width scroll headboard, under-bed stringers — were
+artifacts of reading far-plane pixels against near-plane scale, and died when
+the oblique frames were put in front of eyes rather than thresholds.
+
+So the method that stands: classify all 32 frames by silhouette aspect
+(mirror-symmetry pins the dead-on views), calibrate each frame at its near
+plane, take only near-plane measurements from any frame, and let a visual pass
+arbitrate topology. The queen model keeps its published envelope and derives
+lengths from it; what it takes from the Cal King render is the *sections and
+shapes*, which a maker holds constant across sizes.
+
+### The 2" stile, exhumed
+
+One number deserves its own funeral. The first pass measured the stile at 2"
+and the note said 10/4 stock, which was believable and expensive. At the Cal
+King scale the stile is 1-3/4" — which is not just cheaper, it is *exactly
+what 8/4 surfaces to*, the kind of number a furniture maker actually picks.
+The corrected bed uses one fewer thickness class of cherry, and the test that
+pinned "stiles need 10/4" now pins the opposite.
