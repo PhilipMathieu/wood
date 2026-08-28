@@ -64,6 +64,7 @@ MATERIAL_COLORS: dict[str, str] = {
     "white_oak": "#c8ab7d",
     "pine": "#e8cf9f",
     "poplar": "#d6d2b0",
+    "white_cedar": "#ddc49a",
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",

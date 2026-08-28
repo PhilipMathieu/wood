@@ -625,6 +625,7 @@ DENSITY_KG_M3: dict[str, float] = {
     "white_oak": 755.0,
     "pine": 420.0,
     "poplar": 455.0,
+    "white_cedar": 320.0,
     "plywood_birch": 680.0,
     "plywood_cherry": 590.0,
     "plywood_baltic_birch": 690.0,

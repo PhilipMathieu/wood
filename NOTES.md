@@ -1366,3 +1366,56 @@ King scale the stile is 1-3/4" — which is not just cheaper, it is *exactly
 what 8/4 surfaces to*, the kind of number a furniture maker actually picks.
 The corrected bed uses one fewer thickness class of cherry, and the test that
 pinned "stiles need 10/4" now pins the opposite.
+
+## Addendum: the deck gate, or the case against a diagonal
+
+First outdoor piece, and the first that is not furniture: a gate for the
+deck stairs so the dog can be let out unescorted. The deck's railing is 4x4
+posts, 2x4 rails, vertical 1x1 slats with parallel 45° miters, and a dressed
+cedar 1x6 laid flat as a cap; the gate (`projects/deck_gate.py`) is that
+railing section rebuilt as a swinging frame, after Young House Love's
+"DeckGate" pattern. The opening is unmeasured — the model runs on a
+placeholder 36" x 36" and every derived number is parametric on the tape
+measure.
+
+### The bracing question got a check instead of an opinion
+
+Whether a gate needs a diagonal is the racking moment against the corner
+joints' capacity, and both are computable, so `check_racking` computes them
+rather than the working log asserting them. The demand is almost entirely
+the dog: a cedar gate this size weighs ~11 lb and contributes ~21 N·m about
+the hinge line, while a 60 lb dog landing paws on the latch corner at a 1.5
+dynamic factor contributes ~357 N·m. Each rail-stile corner turns its share
+into a ~2.1 kN force couple across the rail's 3-1/2" depth. A glued
+half-lap — ~12 in² of long-grain glue face, held to a wet-service 200 psi —
+carries that with a 2.1x margin, so the default gate has no diagonal and
+says why. Rebuild it with `corner_joinery="pocket_screw"` and the same
+check flips to WARN at 0.4x and names the remedies (`brace="cable"`, or the
+half-laps). The check that would have been an argument is now a regression
+test in both directions.
+
+### What the toolkit learned
+
+* **`DENSITY_KG_M3` had no `white_cedar`** and fell back to 600 kg/m³ —
+  nearly double the Wood Handbook's ~320 for northern white cedar, which
+  would have doubled the gate's self-weight in the racking numbers. A test
+  now trips if the species falls out of the table.
+* **The gallery assumed every species is bought rough.** `build_project`
+  called `nest_hardwood` on any solid part, and cedar bought as dimensional
+  2x4s from Lumbery's price list (already in `stock.yaml` from the fence
+  estimate) has nothing to nest. Softwood projects now skip the hardwood
+  plan instead of crashing the gallery.
+* **A mitered slat is not a `ShapedBoard`.** Modelled as a profile, the
+  cut list invented an oversized blank and the suitability check warned
+  about short grain on what is a straight stick. The slat is a `Board` with
+  the corner triangles sawn off the solid and `retag` keeping its identity
+  — the miter takes no stock, and the cut list now says a plain 1x1, long
+  point to long point.
+* **`MATERIAL_COLORS` gained cedar**, because the first render was gray and
+  a gray gate reads as aluminum.
+
+Still deliberately unmodelled: hinges, latch, and the cable turnbuckle
+(`brace="cable"` changes the checks and the notes, not the cut list), and
+the half-laps themselves are notes on the stiles rather than subtracted
+geometry — the joint that matters here is an area and an allowable, not a
+solid.
