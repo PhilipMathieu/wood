@@ -1,18 +1,25 @@
-"""Render an assembly as shaded 3-D views.
+"""Render an assembly as hidden-line and shaded views.
 
 Until something draws the model, every claim about it rests on
 ``bounding_box()`` and a cut list — and a part rotated about the wrong axis, or
 buried inside another part, passes both without complaint.  These views are the
 cheapest way to find that class of mistake: look at it.
 
-Geometry comes from :meth:`build123d.Shape.tessellate`, so what is drawn is the
-real solid rather than a stand-in built from part dimensions.  Parts are
-coloured by material, which makes a substitution visible at a glance.
+The three orthographic views (Front, Side, Plan) are OCCT hidden-line
+drawings: :func:`woodshop.render.hlr.hlr_polylines` projects the *whole*
+assembly at once through ``build123d``'s exact-B-rep HLR, so occlusion between
+parts — not just between one part's own triangles — is resolved correctly, and
+what is drawn is monochrome technical line work rather than a rendering. The
+isometric is a shaded raster: :func:`woodshop.render.raster.rasterize` tessellates
+the assembly (:meth:`build123d.Shape.tessellate`) and paints it through a pure-
+numpy software z-buffer, so material colour survives and, unlike a whole-
+triangle painter's algorithm, coincident or interleaved surfaces resolve pixel
+by pixel instead of triangle by triangle.
 
 Example
 -------
 >>> from woodshop.render.model3d import render_assembly     # doctest: +SKIP
->>> render_assembly(bed, output_png="bed.png")              # doctest: +SKIP
+>>> render_assembly(bed, output_png="bed.png")               # doctest: +SKIP
 """
 
 from __future__ import annotations
@@ -23,8 +30,12 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgb
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+from woodshop.render.hlr import hlr_polylines
+from woodshop.render.raster import Camera, rasterize
 
 __all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly"]
 
@@ -41,19 +52,29 @@ class View:
         Elevation angle in degrees.
     azim : float
         Azimuth angle in degrees.
+    style : str, optional
+        ``"auto"`` (default), ``"shaded"``, or ``"hlr"``. ``"auto"`` picks
+        ``"hlr"`` when the view direction is axis-aligned — the three
+        orthographic views — and ``"shaded"`` otherwise, so an isometric
+        or any other oblique angle renders with material colour without the
+        caller having to say so.
     """
 
     name: str
     elev: float
     azim: float
+    style: str = "auto"
 
 
 #: Isometric plus the three orthographic views, in the order they are drawn.
+#: The orthographic angles are exact (mplot3d's old renderer needed a 1-2°
+#: cheat off-axis to avoid a degenerate view box; HLR and the raster have no
+#: such problem, so Front/Side/Plan look squarely along an axis).
 STANDARD_VIEWS: tuple[View, ...] = (
     View("Isometric", 22.0, -55.0),
-    View("Front", 2.0, -90.0),
-    View("Side", 2.0, 0.0),
-    View("Plan", 89.0, -90.0),
+    View("Front", 0.0, -90.0),
+    View("Side", 0.0, 0.0),
+    View("Plan", 90.0, -90.0),
 )
 
 #: Approximate finished colours, so a material swap is obvious on sight.
@@ -76,10 +97,31 @@ _FALLBACK_COLOR = "#9e9e9e"
 #: Direction the fake light comes from, so faces at different angles separate.
 _LIGHT = (0.35, -0.62, 0.70)
 
+#: Below this, a direction component counts as zero — the three orthographic
+#: views hit their axes to double-precision, so this only has to reject the
+#: isometric's genuinely oblique components, not filter out numerical noise.
+_AXIS_SNAP = 1e-9
+
+#: Edge samples per part edge in the shaded raster's overlay — matches
+#: ``hlr.py``'s per-projected-edge sample count, though these stay in 3-D
+#: world coordinates instead of being flattened to a viewport.  A curved edge
+#: (a turned leg's profile) facets visibly at anything coarser.
+_EDGE_SAMPLES = 64
+
+#: Long side of the shaded raster, in pixels, before the 2x2 antialiasing
+#: mean-pool; independent of ``figsize`` — matplotlib scales the finished
+#: image into whatever axes box it is given.
+_RASTER_LONG_SIDE = 1000
+_RASTER_SUPERSAMPLE = 2
+
+#: Hidden-line drawing style: a technical line drawing, not a rendering.
+_HLR_VISIBLE_COLOR = "#37322c"
+_HLR_HIDDEN_COLOR = "#b9b2a6"
+
 
 def _shade(
     base: tuple[float, float, float],
-    triangle: list[tuple[float, float, float]],
+    triangle: Any,
 ) -> tuple[float, float, float]:
     """Return *base* lightened or darkened according to the triangle's normal.
 
@@ -93,50 +135,59 @@ def _shade(
     norm = (nx * nx + ny * ny + nz * nz) ** 0.5
     if norm == 0:
         return base
-    lit = abs(
-        (nx * _LIGHT[0] + ny * _LIGHT[1] + nz * _LIGHT[2]) / norm
-    )
+    lit = abs((nx * _LIGHT[0] + ny * _LIGHT[1] + nz * _LIGHT[2]) / norm)
     factor = 0.55 + 0.45 * lit
     return tuple(min(1.0, channel * factor) for channel in base)  # type: ignore[return-value]
 
 
-#: How much of the plot box's diagonal the longest dimension may occupy before
-#: the drawing is zoomed out to fit.
-#:
-#: mplot3d scales the plot box to a fixed norm, so the *ratio* of the spans is
-#: honoured and the overall size is not: a long, low assembly gets a box wider
-#: than the axes can show, and matplotlib clips it silently.  A cube sits at
-#: 0.577 of its own diagonal and needs no help; an 80" x 13" x 24" console sits
-#: at 0.95 and loses its right-hand end in the front elevation.
-_FIT_FRACTION: float = 0.80
+def _direction(elev: float, azim: float) -> tuple[float, float, float]:
+    """Return the unit vector from the assembly's centre toward the camera.
 
-
-def _fit_zoom(spans: tuple[float, float, float]) -> float:
-    """Return the zoom that keeps a long assembly inside its axes.
-
-    Parameters
-    ----------
-    spans : tuple of float
-        Bounding-box size in X, Y and Z.
-
-    Returns
-    -------
-    float
-        ``1.0`` for anything roughly cubic — the shapes that already fit — and
-        less for anything longer, in proportion to how much longer.
-
-    Examples
-    --------
-    >>> _fit_zoom((100.0, 100.0, 100.0))
-    1.0
-    >>> round(_fit_zoom((2032.0, 330.2, 609.6)), 3)
-    0.845
+    Matches mplot3d's own elevation/azimuth convention exactly, so a
+    ``View`` means the same thing it always has, regardless of which of the
+    two renderers below ends up drawing it.
     """
-    longest = max(spans)
-    diagonal = math.dist((0.0, 0.0, 0.0), spans)
-    if longest <= 0 or diagonal <= 0:
-        return 1.0
-    return min(1.0, _FIT_FRACTION * diagonal / longest)
+    e = math.radians(elev)
+    a = math.radians(azim)
+    return (math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e))
+
+
+def _is_axis_aligned(direction: tuple[float, float, float]) -> bool:
+    """Return whether *direction* points along a single world axis.
+
+    Two of its three components must vanish — an oblique angle like the
+    isometric never satisfies this, however close its elevation gets to
+    0 or 90.
+    """
+    return sum(abs(component) < _AXIS_SNAP for component in direction) >= 2
+
+
+def _resolve_style(view: View, direction: tuple[float, float, float]) -> str:
+    """Return ``"hlr"`` or ``"shaded"`` for *view*, expanding ``"auto"``."""
+    if view.style == "auto":
+        return "hlr" if _is_axis_aligned(direction) else "shaded"
+    return view.style
+
+
+def _camera_basis(
+    direction: tuple[float, float, float],
+) -> tuple[tuple[float, float, float], np.ndarray, np.ndarray]:
+    """Return ``(up_hint, right, up)`` for a camera looking along *direction*.
+
+    ``up_hint`` is the raw vector HLR's ``project_to_viewport`` expects (it
+    orthogonalises internally); ``right``/``up`` are the exact orthonormal
+    pair the software raster needs to build its own camera. Deriving both
+    from the same ``up_hint`` keeps the two renderers agreeing pixel-for-
+    pixel on which way is "up".
+    """
+    d = np.asarray(direction, dtype=float)
+    up_hint = (0.0, 1.0, 0.0) if abs(d[2]) > 0.999 else (0.0, 0.0, 1.0)
+    forward_into_scene = -d
+    right = np.cross(forward_into_scene, up_hint)
+    right = right / np.linalg.norm(right)
+    up = np.cross(right, forward_into_scene)
+    up = up / np.linalg.norm(up)
+    return up_hint, right, up
 
 
 def _iter_leaf_parts(node: Any) -> Iterator[Any]:
@@ -157,6 +208,96 @@ def _iter_leaf_parts(node: Any) -> Iterator[Any]:
         yield from _iter_leaf_parts(child)
 
 
+def _tessellate(
+    parts: list[Any], tolerance: float
+) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]]:
+    """Tessellate every part once, lit, plus a sampled polyline per edge.
+
+    Parameters
+    ----------
+    parts : list
+        Leaf parts from :func:`_iter_leaf_parts`.
+    tolerance : float
+        Passed straight to :meth:`build123d.Shape.tessellate`.
+
+    Returns
+    -------
+    triangles : numpy.ndarray
+        ``(n, 3, 3)`` world-space triangles from every part, in one array so
+        the raster's z-buffer resolves occlusion across parts, not just
+        within one part's own faces — the same reason the old painter's-
+        algorithm renderer put every part into one collection.
+    colors : numpy.ndarray
+        ``(n, 3)`` lit RGB, one per triangle.
+    edges : list of numpy.ndarray
+        One ``(k, 3)`` world-space polyline per part edge — the seam a flat-
+        shaded face would otherwise hide, e.g. a half-lap's interlock.
+    edge_colors : list of tuple
+        One RGB per polyline in *edges*, darkened from its part's colour.
+    """
+    triangles: list[np.ndarray] = []
+    colors: list[tuple[float, float, float]] = []
+    edges: list[np.ndarray] = []
+    edge_colors: list[tuple[float, float, float]] = []
+    for part in parts:
+        base = to_rgb(MATERIAL_COLORS.get(part.material, _FALLBACK_COLOR))
+        vertices, tris = part.tessellate(tolerance)
+        verts = np.array([(v.X, v.Y, v.Z) for v in vertices])
+        for tri in tris:
+            triangle = verts[list(tri)]
+            triangles.append(triangle)
+            colors.append(_shade(base, triangle))
+        edge_color = tuple(channel * 0.45 for channel in base)
+        for edge in part.edges():
+            points = [edge.position_at(t / (_EDGE_SAMPLES - 1)) for t in range(_EDGE_SAMPLES)]
+            edges.append(np.array([(p.X, p.Y, p.Z) for p in points]))
+            edge_colors.append(edge_color)
+    tri_array = np.array(triangles) if triangles else np.empty((0, 3, 3))
+    color_array = np.array(colors) if colors else np.empty((0, 3))
+    return tri_array, color_array, edges, edge_colors
+
+
+def _draw_hlr(ax: plt.Axes, assembly: Any, direction: tuple[float, float, float]) -> None:
+    """Draw one orthographic view of *assembly* as an OCCT hidden-line drawing."""
+    up_hint, _, _ = _camera_basis(direction)
+    visible, hidden = hlr_polylines(assembly, direction, up_hint)
+    if hidden:
+        ax.add_collection(
+            LineCollection(
+                hidden, colors=_HLR_HIDDEN_COLOR, linewidths=0.6, linestyles=(0, (2, 2))
+            )
+        )
+    if visible:
+        ax.add_collection(LineCollection(visible, colors=_HLR_VISIBLE_COLOR, linewidths=1.1))
+    ax.set_aspect("equal")
+    ax.margins(0.04)
+    ax.autoscale()
+
+
+def _draw_shaded(
+    ax: plt.Axes,
+    geometry: tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]],
+    direction: tuple[float, float, float],
+    center: Any,
+) -> None:
+    """Draw one shaded, z-buffered raster view of pre-tessellated *geometry*."""
+    triangles, colors, edges, edge_colors = geometry
+    _, right, up = _camera_basis(direction)
+    camera = Camera(
+        center=(center.X, center.Y, center.Z), right=right, up=up, forward=direction
+    )
+    image, _ = rasterize(
+        triangles,
+        colors,
+        camera,
+        edges=edges,
+        edge_colors=edge_colors,
+        size=_RASTER_LONG_SIDE,
+        supersample=_RASTER_SUPERSAMPLE,
+    )
+    ax.imshow(image)
+
+
 def render_assembly(
     assembly: Any,
     output_png: str | Path | None = None,
@@ -172,17 +313,22 @@ def render_assembly(
     Parameters
     ----------
     assembly : build123d.Compound
-        The positioned assembly to draw.
+        The positioned assembly to draw.  Projected directly — never
+        rewrapped in a new ``Compound`` — since :meth:`~build123d.topology.\
+composite.Compound.project_to_viewport` reparents its argument via anytree,
+        which would otherwise mutate the caller's own assembly.
     output_png : str or Path, optional
         If given, save a PNG here.
     output_pdf : str or Path, optional
-        If given, save a PDF here.
+        If given, save a PDF here.  The hidden-line views are true vector
+        line work at any zoom; the isometric is the raster image.
     views : tuple of View, optional
         Camera angles, default :data:`STANDARD_VIEWS`.
     tolerance : float, optional
-        Tessellation tolerance in mm, default 0.5.  Flat-sided parts look the
-        same at any tolerance; a turned leg or a round top does not, and 0.5 mm
-        is where the faceting stops showing at gallery sizes.
+        Tessellation tolerance in mm for the shaded views only, default
+        0.5 mm — where faceting stops showing at gallery sizes on a turned
+        leg or round top. The hidden-line views come from the exact B-rep
+        and ignore it entirely.
     title : str, optional
         Figure title.
     figsize : tuple, optional
@@ -209,24 +355,17 @@ def render_assembly(
             "Check that the parts carry material and stock_length_mm."
         )
 
-    # Tessellate once; every view reuses the same triangles.  Faces from every
-    # part go into one list so matplotlib depth-sorts the whole assembly
-    # together — sorting per part draws the centre rail over the slats that
-    # cover it.
-    faces: list[list[tuple[float, float, float]]] = []
-    facecolors: list[tuple[float, float, float]] = []
-    for part in parts:
-        base = to_rgb(MATERIAL_COLORS.get(part.material, _FALLBACK_COLOR))
-        vertices, triangles = part.tessellate(tolerance)
-        for triangle in triangles:
-            tri = [
-                (vertices[i].X, vertices[i].Y, vertices[i].Z) for i in triangle
-            ]
-            faces.append(tri)
-            facecolors.append(_shade(base, tri))
+    directions = [_direction(view.elev, view.azim) for view in views]
+    styles = [_resolve_style(view, d) for view, d in zip(views, directions)]
 
-    bb = assembly.bounding_box()
-    spans = (bb.size.X, bb.size.Y, bb.size.Z)
+    # Tessellation is the expensive step; skip it entirely when every
+    # resolved view is a hidden-line drawing (the exact-B-rep path needs no
+    # mesh at all).
+    geometry = None
+    center = None
+    if any(style == "shaded" for style in styles):
+        geometry = _tessellate(parts, tolerance)
+        center = assembly.bounding_box().center()
 
     n = len(views)
     cols = 2 if n > 1 else 1
@@ -235,22 +374,12 @@ def render_assembly(
     if title:
         fig.suptitle(title, fontsize=14)
 
-    for index, view in enumerate(views):
-        ax = fig.add_subplot(rows, cols, index + 1, projection="3d")
-        # Edges are left off deliberately: the tessellation splits every
-        # rectangular face into two triangles, so drawing edges puts an X
-        # across every board.  Shading separates the faces instead.
-        ax.add_collection3d(
-            Poly3DCollection(
-                faces, facecolors=facecolors, edgecolors="none", zsort="average"
-            )
-        )
-
-        ax.set_xlim(bb.min.X, bb.max.X)
-        ax.set_ylim(bb.min.Y, bb.max.Y)
-        ax.set_zlim(bb.min.Z, bb.max.Z)
-        ax.set_box_aspect(spans, zoom=_fit_zoom(spans))
-        ax.view_init(elev=view.elev, azim=view.azim)
+    for index, (view, direction, style) in enumerate(zip(views, directions, styles)):
+        ax = fig.add_subplot(rows, cols, index + 1)
+        if style == "hlr":
+            _draw_hlr(ax, assembly, direction)
+        else:
+            _draw_shaded(ax, geometry, direction, center)
         ax.set_title(view.name, fontsize=10)
         ax.set_axis_off()
 

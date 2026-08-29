@@ -20,6 +20,7 @@ from woodshop.cutlist.extract import CutPart, extract  # noqa: E402
 from woodshop.cutlist.hardwood import nest_hardwood  # noqa: E402
 from woodshop.cutlist.optimize_2d import optimize_2d  # noqa: E402
 from woodshop.inventory import Inventory  # noqa: E402
+from woodshop.parts import Board  # noqa: E402
 from woodshop.render import (  # noqa: E402
     export_assembly,
     render_assembly,
@@ -158,17 +159,27 @@ def test_render_assembly_draws_one_axes_per_view(bed):
     plt.close(fig)
 
 
-def test_a_long_low_assembly_is_zoomed_out_to_fit():
+def test_a_long_low_assembly_is_not_clipped(tmp_path):
     """Regression: the 80" console lost its right-hand end in the elevations.
 
-    mplot3d honours the ratio of the spans and not their size, so a long thin
-    plot box runs off the axes and is clipped without a word.
+    mplot3d honoured the ratio of a plot box's spans and not their size, so a
+    long thin box ran off the axes and was clipped without a word. Both
+    renderers now use plain 2-D axes, which autoscale to whatever they are
+    given — encode that as a border-pixel check so it holds for the
+    hidden-line views and the shaded raster alike.
     """
-    from woodshop.render.model3d import _fit_zoom
+    board = Board(
+        length_mm=2032.0, material="cherry", label="plank",
+        thickness_mm=19.05, width_mm=330.2,
+    )
+    png = tmp_path / "long.png"
+    render_assembly(board, output_png=png, figsize=(10.0, 3.0))
 
-    assert _fit_zoom((600.0, 600.0, 600.0)) == 1.0
-    assert _fit_zoom((2210.0, 1626.0, 1016.0)) == 1.0, "the bed already fitted"
-    assert _fit_zoom((2032.0, 330.2, 609.6)) < 0.9
+    image = matplotlib.image.imread(png)
+    border = np.concatenate(
+        [image[0, :, :3], image[-1, :, :3], image[:, 0, :3], image[:, -1, :3]]
+    )
+    assert np.all(border > 0.98), "a clipped drawing would touch the image border"
 
 
 def test_render_assembly_rejects_an_empty_assembly():
@@ -184,33 +195,6 @@ def test_export_writes_step_and_stl(bed, tmp_path):
     )
     assert len(written) == 2
     assert all(p.stat().st_size > 0 for p in written)
-
-
-def test_hlr_of_two_stacked_boxes_shows_only_the_top_ones_outline():
-    """A minimal, non-project regression for whole-compound occlusion.
-
-    A small box sits entirely under a larger one; viewed from above, the
-    larger box's footprint covers it completely, so the visible outline must
-    be the top box's alone, with the bottom box's edges relegated to the
-    hidden set rather than drawn (the exact bug: a per-part projection would
-    draw both outlines, since it never sees the other part to be hidden by).
-    """
-    from build123d import Box, Compound, Location
-
-    from woodshop.render.hlr import hlr_polylines
-
-    bottom = Box(60.0, 60.0, 10.0)
-    top = Box(100.0, 100.0, 20.0).located(Location((0, 0, 20.0)))
-    assembly = Compound(children=[bottom, top])
-
-    # Looking straight down (+Z toward the eye), Y as the viewport's "up".
-    visible, hidden = hlr_polylines(assembly, direction=(0.0, 0.0, 1.0), up=(0.0, 1.0, 0.0))
-
-    visible_points = np.concatenate(visible)
-    assert visible_points[:, 0].min() == pytest.approx(-50.0, abs=0.5)
-    assert visible_points[:, 0].max() == pytest.approx(50.0, abs=0.5)
-    assert not any(-30.0 < x < 30.0 and -30.0 < y < 30.0 for x, y in visible_points)
-    assert hidden
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +229,133 @@ def test_only_joinery_parts_interpenetrate(bed):
                 clashes.add(tuple(sorted((label_a, label_b))))
 
     assert clashes == {("head_stile", "headboard_panel")}
+
+
+def test_plan_view_hides_what_the_slats_cover(bed):
+    """HLR must dash the rail under the slats, not draw it over them.
+
+    This is the bug issue #10 is named for: the painter's algorithm drew the
+    centre rail's triangles over the slats that actually cover it, because it
+    sorts by *triangle*, not by pixel. A visible-edge sample landing inside a
+    slat's own footprint would mean something is drawing through the slat;
+    the rail's edges belong in the hidden set there instead.
+    """
+    from woodshop.render.hlr import hlr_polylines
+    from woodshop.render.model3d import _camera_basis, _direction, _iter_leaf_parts
+
+    assembly = bed.build()
+    direction = _direction(90.0, -90.0)
+    up_hint, _, _ = _camera_basis(direction)
+    visible, hidden = hlr_polylines(assembly, direction, up_hint)
+
+    margin = 2.0  # mm — stay off each slat's own silhouette edge
+    footprints = []
+    for slat in _iter_leaf_parts(assembly):
+        if slat.label != "slat":
+            continue
+        bb = slat.bounding_box()
+        footprints.append(
+            (bb.min.X + margin, bb.max.X - margin, bb.min.Y + margin, bb.max.Y - margin)
+        )
+    assert footprints, "the bed fixture should have slats to hide things under"
+
+    def _covered(point: np.ndarray) -> bool:
+        x, y = point
+        return any(x0 < x < x1 and y0 < y < y1 for x0, x1, y0, y1 in footprints)
+
+    assert not any(_covered(p) for edge in visible for p in edge)
+    assert any(_covered(p) for edge in hidden for p in edge), (
+        "the rail should be hidden under the slats, not simply missing"
+    )
+
+
+def test_iso_view_shows_slat_color_over_the_rail_crossing():
+    """The z-buffer must paint the nearer slat, not the rail underneath it.
+
+    The plywood variant is used rather than the shared ``bed`` fixture
+    because the faithful variant builds the slats from the same species as
+    the frame — nothing to tell apart by colour. (The console has the
+    opposite problem: its shelves and uprights share one material too, which
+    is why its interlock is checked with the raster unit tests instead.)
+    """
+    from matplotlib.colors import to_rgb
+
+    from woodshop.render.model3d import (
+        MATERIAL_COLORS,
+        _camera_basis,
+        _direction,
+        _iter_leaf_parts,
+        _tessellate,
+    )
+    from woodshop.render.raster import Camera, rasterize
+
+    plywood_bed = MysaBed(size=SIZES["queen"], variant="plywood").build()
+    parts = list(_iter_leaf_parts(plywood_bed))
+    triangles, colors, edges, edge_colors = _tessellate(parts, tolerance=0.5)
+
+    direction = _direction(22.0, -55.0)
+    _, right, up = _camera_basis(direction)
+    center = plywood_bed.bounding_box().center()
+    camera = Camera(center=(center.X, center.Y, center.Z), right=right, up=up, forward=direction)
+    image, projection = rasterize(
+        triangles, colors, camera, edges=edges, edge_colors=edge_colors, size=1000
+    )
+
+    rail = next(p for p in parts if p.label == "centre_rail")
+    slat = next(
+        p
+        for p in parts
+        if p.label == "slat" and p.bounding_box().min.Y < rail.bounding_box().max.Y
+    )
+    rail_bb, slat_bb = rail.bounding_box(), slat.bounding_box()
+    crossing = (0.0, (slat_bb.min.Y + slat_bb.max.Y) / 2, slat_bb.max.Z)
+    assert rail_bb.min.X < crossing[0] < rail_bb.max.X, "sanity: the point sits over the rail"
+
+    col, row = projection.to_pixel(crossing)
+    pixel = image[int(round(row)), int(round(col))]
+    birch = np.array(to_rgb(MATERIAL_COLORS["plywood_baltic_birch"]))
+    cherry = np.array(to_rgb(MATERIAL_COLORS["cherry"]))
+    assert np.linalg.norm(pixel - birch) < np.linalg.norm(pixel - cherry)
+
+
+def test_front_view_has_visible_and_hidden_line_work(bed):
+    """Both hidden-line collections carry geometry for an ordinary view."""
+    from woodshop.render.hlr import hlr_polylines
+    from woodshop.render.model3d import _camera_basis, _direction
+
+    assembly = bed.build()
+    direction = _direction(0.0, -90.0)
+    up_hint, _, _ = _camera_basis(direction)
+    visible, hidden = hlr_polylines(assembly, direction, up_hint)
+    assert visible
+    assert hidden
+
+
+def test_hlr_of_two_stacked_boxes_shows_only_the_top_ones_outline():
+    """A minimal, non-project regression for whole-compound occlusion.
+
+    A small box sits entirely under a larger one; viewed from above, the
+    larger box's footprint covers it completely, so the visible outline must
+    be the top box's alone, with the bottom box's edges relegated to the
+    hidden set rather than drawn (the exact bug: a per-part projection would
+    draw both outlines, since it never sees the other part to be hidden by).
+    """
+    from build123d import Box, Compound, Location
+
+    from woodshop.render.hlr import hlr_polylines
+
+    bottom = Box(60.0, 60.0, 10.0)
+    top = Box(100.0, 100.0, 20.0).located(Location((0, 0, 20.0)))
+    assembly = Compound(children=[bottom, top])
+
+    # Looking straight down (+Z toward the eye), Y as the viewport's "up".
+    visible, hidden = hlr_polylines(assembly, direction=(0.0, 0.0, 1.0), up=(0.0, 1.0, 0.0))
+
+    visible_points = np.concatenate(visible)
+    assert visible_points[:, 0].min() == pytest.approx(-50.0, abs=0.5)
+    assert visible_points[:, 0].max() == pytest.approx(50.0, abs=0.5)
+    assert not any(-30.0 < x < 30.0 and -30.0 < y < 30.0 for x, y in visible_points)
+    assert hidden
 
 
 def test_centre_rail_sits_below_the_slats(bed):
