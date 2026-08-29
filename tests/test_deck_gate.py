@@ -71,16 +71,16 @@ def gate_n_slats_expected() -> int:
     return DeckStairGate().n_slats
 
 
-def test_a_mitered_slat_is_still_a_1x1_stick_on_the_cut_list(parts):
-    """The 45° miters take no extra stock; the blank is the long-point length."""
+def test_a_beveled_slat_is_still_a_1x1_stick_on_the_cut_list(parts):
+    """The 45° bevels take no extra stock; the blank is the bought baluster."""
     slat = next(p for p in parts if p.label == "slat")
     assert slat.width_mm == pytest.approx(0.75 * IN)
     assert slat.thickness_mm == pytest.approx(0.75 * IN)
     assert slat.length_mm == pytest.approx(DeckStairGate().slat_length)
 
 
-def test_the_miters_survive_into_the_geometry(gate):
-    """A mitered slat has less volume than its stick; a regression here means
+def test_the_bevels_survive_into_the_geometry(gate):
+    """A beveled slat has less volume than its stick; a regression here means
     the boolean quietly stopped cutting."""
     slat = next(
         c for c in gate.build().children if getattr(c, "label", "") == "slat"
@@ -113,6 +113,31 @@ def test_matching_the_railings_five_inch_pitch_is_honest_about_the_sphere():
     assert copied.slat_gap > 4 * IN
     findings = copied.check_slat_gap()
     assert any(f.severity is Severity.ERROR for f in findings)
+
+
+# ---------------------------------------------------------------------------
+# The swing
+# ---------------------------------------------------------------------------
+
+
+def test_the_cap_is_held_back_from_the_hinge_end(gate, parts):
+    """The gate and railing caps share a height; the setback keeps every cap
+    point's swing radius clear of the railing cap."""
+    cap = next(p for p in parts if p.label == "cap")
+    assert cap.length_mm == pytest.approx(gate.gate_width - 2.5 * IN)
+    findings = gate.check_swing_clearance()
+    assert all(f.severity is Severity.INFO for f in findings)
+
+
+def test_a_full_length_cap_is_told_it_will_hit_the_railing():
+    proud = DeckStairGate(cap_hinge_setback_in=0.0)
+    findings = proud.check_swing_clearance()
+    assert any(f.severity is Severity.WARN for f in findings)
+
+
+def test_a_baluster_too_short_to_reach_both_rails_is_refused():
+    with pytest.raises(ValueError):
+        DeckStairGate(slat_length_in=30.0)
 
 
 # ---------------------------------------------------------------------------

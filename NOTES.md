@@ -1430,3 +1430,19 @@ railing predates the rule; a new gate does not, so the gate defaults to six
 slats at 3.45" and says so, and `match_railing_pitch=True` copies the
 railing's five-slat rhythm with the guard check refusing to look away
 (pinned as an ERROR by a test in both directions).
+
+A second visit to the tape measure and the toolbox reshaped three details.
+The slat ends are *bevels through the thickness* (end grain facing the rail
+they lie on), not miters across the face — the wedge cut moved planes and
+every "miter" in the code was renamed to say what the saw actually does.
+The slats themselves became bought 1x1x36 balusters, because the only saw
+on site today is a circular saw and a rip fence is not: the model validates
+that the bought length lands on both rails, and the only slat cuts left are
+the two bevels. And the swing got its own check: the gate cap and railing
+cap share a height, and rotating any cap point about the hinge pin lands it
+at x = −y at full open — the deck-side overhang sweeps *past the hinge
+post* into the railing cap's band unless its swing radius outruns the
+railing cap's deck edge. Holding the cap 2-1/2" off the hinge end (needs
+1-3/4") satisfies the radius for every point with one straight crosscut;
+the latch corner's mid-swing bulge is 0.20" against the 5/8" latch gap,
+which is why that gap was the bigger one all along.
