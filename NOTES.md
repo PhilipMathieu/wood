@@ -1459,3 +1459,89 @@ model, and a PT finding in the report (HDG or stainless everything,
 end-cut preservative on cuts and lap faces, polyurethane glue while the
 stock is wet). The gate is ~24 lb wet and the half-lap margin holds at
 1.9x: still no diagonal.
+
+## Addendum: the renderer got a depth buffer (issue #10)
+
+`render_assembly` used to put every part's tessellation into one
+`Poly3DCollection` and let mplot3d's `zsort="average"` order the triangles.
+mplot3d has no depth buffer — it sorts whole triangles by their average
+depth — so anywhere two surfaces were coincident or interleaved, the picture
+was wrong in a way the model was not: the bed's plan view drew the centre
+rail *over* the slats it sits beneath, and the console's half-laps —
+precisely coincident faces, the pathological case for triangle-averaging —
+read as floating slivers instead of interlocking joints. The gallery has
+carried an apology for this since the console was built (`PLAN_VIEW_CAVEAT`),
+and `test_centre_rail_sits_below_the_slats` existed only to keep the picture
+from being mistaken for a modelling mistake.
+
+### Two renderers, not one, and zero new dependencies
+
+The fix splits by view. The three orthographic views (Front, Side, Plan) are
+now OCCT hidden-line drawings: `hlr.py` projects the *whole* assembly, not
+each part separately, through `build123d`'s `project_to_viewport` —
+`HLRBRep_Algo` working from the exact B-rep — so inter-part occlusion is
+resolved by the same CAD kernel that built the geometry, not approximated by
+sorting. Per-part projection was never on the table: it loses inter-part
+occlusion, which is the entire bug. The cost is that a hidden-line drawing
+carries no per-part colour, so the three orthographic views became monochrome
+technical line art — which reads, if anything, more like the "dimensioned
+drawing" a woodworker actually wants from a front/side/plan sheet.
+
+Colour survives in the isometric, which is a shaded render from a pure-numpy
+software z-buffer (`raster.py`) instead: tessellate once as before, light
+each triangle with the existing directional shade, then rasterize with an
+honest per-*pixel* depth test rather than a per-*triangle* sort. The pyvista
+option issue #10 floated is dead on arrival here anyway — the locked wheel is
+`cadquery-ocp-novtk`, so VTK is affirmatively absent, and a ~100 MB dependency
+plus a fallback path would have bought nothing a numpy array doesn't already
+do. numpy and OCCT (through build123d) were already in the dependency graph;
+nothing new got added.
+
+### The coplanar-tie policy
+
+A half-lap's two mating faces sit at *exactly* the same depth, which is a
+worse case for a z-buffer than the painter's algorithm actually hit — a
+sample-by-sample floating-point coin flip would speckle the joint with both
+parts' colours, pixel by pixel. The fix is a deliberate epsilon:
+`TIE_EPS = 1e-6 x scene_diagonal`, and a pixel is only overwritten when the
+new triangle is nearer by *more* than that — so on an exact tie, whichever
+part was tessellated first (a stable order, since `_iter_leaf_parts` always
+walks the assembly the same way) wins uniformly across the whole shared face.
+No speckle, and no ambiguity about which part "shows" there — the joint's
+seam is supplied separately, by drawing each part's own edges over the
+finished raster wherever they are not more than `EDGE_BIAS` behind the
+surface (`min(1 mm, 1e-3 x scene_diagonal)` — far below any real stock
+thickness, so a rail edge genuinely under a slat stays hidden while a flush
+half-lap seam still draws). That edge overlay is what makes the console's
+hero image read as five interlocking dado joints instead of one solid box:
+without it, the flat-shaded faces alone give no indication that a seam is
+there at all.
+
+### Why `_fit_zoom` died
+
+It was a symptom of the same underlying problem as the depth-sorting bug: an
+mplot3d 3-D axes has no notion of "zoom to fit an arbitrary box," only a plot
+box whose *aspect ratio* honours the data and whose *absolute size* is fixed,
+so a long, low assembly (the 80" console) ran off the axes and was silently
+clipped. `_fit_zoom` patched that by shrinking the box in proportion to how
+far the longest span exceeded its share of the diagonal. Both new renderers
+draw onto plain 2-D axes — a `LineCollection` for HLR, `imshow` for the
+raster — and 2-D axes autoscale to whatever data they are given, correctly,
+with no fixed plot-box size to overrun. The whole class of bug the zoom hack
+was built to paper over no longer has anywhere to occur, so the workaround
+went with it rather than being ported. `test_a_long_low_assembly_is_zoomed_out_to_fit`
+was replaced with `test_a_long_low_assembly_is_not_clipped`, which renders a
+console-proportioned board and checks the image border stays background —
+the user-visible guarantee, instead of the internals of a fix that no longer
+exists.
+
+### What this did not touch
+
+`tolerance` (tessellation, still 0.5 mm by default) now only affects the
+shaded isometric — the hidden-line views come from the exact B-rep and have
+no faceting to tune. HLR's per-edge sampling for curved geometry (a round top,
+a turned leg) needed a second look: the first pass sampled every edge at 16
+points, which was plenty for a straight board edge but made the nightstand's
+circular top render as a visible 16-gon — bumped to 64, which reads as a
+circle again at gallery sizes without meaningfully changing render time (a
+few tenths of a second per view, even on the console's few thousand edges).

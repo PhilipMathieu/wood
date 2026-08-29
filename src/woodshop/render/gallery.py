@@ -75,11 +75,11 @@ COST_CAVEAT = (
     "dollars are not. Do not quote them at anybody."
 )
 
-#: Note on the one rendering limitation a woodworker will spot immediately.
-PLAN_VIEW_CAVEAT = (
-    "Views are painter's-algorithm renders: matplotlib sorts whole triangles "
-    "by depth with no depth buffer, so a part can occasionally draw over one "
-    "that covers it. The model is right; the picture is approximate."
+#: Factual note on what the four-up drawing actually is, replacing the
+#: apology the painter's-algorithm renderer needed (issue #10).
+VIEWS_CAPTION = (
+    "Front, side and plan are hidden-line drawings taken from the model; the "
+    "isometric is a depth-buffered shaded render."
 )
 
 
@@ -730,7 +730,7 @@ def _render_project_body(
         img = f'<a href="{views}">{img}</a>'
     out.append(
         f"<figure>{img}"
-        f"<figcaption>{html.escape(PLAN_VIEW_CAVEAT)}</figcaption></figure>"
+        f"<figcaption>{html.escape(VIEWS_CAPTION)}</figcaption></figure>"
     )
 
     out.append(_downloads(assets))

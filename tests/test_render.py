@@ -359,7 +359,7 @@ def test_hlr_of_two_stacked_boxes_shows_only_the_top_ones_outline():
 
 
 def test_centre_rail_sits_below_the_slats(bed):
-    """The plan view suggests otherwise; that is a depth-sorting artifact."""
+    """Pin the geometry the plan view's hidden-line dashes now show correctly."""
     from woodshop.render.model3d import _iter_leaf_parts
 
     tops = {
