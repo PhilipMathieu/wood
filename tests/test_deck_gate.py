@@ -105,6 +105,16 @@ def test_a_lazy_slat_count_is_an_error():
     assert any(f.severity is Severity.ERROR for f in findings)
 
 
+def test_matching_the_railings_five_inch_pitch_is_honest_about_the_sphere():
+    """The railing runs 5" centres — 4-1/4" gaps, wider than the 4" rule.
+    The gate can copy it, and the check refuses to look away."""
+    copied = DeckStairGate(match_railing_pitch=True)
+    assert copied.n_slats == 5
+    assert copied.slat_gap > 4 * IN
+    findings = copied.check_slat_gap()
+    assert any(f.severity is Severity.ERROR for f in findings)
+
+
 # ---------------------------------------------------------------------------
 # The bracing question
 # ---------------------------------------------------------------------------

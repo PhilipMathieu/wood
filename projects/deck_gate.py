@@ -124,9 +124,20 @@ class DeckStairGate:
         side.  The latch side is bigger because seasonal movement and a
         settling post both close it.
     max_slat_gap_in : float, optional
-        Largest clear gap allowed between slats, default 3-1/2".  Match
-        the railing's pitch when it is known; whatever the value, the IRC
-        4"-sphere rule is enforced by :func:`check_slat_gap`.
+        Largest clear gap allowed between slats, default 3-1/2".
+        Whatever the value, the IRC 4"-sphere rule is enforced by
+        :func:`check_slat_gap`.
+    railing_pitch_in : float, optional
+        The railing's measured slat spacing, default 5" on centre —
+        which is a 4-1/4" clear gap, wider than today's 4"-sphere rule.
+        Recorded so the gate can be compared against it, or copy it.
+    match_railing_pitch : bool, optional
+        Default ``False``: the gate runs its slats at the tightest count
+        over ``max_slat_gap_in``, slightly denser than the railing.
+        ``True`` lays the slats out on the railing's own pitch instead —
+        a closer visual match that :func:`check_slat_gap` will fail,
+        because a new gate is new construction even when the railing it
+        matches predates the rule.
     species : str, optional
         Frame and slat species, default ``"white_cedar"`` — the cap has to
         be cedar to match the railing, and a cedar frame keeps the gate
@@ -158,6 +169,8 @@ class DeckStairGate:
     hinge_clearance_in: float = 0.25
     latch_clearance_in: float = 0.625
     max_slat_gap_in: float = 3.5
+    railing_pitch_in: float = 5.0
+    match_railing_pitch: bool = False
     species: str = "white_cedar"
     corner_joinery: str = "half_lap"
     brace: str = "none"
@@ -249,7 +262,15 @@ class DeckStairGate:
 
     @property
     def n_slats(self) -> int:
-        """Slat count: the fewest that keep every gap at or under the max."""
+        """Slat count.
+
+        Matching the railing, the count that puts slat centres nearest its
+        measured pitch; otherwise the fewest slats that keep every gap at
+        or under the max.
+        """
+        if self.match_railing_pitch:
+            pitch = inches(self.railing_pitch_in)
+            return max(1, round((self.slat_span + self.slat_side) / pitch) - 1)
         gap = inches(self.max_slat_gap_in)
         return max(1, math.ceil((self.slat_span - gap) / (self.slat_side + gap)))
 
@@ -447,13 +468,15 @@ class DeckStairGate:
             the sphere.
         """
         gap_in = self.slat_gap / IN
+        railing_gap_in = self.railing_pitch_in - self.slat_side_in
         if self.slat_gap >= inches(4.0):
             return [
                 Finding(
                     Severity.ERROR,
                     "guard",
-                    f'slat gaps are {gap_in:.2f}" — a 4" sphere passes; '
-                    f"add a slat or tighten max_slat_gap_in",
+                    f'slat gaps are {gap_in:.2f}" — a 4" sphere passes; the '
+                    f"railing's {railing_gap_in:g}\" gaps predate the rule, "
+                    f"but a new gate does not",
                 )
             ]
         return [
@@ -461,8 +484,10 @@ class DeckStairGate:
                 Severity.INFO,
                 "guard",
                 f'{self.n_slats} slats at {gap_in:.2f}" gaps across a '
-                f'{self.slat_span / IN:.1f}" field — match the railing pitch '
-                f"when it is measured",
+                f'{self.slat_span / IN:.1f}" field — deliberately tighter '
+                f'than the railing\'s {self.railing_pitch_in:g}" pitch '
+                f"({railing_gap_in:g}\" gaps), which would fail the 4\" "
+                f"sphere on new work",
             )
         ]
 

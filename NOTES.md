@@ -1423,3 +1423,10 @@ Still deliberately unmodelled: hinges, latch, and the cable turnbuckle
 the half-laps themselves are notes on the stiles rather than subtracted
 geometry — the joint that matters here is an area and an allowable, not a
 solid.
+
+The railing's own pitch turned out to be the sharpest finding: 5" centres,
+which is 4-1/4" clear between 1x1s — wider than the 4"-sphere rule. The
+railing predates the rule; a new gate does not, so the gate defaults to six
+slats at 3.45" and says so, and `match_railing_pitch=True` copies the
+railing's five-slat rhythm with the guard check refusing to look away
+(pinned as an ERROR by a test in both directions).
