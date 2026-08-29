@@ -1374,9 +1374,13 @@ deck stairs so the dog can be let out unescorted. The deck's railing is 4x4
 posts, 2x4 rails, vertical 1x1 slats with parallel 45° miters, and a dressed
 cedar 1x6 laid flat as a cap; the gate (`projects/deck_gate.py`) is that
 railing section rebuilt as a swinging frame, after Young House Love's
-"DeckGate" pattern. The opening is unmeasured — the model runs on a
-placeholder 36" x 36" and every derived number is parametric on the tape
-measure.
+"DeckGate" pattern. Built first on a placeholder 36" x 36" opening; the
+tape measure arrived a day later — 36-1/2" between the posts, rail top
+41-1/2" and bottom-rail underside 3-3/4" above the decking — and the
+parameters were reshaped to match how the deck was actually measured
+(opening width, rail-top height, bottom gap) rather than an abstract
+gate height, so the gate hangs on the railing's own lines and the
+placeholder never appears again.
 
 ### The bracing question got a check instead of an opinion
 

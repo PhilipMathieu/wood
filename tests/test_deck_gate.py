@@ -30,11 +30,17 @@ def parts(gate) -> list:
 # ---------------------------------------------------------------------------
 
 
-def test_the_gate_fits_the_opening_with_its_clearances(gate):
+def test_the_gate_fits_the_measured_opening_with_its_clearances(gate):
     bb = gate.build().bounding_box()
-    assert bb.size.X < 36 * IN
+    assert bb.size.X < 36.5 * IN
     assert bb.size.X == pytest.approx(gate.gate_width, abs=0.1)
-    assert bb.size.Z == pytest.approx(36 * IN, abs=0.1)
+
+
+def test_the_gate_lands_on_the_railings_own_lines(gate):
+    """Frame from 3-3/4" up to the 41-1/2" rail top, cap on top: hung at the
+    measured bottom gap, the cap tops out at 42-1/4" like the railing's."""
+    assert gate.frame_height == pytest.approx((41.5 - 3.75) * IN)
+    assert gate.build().bounding_box().size.Z == pytest.approx(38.5 * IN, abs=0.1)
 
 
 def test_the_cap_is_the_deepest_thing_on_the_gate(gate):

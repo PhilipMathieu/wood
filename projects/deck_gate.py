@@ -38,19 +38,21 @@ So the model defaults to ``corner_joinery="half_lap"`` and ``brace="none"``,
 and the check *shows* the margin rather than asserting it.  Build it with
 pocket screws instead and the same check tells you to add the cable.
 
-Placeholder dimensions
-----------------------
-The opening has not been measured yet.  ``opening_width_in=36`` and
-``gate_height_in=36`` are stand-ins typical of a deck stair opening; every
-derived number (slat count, weights, margins, prices) moves when the real
-tape-measure numbers arrive.
+Measured dimensions
+-------------------
+Taped 2026-08-29: the opening is 36-1/2" clear between the posts, the top
+of the top rail is 41-1/2" above the decking, and the underside of the
+bottom rail is 3-3/4" above it.  The gate takes those as its parameters —
+the frame spans the railing's own rail lines, the cap rides on top, and
+the gate hangs with its bottom 3-3/4" up, matching the railing's gap
+(which passes nothing bigger than the railing already does).
 
 Run it
 ------
 ::
 
     uv run python projects/deck_gate.py
-    uv run python projects/deck_gate.py --opening-width 38.5 --height 34
+    uv run python projects/deck_gate.py --opening-width 38.5 --rail-top 36
 """
 
 from __future__ import annotations
@@ -110,10 +112,13 @@ class DeckStairGate:
     Parameters
     ----------
     opening_width_in : float, optional
-        Clear width between the 4x4 posts, default 36" — a placeholder
-        until the opening is measured.
-    gate_height_in : float, optional
-        Overall gate height, cap included, default 36".
+        Clear width between the 4x4 posts, default the measured 36-1/2".
+    rail_top_height_in : float, optional
+        Top of the railing's top 2x4 above the decking, default the
+        measured 41-1/2".  The gate's top rail lands on the same line.
+    bottom_gap_in : float, optional
+        Underside of the railing's bottom 2x4 above the decking, default
+        the measured 3-3/4".  The gate hangs with its bottom on that line.
     hinge_clearance_in, latch_clearance_in : float, optional
         Gaps left at the posts, default 1/4" hinge side and 5/8" latch
         side.  The latch side is bigger because seasonal movement and a
@@ -147,8 +152,9 @@ class DeckStairGate:
         narrow to hold a frame at all.
     """
 
-    opening_width_in: float = 36.0
-    gate_height_in: float = 36.0
+    opening_width_in: float = 36.5
+    rail_top_height_in: float = 41.5
+    bottom_gap_in: float = 3.75
     hinge_clearance_in: float = 0.25
     latch_clearance_in: float = 0.625
     max_slat_gap_in: float = 3.5
@@ -198,8 +204,18 @@ class DeckStairGate:
 
     @property
     def frame_height(self) -> float:
-        """Height of the 2x4 frame, mm — the gate less the cap on top."""
-        return inches(self.gate_height_in) - self.cap_thickness
+        """Height of the 2x4 frame, mm.
+
+        Bottom of the bottom rail to top of the top rail, on the railing's
+        own lines: the frame spans from the measured bottom gap up to the
+        measured rail top.
+        """
+        return inches(self.rail_top_height_in - self.bottom_gap_in)
+
+    @property
+    def gate_height(self) -> float:
+        """Overall gate height, cap included, mm."""
+        return self.frame_height + self.cap_thickness
 
     @property
     def frame_depth(self) -> float:
@@ -398,10 +414,20 @@ class DeckStairGate:
                 published_l_mm=self.gate_width,
                 # The cap, not the frame, is the deepest thing on the gate.
                 published_w_mm=inches(5.5),
-                published_h_mm=inches(self.gate_height_in),
+                published_h_mm=self.gate_height,
             )
         )
         report.extend(check_material_suitability(parts, self.inventory))
+        report.findings.append(
+            Finding(
+                Severity.INFO,
+                "mounting",
+                f'hang the frame bottom {self.bottom_gap_in:g}" above the '
+                f"decking — the railing's own bottom-rail line; the cap tops "
+                f'out at {self.rail_top_height_in + 0.75:g}" like the '
+                f"railing's",
+            )
+        )
         report.extend(self.check_slat_gap())
         report.extend(self.check_racking(parts))
         report.extend(self.check_hinge_load(parts))
@@ -637,8 +663,9 @@ def _spec() -> ProjectSpec:
         check=gate.check,
         inventory=gate.inventory,
         notes=(
-            "Placeholder 36\" x 36\" opening until the stairs are measured; "
-            "every derived number moves with the tape measure."
+            'Measured 2026-08-29: opening 36-1/2" between the posts, rail '
+            'top 41-1/2" and bottom-rail underside 3-3/4" above the decking; '
+            "the gate hangs on the railing's own lines."
         ),
         tags=["outdoor", "gate"],
     )
@@ -651,8 +678,9 @@ PROJECTS: list[ProjectSpec] = [_spec()]
 def main() -> None:
     """Parse arguments and build the gate."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--opening-width", type=float, default=36.0)
-    parser.add_argument("--height", type=float, default=36.0)
+    parser.add_argument("--opening-width", type=float, default=36.5)
+    parser.add_argument("--rail-top", type=float, default=41.5)
+    parser.add_argument("--bottom-gap", type=float, default=3.75)
     parser.add_argument(
         "--corner-joinery", choices=["half_lap", "pocket_screw"], default="half_lap"
     )
@@ -662,7 +690,8 @@ def main() -> None:
 
     gate = DeckStairGate(
         opening_width_in=args.opening_width,
-        gate_height_in=args.height,
+        rail_top_height_in=args.rail_top,
+        bottom_gap_in=args.bottom_gap,
         corner_joinery=args.corner_joinery,
         brace=args.brace,
     )
