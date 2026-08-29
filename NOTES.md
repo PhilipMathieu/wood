@@ -1366,3 +1366,96 @@ King scale the stile is 1-3/4" — which is not just cheaper, it is *exactly
 what 8/4 surfaces to*, the kind of number a furniture maker actually picks.
 The corrected bed uses one fewer thickness class of cherry, and the test that
 pinned "stiles need 10/4" now pins the opposite.
+
+## Addendum: the deck gate, or the case against a diagonal
+
+First outdoor piece, and the first that is not furniture: a gate for the
+deck stairs so the dog can be let out unescorted. The deck's railing is 4x4
+posts, 2x4 rails, vertical 1x1 slats with parallel 45° miters, and a dressed
+cedar 1x6 laid flat as a cap; the gate (`projects/deck_gate.py`) is that
+railing section rebuilt as a swinging frame, after Young House Love's
+"DeckGate" pattern. Built first on a placeholder 36" x 36" opening; the
+tape measure arrived a day later — 36-1/2" between the posts, rail top
+41-1/2" and bottom-rail underside 3-3/4" above the decking — and the
+parameters were reshaped to match how the deck was actually measured
+(opening width, rail-top height, bottom gap) rather than an abstract
+gate height, so the gate hangs on the railing's own lines and the
+placeholder never appears again.
+
+### The bracing question got a check instead of an opinion
+
+Whether a gate needs a diagonal is the racking moment against the corner
+joints' capacity, and both are computable, so `check_racking` computes them
+rather than the working log asserting them. The demand is almost entirely
+the dog: a cedar gate this size weighs ~11 lb and contributes ~21 N·m about
+the hinge line, while a 60 lb dog landing paws on the latch corner at a 1.5
+dynamic factor contributes ~357 N·m. Each rail-stile corner turns its share
+into a ~2.1 kN force couple across the rail's 3-1/2" depth. A glued
+half-lap — ~12 in² of long-grain glue face, held to a wet-service 200 psi —
+carries that with a 2.1x margin, so the default gate has no diagonal and
+says why. Rebuild it with `corner_joinery="pocket_screw"` and the same
+check flips to WARN at 0.4x and names the remedies (`brace="cable"`, or the
+half-laps). The check that would have been an argument is now a regression
+test in both directions.
+
+### What the toolkit learned
+
+* **`DENSITY_KG_M3` had no `white_cedar`** and fell back to 600 kg/m³ —
+  nearly double the Wood Handbook's ~320 for northern white cedar, which
+  would have doubled the gate's self-weight in the racking numbers. A test
+  now trips if the species falls out of the table.
+* **The gallery assumed every species is bought rough.** `build_project`
+  called `nest_hardwood` on any solid part, and cedar bought as dimensional
+  2x4s from Lumbery's price list (already in `stock.yaml` from the fence
+  estimate) has nothing to nest. Softwood projects now skip the hardwood
+  plan instead of crashing the gallery.
+* **A mitered slat is not a `ShapedBoard`.** Modelled as a profile, the
+  cut list invented an oversized blank and the suitability check warned
+  about short grain on what is a straight stick. The slat is a `Board` with
+  the corner triangles sawn off the solid and `retag` keeping its identity
+  — the miter takes no stock, and the cut list now says a plain 1x1, long
+  point to long point.
+* **`MATERIAL_COLORS` gained cedar**, because the first render was gray and
+  a gray gate reads as aluminum.
+
+Still deliberately unmodelled: hinges, latch, and the cable turnbuckle
+(`brace="cable"` changes the checks and the notes, not the cut list), and
+the half-laps themselves are notes on the stiles rather than subtracted
+geometry — the joint that matters here is an area and an allowable, not a
+solid.
+
+The railing's own pitch turned out to be the sharpest finding: 5" centres,
+which is 4-1/4" clear between 1x1s — wider than the 4"-sphere rule. The
+railing predates the rule; a new gate does not, so the gate defaults to six
+slats at 3.45" and says so, and `match_railing_pitch=True` copies the
+railing's five-slat rhythm with the guard check refusing to look away
+(pinned as an ERROR by a test in both directions).
+
+A second visit to the tape measure and the toolbox reshaped three details.
+The slat ends are *bevels through the thickness* (end grain facing the rail
+they lie on), not miters across the face — the wedge cut moved planes and
+every "miter" in the code was renamed to say what the saw actually does.
+The slats themselves became bought 1x1x36 balusters, because the only saw
+on site today is a circular saw and a rip fence is not: the model validates
+that the bought length lands on both rails, and the only slat cuts left are
+the two bevels. And the swing got its own check: the gate cap and railing
+cap share a height, and rotating any cap point about the hinge pin lands it
+at x = −y at full open — the deck-side overhang sweeps *past the hinge
+post* into the railing cap's band unless its swing radius outruns the
+railing cap's deck edge. Holding the cap 2-1/2" off the hinge end (needs
+1-3/4") satisfies the radius for every point with one straight crosscut;
+the latch corner's mid-swing bulge is 0.20" against the 5/8" latch gap,
+which is why that gap was the bigger one all along.
+
+The lumber run settled the species question the practical way: the deck's
+own balusters turn out to be PT, so the gate went hybrid-then-some — #1
+ground-contact SYP for the frame *and* the slats (the treatment grade is
+overkill above ground, but #1 is the straightest PT on the shelf and a
+gate frame cares), with only the cap in cedar, like the railing. The
+toolkit's part: `syp_pt` joined the density table at its as-bought 750
+kg/m³ — wet ground-contact stock, drying toward 570, and running heavy is
+the safe direction for racking — plus a colour, per-part species on the
+model, and a PT finding in the report (HDG or stainless everything,
+end-cut preservative on cuts and lap faces, polyurethane glue while the
+stock is wet). The gate is ~24 lb wet and the half-lap margin holds at
+1.9x: still no diagonal.

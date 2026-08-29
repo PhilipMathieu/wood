@@ -213,7 +213,14 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
     solid = [p for p in parts if p.material not in sheet_materials]
     sheet = [p for p in parts if p.material in sheet_materials]
 
-    hardwood = nest_hardwood(solid, inv, spec.species) if solid else None
+    # Only species bought rough get a hardwood nesting plan; a softwood
+    # project (cedar, pine) buys dimensional stock and has nothing to nest.
+    rough_species = {h.species for h in inv.hardwood}
+    hardwood = (
+        nest_hardwood(solid, inv, spec.species)
+        if solid and spec.species in rough_species
+        else None
+    )
     sheets = pack_by_material(sheet, inv) if sheet else {}
 
     return ProjectBuild(
