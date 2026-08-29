@@ -138,10 +138,18 @@ class DeckStairGate:
         a closer visual match that :func:`check_slat_gap` will fail,
         because a new gate is new construction even when the railing it
         matches predates the rule.
-    species : str, optional
-        Frame and slat species, default ``"white_cedar"`` — the cap has to
-        be cedar to match the railing, and a cedar frame keeps the gate
-        light, which is its own sag protection.
+    frame_species : str, optional
+        Frame species, default ``"syp_pt"`` — #1 ground-contact
+        pressure-treated southern yellow pine.  The frame hides behind
+        the slat field and under the cap, so it is the one place the
+        cheap, strong, rot-proof stock costs nothing visually.  PT has
+        consequences the checks spell out: it is bought saturated (the
+        mass estimate uses the wet density), PVA glue will not bond it,
+        and its treatment corrodes plain fasteners.
+    slat_species : str, optional
+        Slat species, default ``"syp_pt"`` — the deck's own balusters are
+        PT, so the gate's match them; only the cap is cedar, like the
+        railing's.
     corner_joinery : str, optional
         ``"half_lap"`` (glued and screwed, the default) or
         ``"pocket_screw"``.  Decides the corner capacity used by
@@ -184,7 +192,8 @@ class DeckStairGate:
     max_slat_gap_in: float = 3.5
     railing_pitch_in: float = 5.0
     match_railing_pitch: bool = False
-    species: str = "white_cedar"
+    frame_species: str = "syp_pt"
+    slat_species: str = "syp_pt"
     corner_joinery: str = "half_lap"
     brace: str = "none"
     dog_mass_lb: float = 60.0
@@ -350,17 +359,27 @@ class DeckStairGate:
 
         return Compound(children=children, label="deck_stair_gate")
 
+    @property
+    def _frame_is_pt(self) -> bool:
+        """Whether the frame is pressure-treated stock."""
+        return "pt" in self.frame_species.split("_")
+
     def _stile(self, side: str) -> Board:
         """Return one vertical frame member."""
+        glue = (
+            "polyurethane adhesive — wet PT will not take PVA"
+            if self._frame_is_pt
+            else "Titebond III"
+        )
         joint = (
-            "half-lapped, glued (Titebond III) and screwed"
+            f"half-lapped, glued ({glue}) and screwed"
             if self.corner_joinery == "half_lap"
             else "pocket-screwed to the rails"
         )
         return Board(
             length_mm=self.frame_height,
             nominal=self.frame_nominal,
-            material=self.species,
+            material=self.frame_species,
             label=f"{side}_stile",
             notes=f"{joint}; {side} side of the gate",
         )
@@ -370,7 +389,7 @@ class DeckStairGate:
         return Board(
             length_mm=length_mm,
             nominal=self.frame_nominal,
-            material=self.species,
+            material=self.frame_species,
             label=f"{name}_rail",
             notes="on edge between the stiles",
         )
@@ -390,7 +409,7 @@ class DeckStairGate:
             length_mm=length,
             thickness_mm=side,
             width_mm=side,
-            material=self.species,
+            material=self.slat_species,
             label="slat",
         )
         # Corner wedges off opposite corners, cut through the thickness
@@ -463,6 +482,17 @@ class DeckStairGate:
             )
         )
         report.extend(check_material_suitability(parts, self.inventory))
+        if self._frame_is_pt:
+            report.findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    "PT frame: hot-dip galvanized or stainless hinges, latch "
+                    "and screws only — the treatment corrodes plain steel; "
+                    "brush cut ends and lap faces with end-cut preservative; "
+                    "glue with polyurethane, not PVA, while the stock is wet",
+                )
+            )
         report.findings.append(
             Finding(
                 Severity.INFO,
@@ -762,9 +792,10 @@ def _spec() -> ProjectSpec:
         slug="deck-stair-gate",
         name="Deck stair gate",
         summary=(
-            "A gate for the deck stairs matching the railing: 2x4 frame, "
-            "beveled 1x1 slats, cedar 1x6 cap.  Half-lapped corners instead "
-            "of a diagonal brace, and a check that proves the margin."
+            "A gate for the deck stairs matching the railing: PT 2x4 frame "
+            "and beveled PT 1x1 slats under a cedar 1x6 cap.  Half-lapped "
+            "corners instead of a diagonal brace, and a check that proves "
+            "the margin."
         ),
         species="white_cedar",
         source_url="https://www.younghouselove.com/deckgate/",

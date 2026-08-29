@@ -1446,3 +1446,16 @@ railing cap's deck edge. Holding the cap 2-1/2" off the hinge end (needs
 1-3/4") satisfies the radius for every point with one straight crosscut;
 the latch corner's mid-swing bulge is 0.20" against the 5/8" latch gap,
 which is why that gap was the bigger one all along.
+
+The lumber run settled the species question the practical way: the deck's
+own balusters turn out to be PT, so the gate went hybrid-then-some — #1
+ground-contact SYP for the frame *and* the slats (the treatment grade is
+overkill above ground, but #1 is the straightest PT on the shelf and a
+gate frame cares), with only the cap in cedar, like the railing. The
+toolkit's part: `syp_pt` joined the density table at its as-bought 750
+kg/m³ — wet ground-contact stock, drying toward 570, and running heavy is
+the safe direction for racking — plus a colour, per-part species on the
+model, and a PT finding in the report (HDG or stainless everything,
+end-cut preservative on cuts and lap faces, polyurethane glue while the
+stock is wet). The gate is ~24 lb wet and the half-lap margin holds at
+1.9x: still no diagonal.

@@ -177,9 +177,26 @@ def test_the_full_report_is_clean_by_default(gate, parts):
 # ---------------------------------------------------------------------------
 
 
-def test_the_gate_is_a_one_hand_gate(parts):
-    """A cedar gate this size is ~11 lb.  If this creeps toward 10 kg the
-    density table has lost white_cedar and fallen back to the default."""
+def test_the_gate_is_pt_under_a_cedar_cap(parts):
+    by_label = {p.label: p.material for p in parts}
+    assert by_label["hinge_stile"] == "syp_pt"
+    assert by_label["top_rail"] == "syp_pt"
+    assert by_label["slat"] == "syp_pt"
+    assert by_label["cap"] == "white_cedar"
+
+
+def test_the_gate_is_still_a_one_hand_gate(parts):
+    """Wet ground-contact SYP roughly doubles the gate over cedar, but it
+    stays around 23 lb.  If this creeps past 12 kg a density fell out of
+    the table and the 600 kg/m3 fallback is in play."""
     from woodshop.checks import estimate_mass_kg
 
-    assert estimate_mass_kg(parts) < 7.0
+    assert 7.0 < estimate_mass_kg(parts) < 12.0
+
+
+def test_an_all_cedar_gate_is_half_the_weight(gate):
+    """Regression pin on the white_cedar density entry."""
+    from woodshop.checks import estimate_mass_kg
+
+    cedar = DeckStairGate(frame_species="white_cedar", slat_species="white_cedar")
+    assert estimate_mass_kg(extract(cedar.build())) < 7.0
