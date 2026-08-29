@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+import numpy as np
 import pytest
 
 matplotlib.use("Agg")
@@ -183,6 +184,33 @@ def test_export_writes_step_and_stl(bed, tmp_path):
     )
     assert len(written) == 2
     assert all(p.stat().st_size > 0 for p in written)
+
+
+def test_hlr_of_two_stacked_boxes_shows_only_the_top_ones_outline():
+    """A minimal, non-project regression for whole-compound occlusion.
+
+    A small box sits entirely under a larger one; viewed from above, the
+    larger box's footprint covers it completely, so the visible outline must
+    be the top box's alone, with the bottom box's edges relegated to the
+    hidden set rather than drawn (the exact bug: a per-part projection would
+    draw both outlines, since it never sees the other part to be hidden by).
+    """
+    from build123d import Box, Compound, Location
+
+    from woodshop.render.hlr import hlr_polylines
+
+    bottom = Box(60.0, 60.0, 10.0)
+    top = Box(100.0, 100.0, 20.0).located(Location((0, 0, 20.0)))
+    assembly = Compound(children=[bottom, top])
+
+    # Looking straight down (+Z toward the eye), Y as the viewport's "up".
+    visible, hidden = hlr_polylines(assembly, direction=(0.0, 0.0, 1.0), up=(0.0, 1.0, 0.0))
+
+    visible_points = np.concatenate(visible)
+    assert visible_points[:, 0].min() == pytest.approx(-50.0, abs=0.5)
+    assert visible_points[:, 0].max() == pytest.approx(50.0, abs=0.5)
+    assert not any(-30.0 < x < 30.0 and -30.0 < y < 30.0 for x, y in visible_points)
+    assert hidden
 
 
 # ---------------------------------------------------------------------------
