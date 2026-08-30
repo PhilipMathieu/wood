@@ -202,6 +202,19 @@ def test_export_writes_step_and_stl(bed, tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def _bbox_clashes(parts, tol=0.01):
+    """Return the set of label pairs whose bounding boxes overlap by more than *tol*."""
+    from woodshop.render.trim import _boxes_overlap
+
+    boxes = [(p.label, p.bounding_box()) for p in parts]
+    clashes = set()
+    for i, (label_a, a) in enumerate(boxes):
+        for label_b, b in boxes[i + 1 :]:
+            if _boxes_overlap(a, b, tol):
+                clashes.add(tuple(sorted((label_a, label_b))))
+    return clashes
+
+
 def test_only_joinery_parts_interpenetrate(bed):
     """Parts may overlap only where a joint says they should.
 
@@ -215,20 +228,36 @@ def test_only_joinery_parts_interpenetrate(bed):
     from woodshop.render.model3d import _iter_leaf_parts
 
     parts = list(_iter_leaf_parts(bed.build()))
-    boxes = [(p.label, p.bounding_box()) for p in parts]
-    tol = 0.01
+    assert _bbox_clashes(parts) == {("head_stile", "headboard_panel")}
 
-    clashes = set()
-    for i, (label_a, a) in enumerate(boxes):
-        for label_b, b in boxes[i + 1:]:
-            if (
-                min(a.max.X, b.max.X) - max(a.min.X, b.min.X) > tol
-                and min(a.max.Y, b.max.Y) - max(a.min.Y, b.min.Y) > tol
-                and min(a.max.Z, b.max.Z) - max(a.min.Z, b.min.Z) > tol
-            ):
-                clashes.add(tuple(sorted((label_a, label_b))))
 
-    assert clashes == {("head_stile", "headboard_panel")}
+def test_trimming_removes_the_one_real_interpenetration(bed):
+    """The render-time boolean trim leaves nothing volumetrically overlapping.
+
+    This is the geometric ground truth behind the isometric's jagged seam at
+    the headboard: two independently-tessellated meshes crossing along a real
+    3-D curve, which is exactly what :func:`woodshop.render.trim.\
+trim_interpenetrations` removes before the shaded raster ever tessellates the
+    parts. A bounding-box check isn't enough here — cutting a corner off the
+    stile doesn't necessarily shrink its *box* — so this checks the exact
+    boolean :meth:`~build123d.topology.shape_core.Shape.intersect` the trim
+    itself relies on. Once this passes, the raster's input geometry no longer
+    volumetrically overlaps anywhere, and the z-buffer's existing coincident-
+    face handling (`_TIE_FRACTION`) is the only case left for it to resolve.
+    """
+    from woodshop.render.model3d import _iter_leaf_parts
+    from woodshop.render.trim import trim_interpenetrations
+
+    parts = list(_iter_leaf_parts(bed.build()))
+    stile = next(p for p in parts if p.label == "head_stile")
+    panel = next(p for p in parts if p.label == "headboard_panel")
+    assert stile.intersect(panel) is not None  # the bug this trim exists for
+
+    trimmed = trim_interpenetrations(parts)
+    trimmed_stiles = [p for p in trimmed if p.label == "head_stile"]
+    trimmed_panel = next(p for p in trimmed if p.label == "headboard_panel")
+    for trimmed_stile in trimmed_stiles:
+        assert trimmed_stile.intersect(trimmed_panel) is None
 
 
 def test_plan_view_hides_what_the_slats_cover(bed):

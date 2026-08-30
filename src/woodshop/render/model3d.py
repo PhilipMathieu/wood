@@ -36,6 +36,7 @@ from matplotlib.colors import to_rgb
 
 from woodshop.render.hlr import hlr_polylines
 from woodshop.render.raster import Camera, rasterize
+from woodshop.render.trim import trim_interpenetrations
 
 __all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly"]
 
@@ -364,7 +365,14 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
     geometry = None
     center = None
     if any(style == "shaded" for style in styles):
-        geometry = _tessellate(parts, tolerance)
+        # A part that genuinely interpenetrates another (a housed joint
+        # modelled without the boolean cut that would remove it) crosses
+        # that neighbour's mesh along a curve neither triangulation lands
+        # on — the z-buffer's tie epsilon only covers the *flush*, zero-
+        # overlap case, so an uncut overlap reads as a jagged seam instead
+        # of a clean one. Trimming it out here, before tessellation, is
+        # render-only: it never touches the parts the caller passed in.
+        geometry = _tessellate(trim_interpenetrations(parts), tolerance)
         center = assembly.bounding_box().center()
 
     n = len(views)
