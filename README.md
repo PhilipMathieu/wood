@@ -27,7 +27,9 @@ src/woodshop/
   render/
     tables.py         CSV / Markdown cut lists
     sheets.py         sheet and board nesting diagrams, cut order
-    model3d.py        shaded 3-D views of an assembly
+    model3d.py        hidden-line and shaded views of an assembly
+    hlr.py            OCCT hidden-line projection for the orthographic views
+    raster.py         pure-numpy z-buffer raster for the shaded isometric
     export.py         STEP / STL export, ocp_vscode preview
     gallery.py        a static site built from every registered project
   joinery/            dado, rabbet, tenon, mortise, pocket hole
@@ -294,13 +296,21 @@ thicknesses in that file are real; only that money is not, and it will not be
 until somebody phones O'Brien Hardwoods on (207) 536-7860 and writes the shelf
 prices down with the date attached. Issue #3 lists exactly what to ask for.
 
-## Known limitation of the 3-D views
+## How the 3-D views are drawn
 
-matplotlib has no depth buffer, so nearly-coincident surfaces sort
-unreliably — in the plan view the centre rail appears to lie over the slats it
-actually sits beneath. Use the STEP or STL export in a real viewer when that
-matters. `test_centre_rail_sits_below_the_slats` pins the geometry so the
-artifact cannot be mistaken for a model error.
+The Front, Side and Plan views are OCCT hidden-line drawings: the whole
+assembly is projected at once through `build123d`'s exact-B-rep HLR
+(`project_to_viewport`), so occlusion between parts — not just within one
+part's own faces — comes out right, and what is drawn is monochrome technical
+line work rather than a rendering. The Isometric is a shaded render from a
+pure-numpy software z-buffer: the model is tessellated once, every triangle
+is lit and rasterized against a per-pixel depth buffer, and each part's own
+edges are drawn back over the shaded faces so an interlocking joint — a
+half-lap's exactly coincident faces, say — still reads as two parts rather
+than one blended surface. Neither path depends on a whole-triangle painter's
+algorithm, so there is no coincident-surface case left for it to get wrong.
+`test_centre_rail_sits_below_the_slats` still pins the geometry the plan
+view's dashed centre rail depends on.
 
 See [NOTES.md](NOTES.md) for what these checks caught on the first real project,
 and for the list of things still worth building.
