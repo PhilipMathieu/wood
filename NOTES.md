@@ -1548,6 +1548,10 @@ few tenths of a second per view, even on the console's few thousand edges).
 
 ## Addendum: the basement bench, where the storage is the bracket
 
+*(This records the bench as drawn before the brief said which bins. The
+totes turned out to be 16 and 17 gallon, and five of the numbers below
+moved — see the addendum after this one.)*
+
 The brief was one sentence — *a workbench roughly 80" wide, mounted to exposed
 studs in the basement, with racks for project source storage bins underneath* —
 and the interesting thing about it is that two of its three clauses are the
@@ -1730,3 +1734,201 @@ standing WARN answered by `open_bays=(2,)`.
   3/8" x 3-1/2" lags, the top's screw line and the pocket screws exist only in
   the notes. A bench whose structure *is* its fasteners is the project that
   most wants a hardware schedule, and it does not have one.
+
+## Addendum: the totes were medium, not small, and the bench changed five ways
+
+The brief gained one clause — *a mix of 16 and 17 gallon bins, the slightly
+taller and slightly wider medium options* — and it is the most consequential
+clause in the whole thing. The previous addendum's rack held nominal 12-quart
+parts bins. These are three gallons. The new ones are **sixteen and
+seventeen**, which is not a bigger bin, it is a different category of object,
+and it moved the depth of the bench, the number of tiers, the number of bays,
+the way a bin is held up, and the size of the lags.
+
+The lesson is the one this repo keeps relearning in different clothes:
+**the thing the piece is built around is not a fit-out detail, it is the
+governing dimension.** A record sleeve did this to the media console. A
+26-7/8" tote does it here.
+
+### What the totes actually are
+
+Both were looked up rather than assumed, and both are in `BIN_TYPES` with the
+source and the date attached, on exactly the principle the prices live under:
+
+| Tote | Exterior (at the rim) | Interior | Governs |
+| --- | --- | --- | --- |
+| Sterilite 64 qt (1497) | 23-3/4 x 16 x **13-1/2** | 19-3/8 x 13-1/8 x 13 | **tier height** |
+| Project Source Commander / HDX 17 gal (68 qt) | **26-7/8 x 18** x 12-1/2 | 22-1/4 x 13-1/2 x 11 | **bay width, bench depth** |
+
+The 17-gallon figure is corroborated: Lowe's and Home Depot sell what is
+plainly the same mould and publish the same 26.9 x 18 x 12.5 to within a
+tenth of an inch. That mattered, because that one number is why the bench is
+seven inches deeper than it was.
+
+The brief's own description turned out to be the design sentence:
+**each tote governs exactly one dimension of the rack.** The taller one sets
+the tier pitch; the wider one sets the bays and, through its length, the whole
+bench.
+
+### The check that changed the design: a tote tapers
+
+The old rack carried bins on pairs of plywood runners screwed to the rib
+faces. Cheap, light, a third of the plywood, and air moves under a bin instead
+of condensation sitting under it. All still true, and all irrelevant.
+
+Look at the table again. The 17-gallon tote is **18" across the rim and 13-1/2"
+inside** — and a tote's published interior is measured at the *bottom*, because
+that is where it is narrowest. Add two wall thicknesses and the base is about
+13-3/4" wide. Runners at the edges of a 19" bay are nearly four inches further
+apart than that.
+
+**The tote does not sit on them. It drops between them.**
+
+That is now `_support_findings`, and `support="runners"` is still buildable so
+the report can compare rather than assert:
+
+```
+ERROR [support] bay 0: runners 17-3/16" apart under a 16 gal tote whose base is
+                about 13-3/8" wide — 3-13/16" wider than the base — the tote
+                drops between them; use support='shelf'
+WARN  [rack]    the 17 gal tote gets no bay in this build: it wants 20-3/16" of
+                bench each and there is 78" to share between 4 bays and 5 ribs
+WARN  [clearance] gap under the rack is 2-9/16" — tight, a push broom will not
+                go under it
+```
+
+Three separate indictments, and only the first was the one I was looking for.
+The second came out of a modelling bug worth recording: `bay_cell` originally
+ignored the fact that **a runner stands 23/32" proud of its rib on each side**,
+so the first version of the runners build reported a *negative* clearance —
+the tote's rim would not pass between the runners at all. Making the bay
+arithmetic support-aware fixed it and produced a better answer: with runners
+the wider tote is priced out of an 80" bench entirely. The third is free: a
+pair of runners on edge is 1-1/2" of tier pitch where a housed shelf is 3/4",
+and over two tiers that is an inch and a half of floor clearance.
+
+So the tiers are shelves, housed in 1/4" dadoes. It is not a preference and
+the report never claims it is.
+
+### The depth is the tote's, not a choice
+
+A 26-7/8" box does not go into a 24"-deep bench front to back, and turned
+sideways it takes one bay per 27" of width — two totes instead of eight. So
+`overall_d_in` now defaults to `None` and is derived: tote, half an inch
+behind it, the ledger it stops against, and the front overhang a clamp needs.
+That is **30-7/8"**, and the report prices it in three currencies rather than
+presenting it as free:
+
+```
+WARN  [ergonomics] at 30-7/8" deep the back 5-7/8" is past a comfortable 25"
+                reach: a shelf you reach over, not bench
+INFO  [material] a 30-7/8" top takes a whole 48"x96" sheet per layer — 1 of
+                them fit across the sheet, where a 24" top gets 2
+```
+
+The reach finding is not a nicety. It is also *why the leaning-on-the-front-
+edge load case is real*: on a bench this deep you will put your weight on the
+front edge to reach the back of it, and that load acts at the longest lever
+arm the piece has.
+
+### Two tiers, and the joists had to go to get them
+
+A 13-1/2" tote on a 3/4" shelf with head room wants 14-23/32" of pitch. Two of
+those is 29-7/16". Under a 36" top with a 1-11/16" slab and 3-1/2" of joist on
+edge there was 30-13/16" — enough on paper and not enough once the bottom
+shelf has to be off a basement floor.
+
+The joists were doing two jobs and the ribs already did both: a rib can bear on
+the top ledger itself, and the top spans rib to rib — 19" of 1-7/16" plywood,
+which moves a tenth of a millimetre under 100 kg. So the ribs now run in one
+piece from the underside of the top to the bottom of the rack, a **1x4 front
+rail laid flat** is let into their top front corners to give the top's front
+edge a screw line and tie the rib noses, and a whole part family is gone.
+
+The rail being a 1x4 *laid flat* is the fiddly bit and it is geometry, not
+taste: the rack's ceiling is the rail's underside, because a tote slides out
+under it. A 2x4 on edge hangs 3-1/2" into the top tier and the top row of
+totes cannot come out. Every sixteenth of an inch of rail is a sixteenth off
+the tier.
+
+Deleting the joists recovered 3-1/2" and left **4-1/8" of floor clearance**.
+It also deepened the bracket from 21-1/2" to **24-11/16"**, because the lower
+ledger went down with the rack. A part removed for one reason paying off in
+another is usually a sign the part was in the wrong place.
+
+### The mix is what makes the fourth bay exist
+
+This is the nicest result in the redesign, and it is the user's own phrasing
+turned into arithmetic. Across 78" of frame, with 3/4" ribs and 3/8" of
+minimum clearance a side:
+
+- **four bays of the 17-gallon tote want 9/16" more bench than there is** —
+  they do not fit;
+- **four bays of the 16-gallon tote leave 7-7/16" doing nothing** — most of a
+  fifth bay, wasted;
+- **three wide and one narrow fits exactly**, and the leftover 1-7/16" spread
+  across four bays gives **9/16" a side in every one of them**.
+
+So `bay_bins` is derived, not chosen: fit as many bays of the narrowest tote
+as the frame holds, then widen as many as will still fit to the widest. The
+mix is not a preference. It is the fourth column.
+
+The tiers stay uniform, set by the taller tote, which costs the 17-gallon an
+inch of spare headroom and buys the property that actually matters in a shop:
+**any tote goes in any slot.**
+
+### The load went up, and shear started binding
+
+Eight full totes at 18 kg is 144 kg of live load where fifteen small bins were
+90 kg, and the bench is deeper, so everything moved:
+
+```
+INFO [bracket] 24-11/16" between the ledgers' centroids, so 17437 lb-in of
+               overturning becomes 706 lb pulling the top ledger off the wall
+INFO [wall] withdrawal: 71 lb per lag against 583 lb — 8.2x
+INFO [wall] shear: 91 lb per lag against 270 lb — 3.0x
+```
+
+With 3/8" lags that shear number is 2.4x, which is a WARN, so the bench is now
+lagged **1/2" x 4"**. `LAG_SHEAR_LB` became a table keyed by diameter, and a
+diameter that is not in it is reported as *not checked* rather than
+interpolated — the same refusal to invent a number that `check_price_provenance`
+makes about an undated price.
+
+The direction of the result is worth keeping: **pull-out was never the
+problem.** A deep bracket divides withdrawal by four and does nothing at all
+for the vertical, so on a wall-hung bench with real storage in it, holding the
+weight up is what binds. That is the opposite of the intuition the phrase
+"wall-hung" produces.
+
+### A sheet of plywood, for the second time
+
+The previous addendum freed the *ribs'* face grain and saved a sheet. The
+shelves turned out to be the same argument: a shelf under a full tote sags
+**0.1 mm, span/4496**, so which way its grain runs is not a measurable
+quantity. Freeing it took the birch from **6 sheets at 49% to 5 at 59%**.
+
+Only the top keeps its grain now, for two reasons that happen to agree: it is
+the face you look at, and the nester showed that freeing it saved nothing.
+
+The parts are still an awkward size for a 4x8 sheet — a rib is 28-7/8" x
+30-3/16", so one per 48" row with 19" left over, and a shelf is half an inch
+too wide to ride in that leftover. That half inch is the two dado depths. I
+spent a while trying to chase it and stopped: a shelf sized to fall out of the
+rib offcut would be a shelf sitting on cleats instead of housed, and the
+difference between 5 sheets and 4-1/2 is not worth a worse joint.
+
+### Specced and not built, revised
+
+- **A vice** — unchanged, and the 2" front overhang is still what it needs.
+- **Dadoed runners** — dead. The totes settled it.
+- **A hardware schedule.** More pressing than it was: this bench is now held
+  to the wall by **ten 1/2" x 4" lags** and its top by twenty screws, and none
+  of them appear on the cut list. `woodshop.hardware` re-exports bd_warehouse
+  fasteners and knows nothing about lag screws. A piece whose structure *is*
+  its fasteners should not be able to print a complete bill of materials that
+  silently omits them.
+- **A tote's base width.** Inferred from the published interior plus two 1/8"
+  walls, because nobody publishes it — and it is the number the whole
+  shelves-versus-runners decision turns on. One pass with a tape measure would
+  retire the only inferred dimension in the file.

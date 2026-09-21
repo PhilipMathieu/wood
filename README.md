@@ -41,8 +41,8 @@ projects/
   media_console.py    80" console as a slide-together grid: five record bays,
                       a CD row, half-lapped panels, no glue. Cherry-plywood
                       and painted-birch/solid-top builds
-  basement_bench.py   80" shop bench lagged to exposed basement studs, with a
-                      five-bay bin rack under it that doubles as the wall
+  basement_bench.py   80" shop bench lagged to exposed basement studs, over a
+                      rack of 16- and 17-gallon totes that doubles as the wall
                       bracket. Wall-hung and floor-standing builds
   workbench.py        minimal example
 scripts/

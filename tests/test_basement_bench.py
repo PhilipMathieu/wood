@@ -9,7 +9,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "projects"))
 
-from basement_bench import IN, BasementBench, lag_withdrawal_lb_per_in  # noqa: E402
+from basement_bench import (  # noqa: E402
+    BIN_TYPES,
+    IN,
+    LAG_SHEAR_LB,
+    BasementBench,
+    lag_withdrawal_lb_per_in,
+    pounds_force,
+)
 
 from woodshop.checks import Severity  # noqa: E402
 from woodshop.cutlist.extract import extract  # noqa: E402
@@ -31,6 +38,67 @@ def legged() -> BasementBench:
 
 
 # ---------------------------------------------------------------------------
+# The totes, which decide almost everything
+# ---------------------------------------------------------------------------
+
+
+def test_each_tote_governs_the_dimension_the_brief_said_it_would(bench):
+    """The brief called them the slightly taller and the slightly wider one.
+
+    That is exactly how they divide the work: the 16 gallon sets the tier
+    pitch, the 17 gallon sets the bay width and the depth of the whole bench.
+    """
+    assert bench.tallest.key == "16gal"
+    assert bench.widest.key == "17gal"
+    assert bench.longest.key == "17gal"
+
+
+def test_the_depth_is_derived_from_the_longest_tote(bench):
+    """A 26-7/8" box does not go into a 24" bench in any orientation."""
+    longest = bench.longest
+    assert bench.overall_d_in is None
+    assert bench.overall_d == pytest.approx(
+        (longest.length_in + bench.bin_back_clearance_in + bench.top_overhang_front_in)
+        * IN
+        + bench.ledger_t
+    )
+    assert bench.shelf_depth >= longest.length_in * IN
+
+
+def test_a_twenty_four_inch_bench_will_not_take_these_totes():
+    with pytest.raises(ValueError, match="long and the rack is only"):
+        BasementBench(overall_d_in=24.0)
+
+
+def test_a_depth_that_was_given_rather_than_derived_is_flagged():
+    deep = BasementBench(overall_d_in=34.0)
+    assert any(
+        f.severity is Severity.WARN and "rather than derived" in f.message
+        for f in deep._depth_findings()
+    )
+
+
+def test_every_published_tote_dimension_carries_its_source():
+    """The same rule the prices live under.
+
+    A number with no date behind it is a number somebody remembered.
+    """
+    for bin_ in BIN_TYPES.values():
+        assert bin_.source and bin_.source_url.startswith("https://")
+        assert bin_.read_on.startswith("2026-")
+
+
+def test_a_totes_base_is_much_narrower_than_its_rim():
+    """The taper is the whole reason the tiers are shelves.
+
+    A published interior width is measured at the bottom of the box, so it is
+    the number a pair of runners would have to catch.
+    """
+    for bin_ in BIN_TYPES.values():
+        assert bin_.base_w_in < bin_.width_in - 2.0
+
+
+# ---------------------------------------------------------------------------
 # The envelope, and what the hung build means by it
 # ---------------------------------------------------------------------------
 
@@ -38,15 +106,14 @@ def legged() -> BasementBench:
 def test_the_bench_is_the_published_size(bench):
     bb = bench.build().bounding_box()
     assert bb.size.X == pytest.approx(80 * IN, abs=0.1)
-    assert bb.size.Y == pytest.approx(24 * IN, abs=0.1)
+    assert bb.size.Y == pytest.approx(bench.overall_d, abs=0.1)
     assert bb.max.Z == pytest.approx(36 * IN, abs=0.1)
 
 
 def test_nothing_in_the_hung_build_touches_the_floor(bench):
     """The whole argument for hanging it: the slab stays clear.
 
-    The lowest part is the bottom tier's runners, and a broom has to get under
-    them.
+    The lowest part is the bottom shelf, and a broom has to get under it.
     """
     bb = bench.build().bounding_box()
     assert bb.min.Z == pytest.approx(bench.rack_bottom_z, abs=0.1)
@@ -58,16 +125,24 @@ def test_the_legged_build_reaches_the_floor_and_nothing_else_moves(bench, legged
     assert legged.build().bounding_box().min.Z == pytest.approx(0.0, abs=0.1)
     assert legged.top_height == bench.top_height
     assert legged.rack_bottom_z == pytest.approx(bench.rack_bottom_z)
-    assert legged.derived_n_bays == bench.derived_n_bays
+    assert [b.key for b in legged.bay_bins] == [b.key for b in bench.bay_bins]
 
 
 def test_the_back_of_the_bench_is_the_face_of_the_studs(bench):
-    """Y = 0 is the face of the studs.
+    """Y = 0 is the wall.
 
     A part at negative y would be inside the masonry, and a gap at y = 0 would
     mean the ledger is not touching.
     """
     assert bench.build().bounding_box().min.Y == pytest.approx(0.0, abs=0.01)
+
+
+def test_a_bench_this_deep_admits_it_is_past_a_comfortable_reach(bench):
+    assert bench.reach_over > 0
+    assert any(
+        f.code == "ergonomics" and f.severity is Severity.WARN
+        for f in bench._depth_findings()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -119,15 +194,14 @@ def test_a_wall_with_no_studs_under_the_ledger_is_an_error():
 
 
 def test_a_lag_landing_under_a_rib_is_told_to_counterbore():
-    """A lag head under a rib is a clash only the model would catch.
+    """A clash nobody finds on paper.
 
-    The rib's notch bears on the ledger's front face, so a proud lag head there
-    stops the rib seating.
+    The rib's notch bears on the ledger's front face, so a proud lag head
+    there stops the rib seating.
     """
     bench = BasementBench()
     clash = BasementBench(first_stud_offset_in=bench.rib_x(1) / IN - 1.0)
-    findings = clash._stud_findings()
-    assert any("counterbore" in f.message for f in findings)
+    assert any("counterbore" in f.message for f in clash._stud_findings())
 
 
 # ---------------------------------------------------------------------------
@@ -136,13 +210,13 @@ def test_a_lag_landing_under_a_rib_is_told_to_counterbore():
 
 
 def test_the_bracket_is_the_rack_and_not_the_ledger(bench):
-    """The whole design argument, as a number.
+    """The design argument, as a number.
 
     Running the ribs down past a second ledger buys a lever arm several times
     the ledger's own depth.
     """
-    assert bench.bracket_depth > 20 * IN
-    assert bench.bracket_depth > 3.5 * bench.ledger_w
+    assert bench.bracket_depth > 24 * IN
+    assert bench.bracket_depth > 4.0 * bench.ledger_w
 
 
 def test_a_deeper_bracket_is_a_lighter_pull_on_the_same_lags(bench, parts):
@@ -153,43 +227,47 @@ def test_a_deeper_bracket_is_a_lighter_pull_on_the_same_lags(bench, parts):
     is the second finding the bracket section of the report prints.
     """
     moment = bench.overturning_moment_nmm(parts)
-    assert moment / bench.bracket_depth < moment / bench.ledger_w / 3.0
+    assert moment / bench.bracket_depth < moment / bench.ledger_w / 4.0
 
 
-def test_fewer_tiers_make_a_shallower_bracket(bench):
-    """The rack's height and the bracket's lever arm are the same number.
+def test_deleting_the_joists_deepened_the_bracket(bench):
+    """The ribs carry the top directly, so the rack starts 3-1/2" higher.
 
-    Two tiers of bins is a shorter rack, a lower bottom ledger position and
-    therefore a shorter arm, even though it also holds less.
+    The lower ledger went down with it, which is a part removed for one reason
+    paying off in another.
     """
-    shallow = BasementBench(n_tiers=2)
-    assert shallow.bracket_depth < bench.bracket_depth
-    assert shallow.n_bins < bench.n_bins
+    assert bench.rib_top_z == pytest.approx(bench.top_underside_z)
+    assert "joist" not in {p.label for p in extract(bench.build())}
 
 
 def test_the_lags_are_not_the_limit_and_shear_is_tighter_than_pull_out(bench, parts):
     """Reference design values, both sides allowable.
 
-    If this ever inverts, lags_per_stud is being defended by the wrong
-    argument.
+    If this ever inverts, the lag size is being defended by the wrong
+    argument: eight full totes make holding the weight up the binding case,
+    not pulling off the wall.
     """
     n_lags = len(bench.stud_positions) * bench.lags_per_stud
-    pull_lb = (
-        bench.overturning_moment_nmm(parts) / bench.bracket_depth / 4.4482216 / n_lags
+    pull_lb = pounds_force(
+        bench.overturning_moment_nmm(parts) / bench.bracket_depth
+    ) / n_lags
+    capacity_lb = (
+        lag_withdrawal_lb_per_in(diameter_in=bench.lag_diameter_in)
+        * bench.lag_penetration
+        / IN
     )
-    capacity_lb = lag_withdrawal_lb_per_in() * bench.lag_penetration / IN
     assert capacity_lb / pull_lb > 4.0
 
-    from basement_bench import LAG_SHEAR_LB, pounds_force
-
     shear_lb = pounds_force(bench.total_load_n(parts)) / n_lags
-    assert LAG_SHEAR_LB / shear_lb < capacity_lb / pull_lb
+    shear_ratio = LAG_SHEAR_LB[bench.lag_diameter_in] / shear_lb
+    assert 1.0 < shear_ratio < capacity_lb / pull_lb
 
 
 def test_one_lag_per_stud_runs_a_margin_this_bench_should_not(parts):
-    """Why lags_per_stud defaults to 2.
+    """Why lags_per_stud is 2.
 
-    One passes, and passing at 1.5x is not the same as being fine.
+    One passes, and passing at 1.5x under 900 lb is not the same as being
+    fine.
     """
     thin = BasementBench(lags_per_stud=1)
     findings = thin._wall_findings(extract(thin.build()))
@@ -198,78 +276,141 @@ def test_one_lag_per_stud_runs_a_margin_this_bench_should_not(parts):
     assert "lags_per_stud=2" in shear.message
 
 
+def test_an_untabulated_lag_is_not_checked_rather_than_interpolated(parts):
+    odd = BasementBench(lag_diameter_in=0.625)
+    assert 0.625 not in LAG_SHEAR_LB
+    findings = odd._wall_findings(extract(odd.build()))
+    assert any("not checked" in f.message for f in findings)
+
+
 def test_the_leaning_load_is_the_one_that_sizes_the_wall(bench, parts):
     """The smallest load has the longest lever arm.
 
     So it must not be possible to drop it and get the same answer.
     """
-    cases = dict((name, (kg, arm)) for name, kg, arm in bench._load_cases(parts))
+    cases = {name: (kg, arm) for name, kg, arm in bench._load_cases(parts)}
     leaning = "somebody leaning on the front edge"
     assert cases[leaning][1] == bench.overall_d
     assert cases[leaning][1] == max(arm for _, arm in cases.values())
 
 
 # ---------------------------------------------------------------------------
-# The rack, and the bin that sized it
+# The mix, and what it buys
 # ---------------------------------------------------------------------------
 
 
-def test_five_bays_not_six_because_of_the_runners(bench):
-    """Six bays would leave a channel an 11" bin does not enter.
+def test_the_mix_is_what_makes_the_fourth_bay_fit(bench):
+    """Not a preference — arithmetic.
 
-    The bay count is an outcome of the bin, which is why it is derived.
+    Four bays of the wide tote want more bench than there is; four of the
+    narrow one waste most of a bay. Three and one fits exactly.
     """
-    assert bench.derived_n_bays == 5
-    assert bench.bin_channel_w > 11 * IN
-    six = BasementBench(n_bays=6)
-    assert six.bin_channel_w < 11 * IN
+    keys = [b.key for b in bench.bay_bins]
+    assert keys == ["17gal", "17gal", "17gal", "16gal"]
+
+    all_wide = BasementBench(bins=("17gal",))
+    assert all_wide.derived_n_bays == 3
+    all_narrow = BasementBench(bins=("16gal",))
+    assert all_narrow.derived_n_bays == 4
 
 
-def test_a_smaller_bin_buys_more_bays():
-    small = BasementBench(bin_w_in=8.25, bin_l_in=13.625, bin_h_in=5.0)
-    assert small.derived_n_bays > BasementBench().derived_n_bays
+def test_the_bays_are_not_all_the_same_width_and_the_clearance_is(bench):
+    """Each bay is cut to its own tote, so the slack lands evenly."""
+    widths = [bench.bay_clear_w(b) for b in range(bench.derived_n_bays)]
+    assert len(set(round(w, 3) for w in widths)) == 2
+    clearances = [
+        bench.bin_side_clearance(b) for b in range(bench.derived_n_bays)
+    ]
+    assert max(clearances) - min(clearances) < 0.01
+    assert clearances[0] > 0.375 * IN
 
 
-def test_the_rack_holds_what_it_says_and_open_bays_cost_bins(bench):
-    assert bench.n_bins == bench.derived_n_bays * bench.n_tiers
+def test_the_bays_add_up_to_the_frame(bench):
+    total = sum(
+        bench.bay_clear_w(b) for b in range(bench.derived_n_bays)
+    ) + bench.n_ribs * bench.panel_t
+    assert total == pytest.approx(bench.frame_w)
+
+
+def test_uniform_tiers_let_any_tote_go_in_any_slot(bench):
+    """The shorter tote rides with the difference as extra headroom.
+
+    Worth more in a shop than the inch it costs, and the report says so.
+    """
+    short = BIN_TYPES["17gal"]
+    assert bench.head_clearance(short) > bench.head_clearance(bench.tallest)
+    assert bench.head_clearance(bench.tallest) == pytest.approx(
+        bench.bin_head_clearance_in * IN
+    )
+
+
+def test_the_rack_holds_what_it_says_and_open_bays_cost_totes(bench):
+    assert bench.n_bins == bench.derived_n_bays * bench.n_tiers == 8
+    assert sum(bench.bin_tally.values()) == bench.n_bins
     opened = BasementBench(open_bays=(2,))
     assert opened.n_bins == bench.n_bins - bench.n_tiers
-    assert opened.rack_load_kg < bench.rack_load_kg
 
 
-def test_an_open_bay_takes_its_runners_out_of_the_model(bench):
+def test_an_open_bay_takes_its_shelves_and_its_dadoes_out_of_the_model(bench):
     opened = BasementBench(open_bays=(2,))
-    runners = next(p for p in extract(opened.build()) if p.label == "runner")
-    every_bay = next(p for p in extract(bench.build()) if p.label == "runner")
-    assert runners.qty == every_bay.qty - 2 * bench.n_tiers
+    shelves = [p for p in extract(opened.build()) if p.label == "shelf"]
+    every_bay = [p for p in extract(bench.build()) if p.label == "shelf"]
+    assert sum(p.qty for p in shelves) == sum(p.qty for p in every_bay) - bench.n_tiers
 
 
-def test_a_bin_never_reaches_the_ledgers_behind_it(bench):
-    """The dead space behind a bin is the space the structure needs.
-
-    If they stop being the same space, a bin stops going all the way in.
-    """
-    assert bench.frame_d - bench.bin_l_in * IN > bench.ledger_t
-
-
-def test_the_front_rail_stops_where_the_rack_starts(bench):
-    """A 2x6 front rail would hang 2" into the top tier and the top row of bins could not come out.
-
-    The rail's underside is the rack's ceiling.
-    """
-    assert bench.joist_bottom_z == pytest.approx(bench.rack_top_z)
-    top_bin_top = bench.rack_top_z - bench.bin_head_clearance_in * IN
-    assert top_bin_top < bench.joist_bottom_z
-
-
-def test_a_fourth_tier_does_not_fit_and_is_refused():
+def test_a_third_tier_does_not_fit_and_is_refused():
     with pytest.raises(ValueError, match="below the slab"):
-        BasementBench(n_tiers=4)
+        BasementBench(n_tiers=3)
 
 
-def test_a_bin_too_wide_for_the_bench_is_refused():
+def test_a_tote_too_wide_for_the_bench_is_refused():
     with pytest.raises(ValueError, match="fewer than two"):
-        BasementBench(bin_w_in=40.0)
+        BasementBench(bins=("17gal",), bin_side_clearance_in=12.0)
+
+
+# ---------------------------------------------------------------------------
+# Shelves, not runners
+# ---------------------------------------------------------------------------
+
+
+def test_runners_cannot_hold_a_tapered_tote_and_the_check_says_so():
+    """The check that changed this design.
+
+    A tote's base is nowhere near as wide as its rim, so a pair of runners at
+    the bay's edges has nothing to catch.
+    """
+    runners = BasementBench(support="runners")
+    report = runners.check(runners.build(), extract(runners.build()))
+    assert not report.ok
+    support = [f for f in report.findings if f.code == "support"]
+    assert all(
+        f.severity is Severity.ERROR
+        for f in support
+        if "drops between them" in f.message
+    )
+    assert any("drops between them" in f.message for f in support)
+
+
+def test_runners_also_price_the_wider_tote_out_of_the_bench():
+    """A runner stands proud of its rib, so it is bay width as well as sag."""
+    runners = BasementBench(support="runners")
+    assert {b.key for b in runners.bay_bins} == {"16gal"}
+    assert any(
+        f.severity is Severity.WARN and "gets no bay" in f.message
+        for f in runners._rack_findings()
+    )
+
+
+def test_runners_also_cost_an_inch_and_a_half_of_floor_clearance(bench):
+    runners = BasementBench(support="runners")
+    assert runners.tier_pitch > bench.tier_pitch
+    assert runners.rack_bottom_z < bench.rack_bottom_z
+
+
+def test_the_shipped_build_holds_every_tote_it_claims_to(bench):
+    findings = bench._support_findings()
+    assert findings
+    assert all(f.severity is Severity.INFO for f in findings)
 
 
 # ---------------------------------------------------------------------------
@@ -277,16 +418,15 @@ def test_a_bin_too_wide_for_the_bench_is_refused():
 # ---------------------------------------------------------------------------
 
 
-def test_the_kit_is_eight_kinds_of_part(parts):
+def test_the_kit_is_seven_kinds_of_part(parts):
     assert {p.label for p in parts} == {
         "top_skin",
         "top_surface",
         "top_ledger",
         "rack_ledger",
-        "joist",
         "front_rail",
         "rib",
-        "runner",
+        "shelf",
     }
 
 
@@ -296,11 +436,20 @@ def test_the_legged_build_adds_foot_rails_and_taller_ribs(bench, legged):
     assert legged.rib_h > bench.rib_h
 
 
-def test_there_is_one_rib_and_one_joist_per_bay_boundary(bench, parts):
-    by_label = {p.label: p for p in parts}
-    assert by_label["rib"].qty == bench.n_ribs
-    assert by_label["joist"].qty == bench.n_ribs
-    assert by_label["runner"].qty == 2 * bench.n_tiers * bench.derived_n_bays
+def test_there_is_one_rib_per_bay_boundary_and_a_shelf_per_bay_per_tier(
+    bench, parts
+):
+    by_label: dict[str, int] = {}
+    for p in parts:
+        by_label[p.label] = by_label.get(p.label, 0) + p.qty
+    assert by_label["rib"] == bench.n_ribs
+    assert by_label["shelf"] == bench.derived_n_bays * bench.n_tiers
+
+
+def test_two_shelf_sizes_because_two_bay_widths(parts):
+    shelves = [p for p in parts if p.label == "shelf"]
+    assert len(shelves) == 2
+    assert {p.qty for p in shelves} == {2, 6}
 
 
 def test_the_top_is_two_glued_layers_under_one_screwed_one(bench, parts):
@@ -311,43 +460,52 @@ def test_the_top_is_two_glued_layers_under_one_screwed_one(bench, parts):
     assert bench.structural_top_t < bench.top_t
 
 
-def test_the_notches_survive_into_the_rib_geometry(bench):
-    """Two 1-1/2" x 5-1/2" notches out of a 22" x 27" panel.
+def test_the_notches_survive_into_the_rib_geometry():
+    """Two ledger notches and the front rail's rebate, out of a rectangle.
 
-    A regression here means the booleans quietly stopped cutting and the rib
-    would foul both ledgers.
+    Checked on the runners build, whose ribs carry no shelf dadoes, so the
+    arithmetic is exact rather than a bound.
     """
+    bench = BasementBench(support="runners")
     rib = next(
         c for c in bench.build().children if getattr(c, "label", "") == "rib"
     )
-    rectangle = bench.frame_d * bench.rib_h * bench.panel_t
+    blank = bench.frame_d * bench.rib_h * bench.panel_t
     notches = 2 * bench.ledger_t * bench.ledger_w * bench.panel_t
-    assert rib.volume == pytest.approx(rectangle - notches, rel=1e-3)
+    rebate = bench.rail_w * bench.rail_t * bench.panel_t
+    assert rib.volume == pytest.approx(blank - notches - rebate, rel=1e-3)
 
 
-def test_the_joist_dado_is_cut_to_the_sheet_and_not_to_its_label(bench):
+def test_an_end_rib_is_dadoed_on_one_face_and_an_inner_rib_on_two(bench):
+    ribs = [c for c in bench.build().children if getattr(c, "label", "") == "rib"]
+    assert len(ribs) == bench.n_ribs
+    end, inner = ribs[0], ribs[1]
+    assert end.volume > inner.volume
+    one_face = bench.n_tiers * (
+        bench.shelf_depth * bench.panel_t * (0.25 * IN)
+    )
+    assert end.volume - inner.volume == pytest.approx(one_face, rel=0.02)
+
+
+def test_the_dadoes_are_cut_to_the_sheet_and_not_to_its_label(bench):
     """23/32", not 3/4".
 
-    A dado cut to the label is 0.8 mm loose and the rib it locates is no longer
-    located.
+    A dado cut to the label is 0.8 mm loose and the shelf it houses rattles.
     """
-    joist = next(
-        c for c in bench.build().children if getattr(c, "label", "") == "joist"
-    )
-    solid = bench.joist_len * bench.joist_w * bench.joist_t
-    assert joist.volume < solid
     assert bench.panel_t == pytest.approx(0.71875 * IN, abs=0.01)
 
 
-def test_the_ribs_are_free_to_turn_on_the_sheet_and_the_runners_are_not(parts):
+def test_the_ribs_and_shelves_are_free_to_turn_on_the_sheet_and_the_top_is_not(
+    parts,
+):
     """Worth a sheet of plywood.
 
-    A 27"-deep web does not care which way its face grain runs, and a 1-1/2"
-    strip does.
+    Neither a 30"-deep web nor a shelf that sags a tenth of a millimetre cares
+    which way its face grain runs; the top is the face you look at.
     """
     by_label = {p.label: p for p in parts}
     assert by_label["rib"].grain_direction == "none"
-    assert by_label["runner"].grain_direction == "length"
+    assert by_label["shelf"].grain_direction == "none"
     assert by_label["top_skin"].grain_direction == "length"
 
 
@@ -362,20 +520,18 @@ def test_the_shipped_bench_has_no_errors(bench, parts):
 
 
 def test_the_shipped_bench_warns_about_exactly_what_it_should(bench, parts):
-    """Four WARN categories by design, and no more.
+    """Five WARN categories by design, and no more.
 
-    No bay left open, the wall joint is the thing that moves, and nobody knows
-    what is in those stud bays. The plywood-thickness WARNs come from the
-    sheet, not from the design.
+    No bay left open, the back of a deep bench is past a reach, the wall joint
+    is the thing that moves, and nobody knows what is in those stud bays. The
+    plywood-thickness WARNs come from the sheet, not from the design.
     """
     report = bench.check(bench.build(), parts)
-    categories = sorted(
-        {f.code for f in report.findings if f.severity is Severity.WARN}
-    )
-    assert categories == ["deflection", "rack", "site", "thickness"]
+    codes = sorted({f.code for f in report.findings if f.severity is Severity.WARN})
+    assert codes == ["deflection", "ergonomics", "rack", "site", "thickness"]
 
 
-def test_opening_a_bay_answers_the_rack_warning(bench, parts):
+def test_opening_a_bay_answers_the_rack_warning():
     opened = BasementBench(open_bays=(2,))
     report = opened.check(opened.build(), extract(opened.build()))
     assert not any(
