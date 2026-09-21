@@ -41,6 +41,9 @@ projects/
   media_console.py    80" console as a slide-together grid: five record bays,
                       a CD row, half-lapped panels, no glue. Cherry-plywood
                       and painted-birch/solid-top builds
+  basement_bench.py   80" shop bench lagged to exposed basement studs, with a
+                      five-bay bin rack under it that doubles as the wall
+                      bracket. Wall-hung and floor-standing builds
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -56,6 +59,7 @@ uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
 uv run python projects/media_console.py --variant both --outdir build
+uv run python projects/basement_bench.py --mount both --outdir build
 ```
 
 That writes to `build/`:

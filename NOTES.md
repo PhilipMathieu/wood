@@ -1545,3 +1545,188 @@ points, which was plenty for a straight board edge but made the nightstand's
 circular top render as a visible 16-gon — bumped to 64, which reads as a
 circle again at gallery sizes without meaningfully changing render time (a
 few tenths of a second per view, even on the console's few thousand edges).
+
+## Addendum: the basement bench, where the storage is the bracket
+
+The brief was one sentence — *a workbench roughly 80" wide, mounted to exposed
+studs in the basement, with racks for project source storage bins underneath* —
+and the interesting thing about it is that two of its three clauses are the
+same clause. "Mounted to exposed studs" and "bins underneath" both describe the
+structure, and the whole design falls out of noticing that before drawing
+anything.
+
+### The cantilever cannot be avoided, only levered
+
+A bench hung on a wall rotates about the bottom of whatever holds it. The load
+is out in front of the studs, so the top of the fixing is pulled *away* from
+them and the bottom is pressed *into* them. No arrangement of brackets, French
+cleats or knee braces escapes that: a diagonal brace converts the moment into a
+tension in the top member and a compression in the brace, and the tension still
+arrives at the top lag as withdrawal. The first sketch of this bench tried
+three different ways to dodge it and all three were the same free-body diagram
+with different wood in it.
+
+What a design *does* control is the lever arm — the vertical distance between
+the tension at the top and the bearing at the bottom — because the pull on each
+lag is the overturning moment divided by it. A bench held by one ledger under
+its top has an arm of 5-1/2" and needs heroic fasteners. This one has **21-1/2"**,
+because the bin rack's ribs run from the underside of the top down past a
+second ledger near the floor, and both ledgers are lagged to the same studs.
+
+The report prints the comparison rather than the conclusion:
+
+```
+INFO  [bracket] the rack is the bracket: 21-1/2" between the two ledgers'
+                centroids, so 11470 lb-in of overturning becomes 533 lb pulling
+                the top ledger off the wall and the same pushing the bottom one
+                into it
+INFO  [bracket] on one ledger alone it would be 5-1/2" of lever arm and 2085 lb
+                — 3.9x as much. That ratio is the entire argument for running
+                the ribs past a second ledger near the floor
+```
+
+That is the design, stated as a number: 3.9x, bought with a second 2x6 and some
+notches that were going to be cut anyway.
+
+### Which fastener figure binds, and the one that surprised me
+
+Working the load path in pounds — NDS's units, not the file's — the margins
+come out lopsided in a useful way:
+
+```
+INFO  [wall] withdrawal: 53 lb per lag against 382 lb (3/8" lag, 1-5/8" of
+             thread in SPF at G=0.42) — 7.2x
+INFO  [wall] shear: 71 lb per lag against 210 lb, with the whole vertical load
+             put on the top ledger's 10 lags — 2.9x
+```
+
+**Pull-out is not the problem; holding the weight up is.** That is the opposite
+of the intuition that says a wall-hung anything is about things ripping off the
+wall, and it is entirely because the deep bracket has already divided the
+withdrawal by four while doing nothing at all for the vertical. It is also why
+`lags_per_stud` defaults to **2** rather than 1: one lag per stud passes, at
+1.5x, and `test_one_lag_per_stud_runs_a_margin_this_bench_should_not` pins the
+fact that the model says so out loud.
+
+Both sides of every comparison are *reference design values* — allowable, not
+ultimate — so the ratios are margin on top of a code safety factor rather than
+instead of one. The model is deliberately pessimistic in three places: the
+whole vertical load goes on the top ledger although the lower one demonstrably
+carries some of it, the leaning load is added on top of a full rack rather than
+instead of one, and SPF is assumed where the yard may well have sold you fir
+(G = 0.50, and every capacity scales as `G**1.5`).
+
+### The assumption the model cannot check
+
+Everything above rests on the exposed studs being a framed stud wall. A 1x3
+strapping run cut-nailed to a foundation wall looks *exactly* like a stud wall
+with the drywall off, and a 3-1/2" lag driven into one finds 3/4" of pine and
+then concrete. There is no geometry that distinguishes them, so `stud_nominal`
+is a parameter and a `1x` value turns the whole wall section into an ERROR:
+
+```
+ERROR [wall] stud_nominal='1x3' is strapping, not framing: a 3-1/2" lag finds
+             3/4" of wood and then masonry. Every wall finding below assumes a
+             framed stud wall and none of them holds — this needs concrete
+             anchors into the foundation, or the legged build
+```
+
+This is a different species of check from anything else in the repo.
+`check_material_suitability` compares a material against an operation;
+`check_price_provenance` compares a price against a date. This one compares
+**a model against a site**, and the only honest thing it can do is refuse to
+produce numbers that look researched when their premise is unverified.
+
+### What only a model would catch
+
+The ribs are notched over both ledgers, and a notch's back face *bears on the
+ledger's front face* — that bearing is what takes the thrust at the bottom of
+the bracket, with no fastener at all. Which means a lag head sitting proud at a
+rib's position stops the rib seating. Studs land at 16" o.c.; ribs land at
+15-7/16" o.c., set by the bin. The two pitches drift in and out of coincidence
+as any parameter changes, and at the shipped numbers they happen to miss by
+more than 6". `_stud_findings` checks it anyway and says "counterbore that lag
+head" when they do not, which is a clash nobody finds on paper and everybody
+finds with a rib in one hand.
+
+### Five bays, not six, and the bin decided it
+
+The bins are not a fit-out; they are the dimension the rack is drawn from. An
+11"-wide bin plus its clearance plus a 3/4" runner standing proud on each side
+plus a 3/4" rib is 13-29/32" of bench per bay, and 78" of frame holds five of
+them, not six. Six would give a 10-3/4" channel between runners, which an 11"
+bin does not enter at all. So `n_bays` is *derived* and the clearance that
+results is reported, rather than a round number being chosen and the bins being
+found not to fit later:
+
+```
+INFO  [rack] 5 bays x 3 tiers = 15 bins of 16" x 11" x 7", 90 kg full; bays are
+             14-3/4" clear on a 15-7/16" pitch
+INFO  [clearance] clearance each side of a bin is 1-1/8"
+```
+
+1-1/8" a side reads like slop and is not: it is how you get a hand on a bin to
+pull it. `check_clearance`'s band was set with a floor of 3/8" and a ceiling of
+2" for exactly that reason — under the floor you fight the bin, over the
+ceiling you are buying bench width to store air.
+
+The bin itself is the weakest number in the file and is flagged as such: a
+*nominal* 16" x 11" x 7" tote, plausible rather than measured. Every one of the
+three is a parameter, and the report prints the clearances a real bin can be
+checked against before anything is cut.
+
+### A finding that was worth a sheet of plywood
+
+The first nesting run bought **four** sheets of 3/4" birch at 45% yield, which
+is an absurd answer for 8,300 in² of parts on 4,608 in² sheets. The cause was
+grain locking: every part declared `grain_direction="length"`, so a 22" x 27"
+rib could only lie one way on the sheet and four fit where six would.
+
+A rib is a 27"-deep plywood web spanning 22". The check already computed what
+it does under the worst load on the bench:
+
+```
+INFO  [deflection] one rib as a cantilever: 27" deep over 22", the whole 100 kg
+                   leaning load on its nose, 0.017 mm at the tip
+```
+
+Seventeen microns. The difference between a rib cut along the face grain and
+one cut across it is not a number anybody can measure, so the ribs declare
+`grain_direction="none"` and the nester turns them. **Three sheets at 60%.**
+The runners keep their grain — a 1-1/2" strip cut across the face grain is a
+strip that splits at the screw — and that is the whole reason the yield is 60%
+and not higher. It is a good example of a check earning its keep somewhere it
+was not aimed: the deflection figure was written to answer "does it sag" and
+ended up answering "how do I nest it".
+
+### What the two builds actually trade
+
+`hung` puts nothing on the slab — the lowest part of the bench is the bottom
+tier's runners, 3-13/16" up — so the floor sweeps, a wet spring never reaches
+the plywood, and there is no foot to level on a floor that was never flat.
+`legged` runs every rib down onto a pair of 2x4 foot rails and the floor takes
+the 730 lb, which is the build for a wall that turned out to be furring and for
+hand work. Both are in the gallery because the trade is real in both
+directions, and the foot rails are specified unglued and replaceable because
+they are the part that finds out a basement is damp.
+
+Two things the design gives up and says so rather than hiding: there is **no
+knee space anywhere** — the rack fills the width, so this is a bench to stand
+at — and by default no bay is left open for a shop vac or a bucket, which is a
+standing WARN answered by `open_bays=(2,)`.
+
+### Specced and not built
+
+- **A vice.** The top's 2" front overhang is there for a clamp jaw, and a face
+  vice at the left end wants the front rail and the end rib doubled behind it.
+  That is a local reinforcement the model would have to be told about rather
+  than derive, and nothing else in the design changes.
+- **Dadoed runners.** Letting each runner into a 1/4" dado gives back two
+  thirds of the 1-7/16" the runners take out of every bay, and costs thirty dado
+  setups for a part that carries six kilos. Surface-applied won, and the report
+  names the trade.
+- **A cut-list row for the lags and the screws.** `woodshop.hardware` re-exports
+  bd_warehouse fasteners and knows nothing about lag screws, so the ten
+  3/8" x 3-1/2" lags, the top's screw line and the pocket screws exist only in
+  the notes. A bench whose structure *is* its fasteners is the project that
+  most wants a hardware schedule, and it does not have one.
