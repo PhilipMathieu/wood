@@ -2195,3 +2195,82 @@ it against the model rather than trusting the sentence found the 88" and
 90" counterexamples above, which is a smaller-scale version of the same
 mistake the "the mix is what makes N bays fit" finding made two addenda
 ago: writing the story before checking it against the numbers.
+
+## Addendum: three sixteens or two seventeens, and the rack got taller
+
+The user caught a real mismatch: with a single `n_tiers` shared by every
+bay, the 16- and 17-gallon bays held the same number of totes even though
+the 17-gallon is 3" taller — nothing about height told you which bay held
+which count. The fix: a bay's tier count should follow its own tote, not a
+bench-wide constant. `n_tiers: int` is gone, replaced by
+`tier_counts: dict[str, int]`, default `{"16gal": 3, "17gal": 2}` — three of
+the shorter tote per bay, two of the taller, the same kind of explicit
+decision `DEFAULT_BAY_LAYOUT` already made for which bay holds which tote.
+
+### One rack height, whichever tote asks for more
+
+Dividers are one continuous piece of stock from the top ledger to the
+bottom rail — a bay can't have its own private rack height, so `rack_h` has
+to be a single number shared by every bay regardless of tote:
+
+```python
+rack_h = max(tiers_for(b) * tight_pitch(b) for b in set(bay_bins))
+```
+
+Three 16-gallon tiers at their tight 11-1/2" pitch need 34-1/2"; two
+17-gallon tiers at 14-1/2" need 29". The 16-gallon bays drive `rack_h`, and
+the 17-gallon bays get the 5-1/2" difference back as head room instead of
+a cramped fit (`head_clearance` went from a flat constant to
+`tier_pitch_for(bin) - tight_pitch(bin)`, same "spread the surplus back"
+idiom `bay_slack` already used for width) — one of the two tote types was
+always going to end up looser, and it turned out to be the shorter one
+that needed fewer tiers, not by design, just arithmetic.
+
+### 34-1/2" of rack does not fit under a 36" top — not without standing the rails up
+
+The rails were on edge (`3-1/2"` of vertical overhead each) so they could
+carry a tote as a free cantilever without failing `span/240`. Three
+16-gallon tiers at that overhead need `40-1/2"` of rack, and hanging that
+under the existing 36" top puts the bottom tier's rail 1-11/16" *below* the
+slab — the model's own floor-overflow check caught it before I had to
+notice by eye:
+
+```
+ValueError: 3 tiers of the 16 gal tote at 11-1/2" need 34-1/2" of rack,
+which hangs the bottom tier tie 1-11/16" below the slab under a 36" top —
+raise top_height_in to at least 37.7"
+```
+
+(quoted here with rails already flat; the on-edge number was worse — 40-1/2"
+of rack needing a 46-47" top just to clear the floor.) Two ways out: raise
+the top to 46-47" and keep the cantilever, or make the rail need less
+vertical overhead so raising the top costs less. Put to the user with both
+computed, the choice was the second — **add a tie rail at every tier, keep
+the top near 40"**.
+
+### Flat rails, tied at the front
+
+A cantilevered rail has to stand on edge to pass `span/240` — laid flat, a
+2x4 is an order of magnitude softer in the direction that matters. Screwing
+a short cleat (`tier_tie`) across the underside of both rails at their front
+ends turns the free cantilever into a simply-supported span, which is stiff
+enough flat: `rail_t` dropped from `divider_w` (3-1/2", on edge) to
+`divider_t` (1-1/2", flat), and `_stiffness_findings` swapped the hand-rolled
+cantilever-beam formula for `woodshop.checks.check_shelf_deflection` against
+the same tied span. One check now stands for every rail in the rack, tied
+or not, tote or not — the old version needed one per tier because each
+tier's cantilever was checked independently.
+
+A flat rail's bearing face is its full 3-1/2" width rather than a 1-1/2"
+edge, so it also reaches further out from the bay centre for the same
+tote-sized channel — `rail_bearing_margin_in` moved from 0.5" to 1.0" so a
+flat rail's outer edge still clears the divider; `__post_init__` checks
+that directly (`rail runs through it` if it doesn't) rather than assuming a
+constant margin is always enough.
+
+Net result: `top_height_in` moved from 36" to 40", `rack_h` from a uniform
+2-tier 29" to a mixed 3-and-2-tier 34-1/2", and the lowest point of the
+whole hung assembly — now the bottom tier's tie, not its rail — sits
+2-5/16" off the slab, still clear of the 3" clearance check. A `tier_tie`
+part joins `rail` and `divider` as the third kind of frame stock; the kit
+is otherwise unchanged.

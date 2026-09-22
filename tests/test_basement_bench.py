@@ -106,12 +106,12 @@ def test_the_bench_is_the_published_size(bench):
     bb = bench.build().bounding_box()
     assert bb.size.X == pytest.approx(90 * IN, abs=0.1)
     assert bb.size.Y == pytest.approx(bench.overall_d, abs=0.1)
-    assert bb.max.Z == pytest.approx(36 * IN, abs=0.1)
+    assert bb.max.Z == pytest.approx(40 * IN, abs=0.1)
 
 
 def test_nothing_in_the_hung_build_touches_the_floor(bench):
     bb = bench.build().bounding_box()
-    assert bb.min.Z == pytest.approx(bench.rack_bottom_z, abs=0.1)
+    assert bb.min.Z == pytest.approx(bench.lowest_point_z, abs=0.1)
     assert bb.min.Z > 0.0
 
 
@@ -351,35 +351,42 @@ def test_zero_bearing_margin_is_refused():
         BasementBench(rail_bearing_margin_in=20.0)
 
 
-def test_the_top_tier_totes_ride_with_extra_headroom(bench):
-    """The shorter tote gets the difference back as head room.
+def test_the_non_driving_tote_rides_with_extra_headroom(bench):
+    """Whichever tote's tier count does not drive the shared rack height.
 
-    The 16-gallon tote is shorter than the 17-gallon that sets the tier
-    pitch, rather than a cramped fit.
+    gets the difference back as head room, rather than a cramped fit. Here
+    that is the 17-gallon tote: three tiers of the 16-gallon tote need more
+    rack height than two tiers of the 17-gallon, so the 16-gallon tiers get
+    the bare minimum and the 17-gallon tiers get the surplus.
     """
-    short = BIN_TYPES["16gal"]
-    assert bench.head_clearance(short) > bench.head_clearance(bench.tallest)
-    assert bench.head_clearance(bench.tallest) == pytest.approx(
+    driver = max(
+        set(bench.bay_bins),
+        key=lambda b: bench.tiers_for(b) * bench._tight_tier_pitch(b),
+    )
+    other = next(b for b in set(bench.bay_bins) if b is not driver)
+    assert bench.head_clearance(other) > bench.head_clearance(driver)
+    assert bench.head_clearance(driver) == pytest.approx(
         bench.bin_head_clearance_in * IN
     )
 
 
 def test_the_rack_holds_what_it_says_and_open_bays_cost_totes(bench):
-    assert bench.n_bins == bench.derived_n_bays * bench.n_tiers
+    assert bench.n_bins == sum(bench.tiers_for(b) for b in bench.bay_bins)
     opened = BasementBench(open_bays=(1,))
-    assert opened.n_bins == bench.n_bins - bench.n_tiers
+    assert opened.n_bins == bench.n_bins - bench.tiers_for(bench.bay_bins[1])
 
 
 def test_an_open_bay_takes_its_rails_out_of_the_model(bench):
     opened = BasementBench(open_bays=(1,))
     rails = [p for p in extract(opened.build()) if p.label == "rail"]
     every_bay = [p for p in extract(bench.build()) if p.label == "rail"]
-    assert sum(p.qty for p in rails) == sum(p.qty for p in every_bay) - 2 * bench.n_tiers
+    lost = 2 * bench.tiers_for(bench.bay_bins[1])
+    assert sum(p.qty for p in rails) == sum(p.qty for p in every_bay) - lost
 
 
-def test_a_third_tier_does_not_fit_and_is_refused():
+def test_a_fourth_sixteen_gallon_tier_does_not_fit_and_is_refused():
     with pytest.raises(ValueError, match="below the slab"):
-        BasementBench(n_tiers=3)
+        BasementBench(tier_counts={"16gal": 4, "17gal": 2})
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +394,7 @@ def test_a_third_tier_does_not_fit_and_is_refused():
 # ---------------------------------------------------------------------------
 
 
-def test_the_kit_is_five_kinds_of_part(parts):
+def test_the_kit_is_eight_kinds_of_part(parts):
     assert {p.label for p in parts} == {
         "top_skin",
         "top_surface",
@@ -396,6 +403,7 @@ def test_the_kit_is_five_kinds_of_part(parts):
         "front_rail",
         "divider",
         "rail",
+        "tier_tie",
     }
 
 
@@ -407,8 +415,11 @@ def test_the_legged_build_adds_foot_rails(bench, legged):
 
 def test_one_divider_per_bay_boundary_and_two_rails_per_bay_per_tier(bench, parts):
     by_label = {p.label: p for p in parts}
+    tiers = sum(bench.tiers_for(b) for b in bench.bay_bins)
+    tier_tie_qty = sum(p.qty for p in parts if p.label == "tier_tie")
     assert by_label["divider"].qty == bench.n_dividers
-    assert by_label["rail"].qty == 2 * bench.n_tiers * bench.derived_n_bays
+    assert by_label["rail"].qty == 2 * tiers
+    assert tier_tie_qty == tiers
 
 
 def test_the_top_is_two_glued_layers_under_one_screwed_one(bench, parts):
@@ -499,16 +510,17 @@ def test_the_legged_build_swaps_a_floor_warning_for_the_hung_ones(legged):
     assert not any("nothing touches the slab" in m for m in messages)
 
 
-def test_the_rail_cantilever_passes_only_because_it_is_on_edge(bench, parts):
+def test_the_rail_check_passes_only_because_it_is_tied(bench, parts):
     """The number that decided the design.
 
-    A rail as a cantilever under a full tote, checked against span/240.
+    A flat rail, tied at the front into a simply-supported span, checked
+    against span/240 under a full tote — one check for the whole rack, since
+    every rail shares the same span, depth, and thickness.
     """
     findings = bench._stiffness_findings()
-    rail_findings = [f for f in findings if "as a cantilever" in f.message]
-    assert len(rail_findings) == bench.n_tiers
+    rail_findings = [f for f in findings if "tied at the front" in f.message]
+    assert len(rail_findings) == 1
     assert all(f.severity is Severity.INFO for f in rail_findings)
-    assert all("on edge" in f.message for f in rail_findings)
 
 
 # ---------------------------------------------------------------------------
