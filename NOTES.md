@@ -1932,3 +1932,172 @@ difference between 5 sheets and 4-1/2 is not worth a worse joint.
   walls, because nobody publishes it — and it is the number the whole
   shelves-versus-runners decision turns on. One pass with a tape measure would
   retire the only inferred dimension in the file.
+
+## Addendum: the bench got simpler, and the numbers moved with it
+
+The user's read on the last two addenda: *overbuilt*. Use two by fours, and
+simple rails for the bins to slide on. That is a fair complaint of the
+plywood rack — full-depth ribs, housed shelf dadoes, a rebated front rail —
+and rebuilding it in dimensional lumber turned out to change more than the
+part list.
+
+### What "2x4s and rails" turns into, structurally
+
+The plywood rib did two jobs at once: it was the vertical strut connecting
+the two ledgers (the tension/compression couple that makes the bracket
+work), and it was a deep beam resisting the front-edge-lean load, because a
+29"-tall, 3/4"-thick panel standing on edge is enormously stiff for free. No
+single stick of dimensional lumber does both — a 2x4 is either tall and thin
+(good for the first job) or long and thin (fine for the second, at a much
+smaller cross-section), never both at once the way a full sheet is.
+
+So the rack splits into two part types that each do one job:
+
+- A vertical **divider** — one 2x4 per bay boundary, standing on end from the
+  bottom ledger to the top, notched over each the way the plywood rib was.
+  It carries the whole rack's weight down to the top ledger's bearing and
+  presses the bottom of the bracket against the lower ledger's front face.
+  Nothing else needs to be that tall.
+- A pair of horizontal **rails** per bay per tier, 2x4 on edge, cantilevered
+  off whichever divider they are nearest.  A tote's base rests directly on
+  them.  Nothing notches, nothing is dadoed — the whole connection is a butt
+  joint and screws, which is most of what "simple" bought.
+
+The bracket argument does not change at all. `bracket_depth` — the lever arm
+between the two ledgers — depends only on where the ledgers sit, and neither
+ledger moved. A test now asserts this directly:
+`test_the_bracket_depth_does_not_depend_on_what_spans_between_the_ledgers`.
+Swap the rack material and the wall-lag numbers are untouched.
+
+### The bug the redesign re-discovered, in a new shape
+
+The very first draft of these rails made the same mistake the plywood
+version's runners made two addenda ago: it spaced the rails flush against
+the *divider*, which follows the divider outward whenever a bay's clear
+width includes slack (leftover bench width, shared evenly across bays so no
+bay is starved). A rail flush against a divider in a slack-widened bay ends
+up wider apart than the tote's base — the model built this, cheerfully, and
+`__post_init__` refused it: *"bay 0: 2x4 rails leave 17" of clear channel,
+which is not narrower than the 16 gal tote's 15-3/4" base — it would drop
+through."*
+
+The fix is the same one, again: **the rails are positioned from the bay's
+own centre by the tote's base width, not from the divider.** The divider's
+job is to catch the *rim* (the widest point, what the opening has to clear);
+the rail's job is to catch the *base* (the narrowest, what actually needs
+support), and conflating "where the frame member is" with "where the support
+needs to be" is exactly the error that keeps costing a rewrite. It is worth
+a name at this point: a rail's span is set by what it has to hold up, not by
+what happens to be next to it.
+`test_rail_gap_is_independent_of_bay_slack` pins it so this does not come
+back a third time.
+
+### On edge, not flat, and the number that decided it
+
+The first working version laid the rails flat — wide face up, thin edge
+down, which reads as the more obvious "rail to slide a tote on." Checked as
+a cantilever (nothing ties a rail's front end; see below) under one full
+18 kg tote:
+
+```
+WARN [deflection] tier 0 rail as a cantilever, 2x4 flat over 31-1/8", a full
+                  18 kg tote on its nose: 8.3 mm at the tip (span/95; limit
+                  span/240 = 3.3 mm)
+```
+
+Standing the same board on edge — no more material, same screws, just a
+different orientation — moves the vertical dimension from 1-1/2" to 3-1/2"
+in the one axis that matters for bending, and the second moment of area goes
+up by a factor of (3.5/1.5)^3 ≈ 12.7:
+
+```
+INFO [deflection] tier 0 rail as a cantilever, 2x4 on edge over 31-1/8", a
+                  full 18 kg tote on its nose: 1.5 mm at the tip (span/516;
+                  limit span/240 = 3.3 mm)
+```
+
+This is the same lesson `check_shelf_deflection`'s docstring already states
+for a shelf — thickness enters cubed — applied to a stick instead of a
+panel, and it is why "joists go on edge" is universal advice rather than a
+preference. It cost nothing in material and one extra sentence in the
+module docstring explaining why the rail stands up.
+
+### What that costs: floor clearance
+
+Standing the rail up did not come free. Its own vertical footprint per tier
+went from 1-1/2" (flat) to 3-1/2" (on edge), and multiplied by two tiers that
+is 4" less clearance between the bottom rail and the slab than a flat rail
+would have left — and considerably less than the plywood version's thin
+housed shelf (3/4" per tier) ever cost. The shipped hung build comes back
+with:
+
+```
+WARN [clearance] gap under the rack is 9/16" — tight, a push broom will not
+                 go under it, which is most of why the bench is off the
+                 floor at all
+```
+
+Nine-sixteenths of an inch is not zero — the bench still clears the floor —
+but it is a real cost, not a rounding error, and the module docstring now
+says so under *What simple costs* rather than letting the WARN speak for
+itself with no explanation nearby. The alternative (flat rails, more
+clearance, a genuine sag under a full tote) is a worse trade for a bench
+that exists to hold the totes up, so this is the version that shipped. A
+thinner intermediate stock (2x3 on edge) was checked and rejected: at
+0.78x margin against span/240 it is not comfortably safe, only 2x4 and
+larger clear it with room, and 2x4 is also the stock the divider is already
+cut from.
+
+### The totes moved, and traded roles
+
+Two new screenshots replaced the previous bin figures. The 17-gallon tote's
+numbers came back essentially identical (26-7/8" x 18" x 12-1/2", the same
+figure two retailers already corroborated) but the 16-gallon tote turned out
+to be a different, wider and longer, shallower box: 30-3/5" x 20-3/5" x
+9-1/2" against the previous addendum's 23-3/4" x 16" x 13-1/2". That is not a
+small correction — it flips which tote governs which dimension:
+
+|            | governs tier pitch | governs bay width & depth |
+|------------|---------------------|-----------------------------|
+| before     | 16-gallon (taller)  | 17-gallon (wider, longer)   |
+| now        | 17-gallon (taller)  | 16-gallon (wider, longer)   |
+
+No interior dimension is published for the new 16-gallon listing at all —
+only the exterior box. `Bin` gained an `interior_measured` flag for exactly
+this: the 16-gallon's base width is *estimated* by applying the 17-gallon's
+own measured taper ratio (base is about 76% of rim width) to the new tote's
+rim, and every finding that touches it says the number is estimated, not
+measured, and to check it before cutting the rails.
+
+### Fewer bays than before, and not a mix after all
+
+Both totes are now wider than the old ones were, so fewer of them fit across
+80": three bays, not four or five, and — because three bays of the wider
+tote fit with room to spare — the layout algorithm never has to fall back to
+a narrower bay at all. The rack ends up **entirely sized to the 16-gallon
+tote**, with the 17-gallon (narrower) fitting into any of those bays with
+slack to spare. The report says so plainly rather than letting the cut list
+imply a mix that is not actually there:
+
+```
+INFO [rack] every bay ended up sized for the 16 gal tote — 3 of them fit with
+            7-15/16" to spare, so a 17 gal tote was never forced into a bay
+            of its own. It still goes in any bay here; it just rides with
+            more clearance than it needs
+```
+
+This is a case where two additions to the same request — new tote numbers,
+and a request to simplify the structure — compound in a way neither would
+alone: had the totes kept their old proportions, the "mix explains the bay
+count" story from the last addendum would likely still hold. It does not
+happen to hold with this data, and the honest thing was to say why, not to
+force the sentence to survive the numbers underneath it.
+
+### What is gone, unconditionally
+
+Every dado, every rebate, and every sheet of plywood below the benchtop.
+`support="shelf"` vs `support="runners"` — the whole comparison the previous
+addendum built to settle the taper question — is gone too, because there is
+only one rail design now, and it is the one that already accounts for the
+taper by construction (positioned to the base, not the rim). The parts list
+for everything but the top is three names: ledger, divider, rail.
