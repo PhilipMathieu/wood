@@ -104,7 +104,7 @@ def test_a_totes_base_is_much_narrower_than_its_rim():
 
 def test_the_bench_is_the_published_size(bench):
     bb = bench.build().bounding_box()
-    assert bb.size.X == pytest.approx(80 * IN, abs=0.1)
+    assert bb.size.X == pytest.approx(90 * IN, abs=0.1)
     assert bb.size.Y == pytest.approx(bench.overall_d, abs=0.1)
     assert bb.max.Z == pytest.approx(36 * IN, abs=0.1)
 
@@ -139,13 +139,13 @@ def test_a_deep_bench_admits_it_is_past_a_comfortable_reach(bench):
 # ---------------------------------------------------------------------------
 
 
-def test_eighty_inches_is_five_studs_with_a_real_end_distance(bench):
+def test_ninety_inches_is_six_studs_with_a_real_end_distance(bench):
     studs = bench.stud_positions
-    assert len(studs) == 5
+    assert len(studs) == 6
     left = studs[0] - bench.frame_x0
     right = bench.frame_x0 + bench.frame_w - studs[-1]
-    assert left == pytest.approx(7 * IN)
-    assert right == pytest.approx(7 * IN)
+    assert left == pytest.approx(4 * IN)
+    assert right == pytest.approx(4 * IN)
     assert left > 4 * bench.lag_diameter_in * IN
 
 
@@ -231,20 +231,73 @@ def test_the_leaning_load_is_the_one_that_sizes_the_wall(bench, parts):
 # ---------------------------------------------------------------------------
 
 
-def test_the_default_layout_fits_three_bays_of_the_wider_tote(bench):
-    assert bench.derived_n_bays == 3
-    assert {b.key for b in bench.bay_bins} == {"16gal"}
+def test_the_default_layout_is_two_dedicated_bays_each(bench):
+    """The whole reason for the extra 10" of width.
+
+    Left to the auto-packer, whether these two totes share a rack at all is
+    an accident of width — see test_the_packer_alone_gives_the_brief_no_17gal
+    _bay_at_all. bay_layout makes the mix explicit instead.
+    """
+    assert bench.derived_n_bays == 4
+    assert [b.key for b in bench.bay_bins] == ["16gal", "16gal", "17gal", "17gal"]
+
+
+def test_a_bay_layout_naming_too_few_bays_is_refused():
+    with pytest.raises(ValueError, match="fewer than two bays"):
+        BasementBench(bay_layout=("16gal",))
+
+
+def test_the_report_says_bay_layout_overrode_the_packer(bench):
+    findings = bench._rack_findings()
+    assert any(
+        "bay_layout reserves" in f.message and "16 gal" in f.message
+        for f in findings
+    )
+
+
+def test_the_packer_alone_gives_the_brief_no_17gal_bay_at_all():
+    """The fact bay_layout exists to work around.
+
+    At the brief's own 80"-wide frame, the auto-packer fills every bay with
+    the 16-gallon tote and never reaches for a 17-gallon one — a mix was
+    never guaranteed, only ever a possible accident of the width.
+    """
+    auto = BasementBench(overall_w_in=80.0, bay_layout=None)
+    assert {b.key for b in auto.bay_bins} == {"16gal"}
+
+
+def test_whether_the_packer_mixes_them_depends_on_width_not_intent():
+    """A few inches either way flips the packer's answer.
+
+    Which is the point: it is arithmetic about remainders, not a decision
+    about what the rack should hold, so it is not something to rely on.
+    """
+    widths = {w: {b.key for b in BasementBench(overall_w_in=w, bay_layout=None).bay_bins}
+              for w in (80, 88, 96)}
+    assert len({frozenset(keys) for keys in widths.values()}) > 1
+
+
+def test_a_dedicated_layout_that_does_not_fit_says_how_wide_to_go():
+    with pytest.raises(ValueError, match="widen to at least 8"):
+        BasementBench(overall_w_in=80.0)
 
 
 def test_forcing_a_bin_type_alone_still_gives_a_valid_layout():
-    only_17 = BasementBench(bins=("17gal",))
+    only_17 = BasementBench(bins=("17gal",), bay_layout=None)
     assert only_17.derived_n_bays >= 2
     assert {b.key for b in only_17.bay_bins} == {"17gal"}
 
 
+def test_a_bay_layout_naming_an_unavailable_bin_is_refused():
+    with pytest.raises(ValueError, match="not in bins"):
+        BasementBench(bins=("16gal",), bay_layout=("17gal", "17gal"))
+
+
 def test_a_bay_too_narrow_for_any_tote_is_refused():
     with pytest.raises(ValueError, match="fewer than two"):
-        BasementBench(bins=("16gal",), bin_side_clearance_in=30.0)
+        BasementBench(
+            bins=("16gal",), bay_layout=None, bin_side_clearance_in=30.0
+        )
 
 
 def test_rails_are_spaced_to_the_base_not_the_rim(bench):
@@ -259,16 +312,38 @@ def test_rails_are_spaced_to_the_base_not_the_rim(bench):
         assert bench.bay_clear_w(bay) > bin_.width_in * IN  # rim clears the bay
 
 
+def test_rail_channel_is_the_same_for_every_bay_of_one_tote(bench):
+    """Every bay of one tote type gets the same channel, whatever the mix.
+
+    The default layout leaves almost no slack to test this against, so this
+    checks it on a same-type, slack-heavy layout instead: two bays of one
+    tote in a 90"-wide frame leaves 40" of slack, and the channel must not
+    move with it.
+    """
+    slack_heavy = BasementBench(
+        bins=("16gal",), bay_layout=None, n_bays=2, overall_w_in=90.0
+    )
+    assert slack_heavy.bay_slack > 30 * IN
+    channels = {
+        slack_heavy.rail_channel(b) for b in range(slack_heavy.derived_n_bays)
+    }
+    assert len(channels) == 1
+
+
 def test_rail_gap_is_independent_of_bay_slack(bench):
     """The bug the first version of this rewrite had.
 
     A rail flush against the divider follows the bay's slack outward and can
     miss the base; spacing from the tote instead means the channel does not
     change even though bays end up wider than their tote strictly needs.
+    Checked per tote type: the default layout mixes two different totes,
+    which legitimately get two different channels.
     """
     assert bench.bay_slack > 0
-    channels = {bench.rail_channel(b) for b in range(bench.derived_n_bays)}
-    assert len(channels) == 1
+    by_key: dict[str, set[float]] = {}
+    for bay, bin_ in enumerate(bench.bay_bins):
+        by_key.setdefault(bin_.key, set()).add(bench.rail_channel(bay))
+    assert all(len(v) == 1 for v in by_key.values())
 
 
 def test_zero_bearing_margin_is_refused():
@@ -392,13 +467,21 @@ def test_the_shipped_bench_warns_about_exactly_what_it_should(bench, parts):
     """Every WARN by design, and no more.
 
     No bay left open, a deep bench reaches past a comfortable distance, the
-    rack rides close to the floor (the cost of stiff-enough rails), the wall
-    joint is what moves under real use, and nobody knows what is in those
-    stud bays.
+    rack rides close to the floor (the cost of stiff-enough rails), a lag at
+    this width happens to land under a divider's notch, the wall joint is
+    what moves under real use, and nobody knows what is in those stud bays.
     """
     report = bench.check(bench.build(), parts)
     codes = sorted({f.code for f in report.findings if f.severity is Severity.WARN})
-    assert codes == ["clearance", "deflection", "ergonomics", "rack", "site", "thickness"]
+    assert codes == [
+        "clearance",
+        "deflection",
+        "ergonomics",
+        "rack",
+        "site",
+        "thickness",
+        "wall",
+    ]
 
 
 def test_opening_a_bay_answers_the_no_knee_space_warning():

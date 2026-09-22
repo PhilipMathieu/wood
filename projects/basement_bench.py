@@ -1,4 +1,4 @@
-"""Basement wall bench — 80" of bench hung on exposed studs, totes underneath.
+"""Basement wall bench — 90" of bench hung on exposed studs, totes underneath.
 
 The brief, as given::
 
@@ -92,6 +92,30 @@ it — not the 17-gallon — sets the bay width and the overall depth of the
 bench.  Depth is still derived, not chosen: :attr:`BasementBench.overall_d`
 comes out wider than the last version, because the longer tote does.
 
+Two full-size bays each
+------------------------
+Left to :meth:`BasementBench.bay_bins`' own fit-and-widen packer, whether
+these two totes actually share a rack is an accident of the width chosen,
+not a decision.  At the brief's own 80"-wide frame the packer gives every
+bay to the 16-gallon tote and none to the 17-gallon; a few inches wider or
+narrower it happily gives a mix, or flips to every bay being the 17-gallon
+instead — the pattern is "fill with the wider tote until the width left
+over is not enough for one more of it, then fill the remainder with the
+narrower one," which is a statement about arithmetic remainders, not about
+what the rack is supposed to hold.  "A mix of 16 and 17 gallon bins" was
+never guaranteed a bay of each on its own.
+
+:data:`DEFAULT_BAY_LAYOUT` makes it explicit instead: two bays dedicated to
+the 16-gallon tote and two to the 17-gallon, regardless of what the packer
+would have chosen.  Every tote type gets a slot with its name on it.  That
+costs bench width — two full-size bays of each needs 87-11/16" of frame,
+which is why :attr:`BasementBench.overall_w_in` defaults to **90"** rather
+than the brief's "roughly 80."  ``bay_layout`` is an ordinary parameter,
+not a special case: set it to ``None`` for the automatic packer, or to any
+other sequence of bin keys, and :meth:`~BasementBench.__post_init__` checks
+that whatever is asked for actually fits the width given rather than
+overflowing silently.
+
 What simple costs
 ------------------
 The one place this design gives something up rather than only saving effort:
@@ -130,7 +154,7 @@ from __future__ import annotations
 
 import argparse
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from build123d import Box, Compound, Pos, Rotation
@@ -440,6 +464,20 @@ BIN_TYPES: dict[str, Bin] = {
     ),
 }
 
+#: The shipped bay composition: two bays for the 16-gallon tote and two for
+#: the 17-gallon, each sized to its own tote rather than whatever the
+#: fit-and-widen packer would otherwise land on.
+#:
+#: Left to the packer, these two totes never actually mix in one rack at 80"
+#: — either three bays all sized to the 16-gallon fit with room to spare, or
+#: four all sized to the 17-gallon do, and the algorithm always prefers the
+#: wider tote when both fit.  A dedicated bay for each is a different design
+#: decision — every tote type always has a slot with its name on it, whether
+#: or not that is what the packer would pick — and it costs bench width to
+#: get it: two full-size bays of each needs 87-11/16" of frame, which is why
+#: :attr:`BasementBench.overall_w_in` defaults to 90" and not 80".
+DEFAULT_BAY_LAYOUT: tuple[str, ...] = ("16gal", "16gal", "17gal", "17gal")
+
 
 @dataclass(frozen=True)
 class Mount:
@@ -496,7 +534,8 @@ class BasementBench:
     bins : tuple of str, optional
         Keys in :data:`BIN_TYPES` — the totes on hand, default both.
     overall_w_in : float, optional
-        Published width, default 80".
+        Published width, default 90" — wide enough for two full-size bays of
+        each tote; see :data:`DEFAULT_BAY_LAYOUT`.
     overall_d_in : float, optional
         Published depth.  ``None``, the default, derives it from the longest
         tote plus the ledger behind it and the front overhang.
@@ -508,8 +547,17 @@ class BasementBench:
     n_tiers : int, optional
         Tiers of totes in the rack, default 2.
     n_bays : int, optional
-        Bays across.  ``None``, the default, derives the most bays that hold
-        the narrowest tote and then widens as many as will fit to the widest.
+        Bays across.  Ignored when ``bay_layout`` is given.  ``None``, the
+        default when it is not, derives the most bays that hold the
+        narrowest tote and then widens as many as will fit to the widest.
+    bay_layout : tuple of str, optional
+        Which tote goes in which bay, left to right — an explicit override
+        of the automatic fit-and-widen packing.  Default
+        :data:`DEFAULT_BAY_LAYOUT`: two bays each, dedicated, rather than
+        whatever the packer would otherwise land on (which is not
+        necessarily a mix at all — see the module docstring's *Two full-size
+        bays each* section).  Every key must be a key in ``bins``.  Pass
+        ``None`` to fall back to the automatic layout.
     bin_side_clearance_in : float, optional
         Minimum clear space between a tote's rim and the divider beside it,
         default 3/8" — what the bay opening has to clear, not what supports
@@ -576,7 +624,7 @@ class BasementBench:
     mount: str = "hung"
     bins: tuple[str, ...] = ("17gal", "16gal")
 
-    overall_w_in: float = 80.0
+    overall_w_in: float = 90.0
     overall_d_in: float | None = None
     top_height_in: float = 36.0
     top_overhang_end_in: float = 1.0
@@ -584,6 +632,7 @@ class BasementBench:
 
     n_tiers: int = 2
     n_bays: int | None = None
+    bay_layout: tuple[str, ...] | None = DEFAULT_BAY_LAYOUT
 
     bin_side_clearance_in: float = 0.375
     rail_bearing_margin_in: float = RAIL_BEARING_MARGIN_IN
@@ -629,13 +678,38 @@ class BasementBench:
             raise ValueError("a tote rack needs at least one kind of tote")
         if self.n_tiers < 1:
             raise ValueError(f"a rack needs at least one tier, got {self.n_tiers}")
+        if self.bay_layout is not None:
+            bad = [k for k in self.bay_layout if k not in self.bins]
+            if bad:
+                raise ValueError(
+                    f"bay_layout key(s) {bad} not in bins={self.bins}"
+                )
         if len(self.bay_bins) < 2:
+            if self.bay_layout is not None:
+                raise ValueError(
+                    f"bay_layout={self.bay_layout} names fewer than two bays"
+                )
             raise ValueError(
                 f"a {self.narrowest.label} tote is "
                 f"{mm_to_fractional_inch(inches(self.narrowest.width_in))} wide "
                 f"and needs {mm_to_fractional_inch(self.bay_cell(self.narrowest))} "
                 f"of bench per bay; {mm_to_fractional_inch(self.frame_w)} of "
                 "frame gives fewer than two"
+            )
+        bays_need = (
+            sum(self.bay_cell(b) for b in self.bay_bins)
+            + self.n_dividers * self.divider_t
+        )
+        if bays_need > self.frame_w:
+            min_overall_in = (
+                bays_need + 2 * inches(self.top_overhang_end_in)
+            ) / IN
+            raise ValueError(
+                f"bay_layout {self.bay_layout!r} needs "
+                f"{mm_to_fractional_inch(bays_need)} of frame, but "
+                f'overall_w_in={self.overall_w_in:g}" leaves only '
+                f"{mm_to_fractional_inch(self.frame_w)} — widen to at least "
+                f'{min_overall_in:.2f}"'
             )
         if self.rack_bottom_z <= 0.0:
             raise ValueError(
@@ -747,14 +821,21 @@ class BasementBench:
     def bay_bins(self) -> tuple[Bin, ...]:
         """Which tote goes in which bay, left to right.
 
-        Fit as many bays of the narrowest tote as the frame holds; then widen
-        as many of them as will still fit to the widest tote.
+        With ``bay_layout`` set (the default — see :data:`DEFAULT_BAY_LAYOUT`)
+        this is just that layout, looked up.  With it cleared to ``None``,
+        bays are packed automatically instead: fit as many bays of the
+        narrowest tote as the frame holds, then widen as many of them as will
+        still fit to the widest tote — which, left alone, tends to land on
+        every bay being the same size rather than a genuine mix; see the
+        module docstring.
 
         Returns
         -------
         tuple of Bin
-            One entry per bay, widest first.
+            One entry per bay, left to right.
         """
+        if self.bay_layout is not None:
+            return tuple(BIN_TYPES[key] for key in self.bay_layout)
         divider = self.divider_t
         narrow, wide = self.narrowest, self.widest
         if self.n_bays is not None:
@@ -2069,7 +2150,33 @@ class BasementBench:
         ]
 
         wide, narrow = self.widest, self.narrowest
-        if wide is not narrow:
+        if wide is not narrow and self.bay_layout is not None:
+            packed = replace(self, bay_layout=None).bay_bins
+            n_wide = self.bay_layout.count(wide.key)
+            n_narrow = self.bay_layout.count(narrow.key)
+            if set(packed) == {wide, narrow}:
+                packed_note = "packed automatically, this width lands on the same split"
+            elif len(set(packed)) == 1:
+                packed_note = (
+                    f"packed automatically, this width gives every bay to "
+                    f"the {packed[0].label} tote instead"
+                )
+            else:
+                packed_note = (
+                    f"packed automatically, this width gives "
+                    f"{len(packed)} bays instead of {self.derived_n_bays}"
+                )
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "rack",
+                    f"bay_layout reserves {n_wide} bay(s) for the "
+                    f"{wide.label} tote and {n_narrow} for the "
+                    f"{narrow.label} regardless of what the packer would "
+                    f"choose — {packed_note}",
+                )
+            )
+        elif wide is not narrow:
             dividers = self.n_dividers * self.divider_t
             over = self.derived_n_bays * self.bay_cell(wide) + dividers - self.frame_w
             spare = self.frame_w - self.derived_n_bays * self.bay_cell(narrow) - dividers
@@ -2537,9 +2644,13 @@ def _spec(mount: str) -> ProjectSpec:
             "asserting it. Rails are 2x4 on edge, positioned from each bay's "
             "own centre by a tote's base rather than its rim, because a tote "
             "tapers and a pair of rails spaced to the rim lets it fall "
-            "through. The one assumption the model cannot verify is that the "
-            "exposed studs are framing and not furring strips on masonry — "
-            "set stud_nominal to what is actually there."
+            "through. Two bays are dedicated to each tote size rather than "
+            "left to the auto-packer, which — for these two totes — never "
+            "actually mixes them in one rack; that guarantee costs the extra "
+            "10\" of width over the brief's \"roughly 80\". The one "
+            "assumption the model cannot verify is that the exposed studs "
+            "are framing and not furring strips on masonry — set "
+            "stud_nominal to what is actually there."
         ),
         tags=["shop", "storage", "wall-mounted", mount],
     )
@@ -2561,7 +2672,24 @@ def main() -> None:
         default=[],
         help="tote to size the rack around; repeatable, defaults to both",
     )
-    parser.add_argument("--width", type=float, default=80.0)
+    parser.add_argument(
+        "--bay",
+        dest="bay_layout",
+        action="append",
+        choices=sorted(BIN_TYPES),
+        default=None,
+        help=(
+            "tote for the next bay, left to right; repeatable. Defaults to "
+            f"{DEFAULT_BAY_LAYOUT} — two dedicated bays each. Pass "
+            "--auto-bays to pack automatically instead"
+        ),
+    )
+    parser.add_argument(
+        "--auto-bays",
+        action="store_true",
+        help="pack bays automatically instead of the two-dedicated-bays default",
+    )
+    parser.add_argument("--width", type=float, default=90.0)
     parser.add_argument(
         "--depth",
         type=float,
@@ -2583,11 +2711,18 @@ def main() -> None:
 
     mounts = sorted(MOUNTS) if args.mount == "both" else [args.mount]
     bins = tuple(args.bins) if args.bins else ("17gal", "16gal")
+    if args.auto_bays:
+        bay_layout = None
+    elif args.bay_layout is not None:
+        bay_layout = tuple(args.bay_layout)
+    else:
+        bay_layout = DEFAULT_BAY_LAYOUT
     for mount in mounts:
         run(
             BasementBench(
                 mount=mount,
                 bins=bins,
+                bay_layout=bay_layout,
                 overall_w_in=args.width,
                 overall_d_in=args.depth,
                 top_height_in=args.height,

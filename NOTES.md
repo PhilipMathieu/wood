@@ -2101,3 +2101,97 @@ addendum built to settle the taper question — is gone too, because there is
 only one rail design now, and it is the one that already accounts for the
 taper by construction (positioned to the base, not the rim). The parts list
 for everything but the top is three names: ledger, divider, rail.
+
+## Addendum: two dedicated bays each, not whatever the packer picks
+
+The user asked a fair question before signing off on the 2x4 rebuild: are
+there other configurations for where the bins could go worth considering?
+Computed two real alternatives rather than describing them — turning the
+totes broadside (90° from how they sit now) shrinks the bench from 34-5/8"
+to 24-5/8" deep and clears the reach warning entirely, at the cost of two of
+the six tote slots (down to four), or the same shallow depth at 96" wide to
+keep all six. All real, all computed with the actual model, none of them
+what got picked.
+
+What got picked instead was more specific than any of those: **two bays for
+the tall tote and two bays for the wider one, both full size, neither
+inferred from the other.**
+
+### The auto-packer was never actually doing this
+
+`bay_bins`' fit-and-widen packer — fit as many of the narrowest tote as the
+frame holds, then widen as many as will fit to the widest — sounds like it
+should produce a mix when given two different totes. Checking it at a few
+widths says otherwise:
+
+```
+80" -> 16gal, 16gal, 16gal            (no 17gal bay at all)
+88" -> 16gal, 17gal, 17gal, 17gal     (one 16gal, the rest 17gal)
+90" -> 16gal, 16gal, 17gal, 17gal     (an actual 2-2 split)
+96" -> 16gal, 16gal, 16gal, 16gal     (no 17gal bay at all)
+```
+
+The brief's own 80"-wide frame gives the 17-gallon tote nothing. The pattern
+is "greedily fill with the wider tote until the width left over will not
+take one more, then fill the remainder with the narrower one" — a statement
+about arithmetic remainders, not about what the rack is supposed to hold.
+Whether these two totes actually shared a rack was never a decision; it was
+an accident of which width happened to be chosen. The previous two
+addenda's "the mix is what makes N bays fit" and "every bay ended up sized
+for the wider tote" findings were both real, and both were symptoms of the
+same thing: nobody had actually decided the mix, the packer had.
+
+### `bay_layout`
+
+`BasementBench` gained a new field, `bay_layout: tuple[str, ...] | None`,
+default :data:`DEFAULT_BAY_LAYOUT` = `("16gal", "16gal", "17gal", "17gal")`.
+Given, it *is* `bay_bins` — no packing, just a lookup. Given `None`, the old
+fit-and-widen packer runs exactly as before, which is still there and still
+useful (`--auto-bays` on the CLI, or `bay_layout=None` directly) for anyone
+who would rather let the arithmetic decide.
+
+Two bays of each, both full size, does not fit in 80": the frame needs
+87-11/16" for four full-size bays of these two totes, so
+`overall_w_in` moved to **90"**, and `__post_init__` now checks the fit and
+says how wide to go rather than the geometry silently overflowing:
+
+```
+ValueError: bay_layout ('16gal', '16gal', '17gal', '17gal') needs 87-11/16"
+of frame, but overall_w_in=80" leaves only 78" — widen to at least 89.70"
+```
+
+That check did not exist before this addendum, because it did not need to —
+the automatic packer always produces something that fits by construction.
+An explicit layout has no such guarantee, and the model should refuse a bad
+one rather than build it.
+
+### What else moved with the extra ten inches
+
+Six studs instead of five (16" o.c. still), and one of them lands close
+enough to a divider's own ledger notch to earn a new WARN — counterbore
+that lag head, same as any other clash the model already knows to look for.
+Total live load went up (eight tote slots now instead of six), and the wall
+margins absorbed it without changing character: withdrawal 10.6x, shear
+3.8x, both comfortably the same shape they were at 80". The bracket depth,
+predictably, did not move at all — it never depended on the width.
+
+### The report earns its keep a third time
+
+`_rack_findings` now compares the dedicated layout against what the
+auto-packer would have chosen at the same width, computed by constructing
+the same bench with `bay_layout=None` rather than asserted:
+
+```
+INFO [rack] bay_layout reserves 2 bay(s) for the 16 gal tote and 2 for the
+            17 gal regardless of what the packer would choose — packed
+            automatically, this width lands on the same split
+```
+
+At 90" the packer would have landed on the same answer anyway, which is
+itself worth knowing: the explicit layout is not fighting the arithmetic
+here, just refusing to leave it to chance. A first draft of this comparison
+asserted the packer *never* mixes these two totes at any width — checking
+it against the model rather than trusting the sentence found the 88" and
+90" counterexamples above, which is a smaller-scale version of the same
+mistake the "the mix is what makes N bays fit" finding made two addenda
+ago: writing the story before checking it against the numbers.
