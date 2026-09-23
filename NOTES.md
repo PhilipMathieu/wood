@@ -2387,3 +2387,24 @@ the orientation. The lesson from the last two addenda is the same both
 times: a finding that only checks its own message text will pass whatever
 the physics does, so every structural claim here has a test against the
 geometry instead.
+
+## Addendum: one sheet of top, not two
+
+Costed out, the two glued 3/4" birch layers were $130–170 of a roughly
+$400–470 bench, a third of everything. Once the frames had arms every 21" or
+less and an apron under the front edge, the second layer was no longer doing
+structural work. `top_layers` now defaults to 1. That layer is still 3/4"
+birch, which stock.yaml lists as on hand, under the same screwed-down 1/4"
+Baltic birch sacrificial sheet.
+
+| | two layers | one layer |
+|---|---|---|
+| top sag, 100 kg leaning on one 21-3/8" bay | 0.1 mm | 0.6 mm (limit 1.5 mm) |
+| top mass | 59 kg | 34 kg |
+| pull on the top cleat | 848 lb | 808 lb |
+| stile-to-cleat screws | 3.0x | 3.1x |
+| gap under the rack | 4-13/16" | 5-9/16" |
+
+Saves one sheet, about $65–85. Cheaper sanded pine or CDX plywood would save
+more, but it is not in stock.yaml or the stiffness and density tables, so it
+was left for when there is a real price to put next to it.

@@ -90,10 +90,13 @@ the other's bay.
 A replaceable top
 -----------------
 The arms, the front apron across their ends and the two cleats are the
-top's whole substructure.  The top — two plywood layers glued to each other,
-and a sacrificial sheet over them — is screwed down to that frame and never
-glued to it, so either the sacrificial sheet or the whole slab comes off
-without the frame noticing.
+top's whole substructure.  The top is one sheet of 3/4" plywood with a
+sacrificial 1/4" sheet over it, both screwed down to that frame and never
+glued to it, so either comes off without the frame noticing.  One layer is
+enough because the arms carry it every 21" or less and the apron carries its
+front edge.  Under somebody leaning on one bay it sags 0.6 mm against a
+1.5 mm limit; a second, glued-on layer took that to 0.1 mm for the price of
+another sheet.
 
 Two builds
 ----------
@@ -571,7 +574,8 @@ class BasementBench:
     panel_material, panel_nominal_thickness : str, optional
         Sheet goods for the top, default 3/4" birch plywood.
     top_layers : int, optional
-        Plywood layers in the top, glued to each other, default 2.
+        Plywood layers in the top, default 1.  More than one are glued to
+        each other into a slab before it is screwed down.
     surface_material, surface_nominal_thickness : str, optional
         The sacrificial top sheet, default 1/4" Baltic birch.
     stud_spacing_in : float, optional
@@ -634,7 +638,7 @@ class BasementBench:
 
     panel_material: str = "plywood_birch"
     panel_nominal_thickness: str = "3/4"
-    top_layers: int = 2
+    top_layers: int = 1
     surface_material: str = "plywood_baltic_birch"
     surface_nominal_thickness: str = "1/4"
 
@@ -1695,10 +1699,15 @@ class BasementBench:
             label="top_skin",
             grain_direction="length",
             notes=(
-                f"{self.top_layers} layers glued to each other into one slab "
-                f"{mm_to_fractional_inch(self.structural_top_t, 32)} thick, "
-                "then screwed down into the arms and the apron — never glued "
-                "to them, so the slab comes off in one piece"
+                (
+                    f"{self.top_layers} layers glued to each other into one "
+                    f"slab {mm_to_fractional_inch(self.structural_top_t, 32)} "
+                    "thick, then "
+                    if self.top_layers > 1
+                    else ""
+                )
+                + "screwed down into the arms and the apron — never glued to "
+                "them, so it comes off in one piece"
             ),
         )
 

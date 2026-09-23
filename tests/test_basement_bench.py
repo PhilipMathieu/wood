@@ -397,10 +397,17 @@ def test_the_top_is_screwed_to_the_frame_and_glued_to_nothing_below_it(built):
         assert "never glued" in _members(built, label)[0].notes
 
 
-def test_the_top_is_two_glued_layers_under_one_screwed_one(bench, parts):
-    assert _qty(parts, "top_skin") == 2
+def test_the_top_is_one_plywood_sheet_under_a_sacrificial_one(bench, parts):
+    assert _qty(parts, "top_skin") == 1
     assert _qty(parts, "top_surface") == 1
     assert bench.structural_top_t < bench.top_t
+
+
+def test_one_layer_is_stiff_enough_between_the_arms(bench):
+    top = next(
+        f for f in bench._stiffness_findings() if f.message.startswith("the top")
+    )
+    assert top.severity is Severity.INFO
 
 
 def test_the_back_stile_hangs_on_the_top_cleat(bench, built):
