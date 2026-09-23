@@ -2274,3 +2274,116 @@ whole hung assembly — now the bottom tier's tie, not its rail — sits
 2-5/16" off the slab, still clear of the 3" clearance check. A `tier_tie`
 part joins `rail` and `divider` as the third kind of frame stock; the kit
 is otherwise unchanged.
+
+## Addendum: the bench had no bracket, and the render was looking at the wall
+
+A review of the tier-tie session found five problems, two by me and three by
+the user from the gallery render. All five were real; one was not what it
+looked like.
+
+### What was wrong
+
+1. **The tier tie tied nothing.** The last addendum says a cleat across the
+   front of each rail pair "turns the free cantilever into a
+   simply-supported span". It doesn't. The tie connected one rail's tip to its
+   twin's and to nothing fixed. Under the symmetric tote load the check
+   itself assumed, both tips deflect the same amount, the tie carries zero
+   force, and each rail is still a cantilever. `_udl_deflection_mm` is the
+   simply-supported `5wL⁴/384EI`. The honest cantilever `wL⁴/8EI` is 9.6x
+   that: 0.123" against a 0.130" span/240 limit, a 1.05x margin reported as
+   ten.
+2. **The tie also blocked the totes it was holding up.** A 3/4" 1x4 hung into
+   a 1/2" head clearance, so in both 16-gallon bays the tote under every tie
+   hit it 1/4" deep at the front. Four of the ten totes could not go in. This
+   is the user's "kickboard would prevent sliding the bottom bins in", arrived
+   at from a different part.
+3. **The render was taken from inside the wall.** The repo's convention (and
+   `render/model3d.py`'s Front camera at azimuth −90°) puts the front at −Y.
+   This model put the wall at y=0 and the room at +Y, so the gallery's Front
+   and Isometric views both showed the back. The lower ledger read as a
+   kickboard and the upper one as an apron, with "nothing" at the back. That
+   is what the user saw, and it is why this is a finding in its own right: a
+   render that is wrong about which side is the front will mislead every
+   reviewer who looks at it.
+4. **Nothing spanned from the wall to the front but the top.** The
+   "dividers" were 1-1/2 x 3-1/2 posts standing against the studs. The only
+   parts reaching the front edge were the rails and the top itself, a 1-1/2"
+   plywood cantilever 31" long, with the front rail hanging from it. The
+   user's point that the top should have enough substructure to be replaced
+   understates it: remove that top and the front of the bench falls off.
+5. **Nothing actually hung the rack on the wall.** The docstrings said the
+   dividers "bear on the top ledger's top face", but the notch opened
+   through the divider's top, so they bore on nothing, and neither ledger had
+   a fastener. The load reached the wall through screws driven down through
+   the top into divider end grain. The user's fifth point, a cleat on the
+   back to attach to the wall, is the fix.
+
+A sixth, smaller one: the `_rack_findings` line "uniform tiers are what let
+any tote go in any slot" survived from the single-`n_tiers` model. With a
+10" pitch in one bay type and 15" in the other, neither tote fits the
+other's slot. And the last addendum's "2-5/16" off the slab, still clear of
+the 3" clearance check" got the comparison backwards: that was a WARN.
+
+### Put to the user
+
+Two choices, both put with numbers. For the wall: a flat 2x6 cleat, lagged
+(the user's choice), over a French cleat. For the totes: **hang them by the
+rim** (the user's choice), over keeping flat rails under the base.
+
+The lip figures are not on either listing. Two independent search summaries
+of Family Handyman's tote-rack article agree on a 1-1/4" flange about 1-5/8"
+deep, with the lip bearing about 3/8" a side on its rails. The article itself
+was blocked by this session's network proxy. `Bin` now carries
+`lip_in`/`lip_drop_in` with `lip_measured=False`, and the report tells the
+reader to measure before screwing a runner on.
+
+### What it is now
+
+Every bay boundary is a **side frame** in one plane: back stile, front
+stile, an arm on edge under the top half-lapped to both, and in the hung
+build a **brace** corner to corner between the stiles. The brace sits in the
+frame's plane, so it costs no tote space, and it turns the frame from a
+parallelogram into a triangle. Two flat **2x6 cleats** are lagged to the
+studs. Each back stile's top notch is now closed above, so the stile hooks
+over the top cleat, the arm bears on the cleat's top edge, and four #10
+screws per stile per cleat carry the pull in withdrawal from the cleat's
+face. Totes hang by their lips from **1x4 runners** screwed flat to the frame
+faces and lapped onto both stiles: genuinely supported at both ends,
+checked over the 25-5/8" clear span between the stiles. The top is screwed,
+never glued, to the arms and a 1x4 **front apron**. The model is flipped to
+−Y for the room, and the gallery now shows the front.
+
+Rim-hanging paid for itself in height. A runner sits beside the body under
+the lip, so the tier pitch is just tote plus head clearance: 10" for the
+16-gallon, and 30" of rack for three tiers instead of 34-1/2". Under the same
+40" top, the lowest tote now clears the slab by 4-13/16" instead of 2-5/16".
+That leaves room to bring the top back toward 38" if 40" turns out tall.
+
+Bays are now sized exactly (rim plus 3/8" a side). Slack spread into a bay
+would have come straight off the lip's 3/8" of bearing, so whatever width is
+left over goes to the top's end overhangs instead, with a WARN past 6".
+
+The numbers from the report:
+
+| check | demand | capacity | margin |
+|---|---|---|---|
+| lag withdrawal, per lag | 71 lb | 583 lb | 8.2x |
+| lag shear, per lag | 79 lb | 270 lb | 3.4x |
+| back stiles into top cleat, 20 screws | 848 lb | 2503 lb | 3.0x |
+| stile feet bearing on bottom cleat | 21 psi | 425 psi | 20.7x |
+| busiest frame's brace, unbraced Euler | 278 lb | 7701 lb | 27.7x |
+| runner sag, whole tote on one side | 0.1 mm | span/240 = 2.7 mm | — |
+
+### What the tests do now that they did not
+
+`test_every_tote_slides_in_from_the_front_without_touching_anything` sweeps
+each tote's actual profile (rim-width slab over a lip-narrower body) from
+its seat out past the front of the top, against every part, in both builds.
+It is the test that would have caught the tier tie on the day it was
+written. `test_no_two_parts_occupy_the_same_wood` checks every pair of parts
+for overlap. `test_the_back_stile_hangs_on_the_top_cleat` probes for wood
+above the cleat. `test_the_wall_is_at_y_zero_and_the_room_is_minus_y` pins
+the orientation. The lesson from the last two addenda is the same both
+times: a finding that only checks its own message text will pass whatever
+the physics does, so every structural claim here has a test against the
+geometry instead.

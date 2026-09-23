@@ -7,166 +7,111 @@ The brief, as given::
     of 16 and 17 gallon bins, the medium options.  Simple: 2x4 framing and
     rails for the bins to slide on, not a plywood rack.
 
-An earlier version of this model built the rack out of plywood: full-depth
-ribs, housed shelf dadoes, a rebated front rail.  It worked, and it was more
-than this job asks for — a shop-built cabinet where a stack of shelf brackets
-would do.  This version is the "two by fours and rails" build: every framing
-member below the benchtop is dimensional lumber, and the only joinery is a
-notch and some screws.
+An earlier version of this model built the rack out of plywood; a second
+rebuilt it in 2x4s but lost the one thing the plywood had — members that
+actually reach from the wall to the front.  Its "dividers" were 3-1/2" posts
+against the studs, the top was the only thing spanning out to the front
+edge, and the tote rails were cantilevers screwed to the side of a post.
+This version is the 2x4 build done as framing: every load has a member that
+carries it and a joint that works in shear or bearing.
 
-The bracket, unchanged
------------------------
-The one idea worth keeping from the plywood version is the reason the bench
-does not need legs.  A wall-hung bench rotates about the bottom of whatever
-holds it — the load is out in front of the wall, so the top of the fixing is
-pulled *away* from the studs and the bottom is pushed *into* them.  The only
-thing a design controls is the **lever arm** between those two reactions,
-because the pull on each lag is the overturning moment divided by it.
+Side frames are the bracket
+---------------------------
+Every bay boundary is a **side frame** of 2x4s in one plane:
 
-Two ledgers, lagged to the same studs, one near the top and one near the
-floor, still do that job: :attr:`BasementBench.bracket_depth` is the same
-number it was in the plywood version, because it depends only on where the
-two ledgers sit, not on what spans between them.  What spans between them is
-what got simpler.
+* a **back stile** against the wall, notched to hook over the top wall cleat
+  and to seat against the bottom one;
+* a **front stile** at the front, full height;
+* an **arm** on edge under the top, from the wall to the front stile,
+  half-lapped to both stiles at the top corners;
+* in the hung build, a **brace** from the foot of the back stile up to the
+  front corner — the diagonal that makes the frame a triangle and not a
+  parallelogram that folds down the moment somebody leans on it.
 
-Two by fours instead of a plywood cabinet
-------------------------------------------
-Each bay boundary gets one vertical **divider** — a 2x4 stud, full rack
-height, notched at both ends to seat over the two ledgers exactly the way
-the old plywood rib did.  It carries the compression/tension couple; nothing
-else needs to.
+A wall-hung bench rotates about the bottom of whatever holds it: the top of
+the fixing is pulled *away* from the studs and the bottom is pushed *into*
+them.  In each frame the arm carries that pull back to the wall in tension,
+the brace carries the thrust down to the foot of the back stile in
+compression, and the lever arm between them —
+:attr:`BasementBench.bracket_depth` — is what divides the overturning moment
+into a pull on each lag.  The frames sit in the planes between bays, so the
+diagonal costs no tote space at all.
 
-At each tier, a pair of horizontal **rails** — also 2x4, laid flat — run
-front to back, one on each side of a bay, screwed toward the divider nearest
-them.  A tote's base is much narrower than its rim (see *Why the rails are
-spaced to the base*), so they are positioned from the *bay's own centre*,
-not from the divider, and the tote's base rests on top of them.  A short
-**tier tie** is screwed to the underside of each pair, at their front end,
-turning what would otherwise be two free cantilevers into two
-simply-supported spans — see *Three sixteens or two seventeens*, which is
-the reason the tie exists at all.
+Two flat back cleats, lagged
+----------------------------
+A 2x6 **top cleat** and **bottom cleat** run the full width of the frame,
+flat against the studs, and every lag goes through one of them.  The back
+stiles are notched over both: at the top the stile's notch is closed above
+the cleat, so the stile *hangs* on it, and the arm bears on its top edge; at
+the bottom the notch seats the stile's foot against the cleat's face, which
+is where the brace's thrust goes.  Each stile is screwed to each cleat, and
+those screws — in withdrawal from the cleat's face — are the bench's tension
+connection.
 
-A separate **front rail**, laid flat, ties the tops of all the dividers
-together at the very front of the bench and gives the benchtop's front edge
-a screw line — the same part, and the same job, the plywood version had.  It
-sits well above every tier's rails and has nothing to do with holding a
-tote up; it is there for the top.
+The bench can be built on the floor as one frame, with the cleats already
+on, and lifted onto the wall to be lagged through.
 
-Why the rails are spaced to the base, not the bay opening
------------------------------------------------------------
-This is the mistake the plywood version's first draft made with its own
-runners, and it is worth stating so it does not get made again: **a tote
-tapers**.  Its widest point is the rim, at the top; a pair of rails spaced to
-clear the *rim* — which is what the bay opening has to clear, so a tote can
-be lowered in without binding on the dividers — is far wider than the tote's
-*base*, and the tote drops straight through them.
+Totes hang by the rim
+---------------------
+A tote's widest point is its rim, and its rim is a lip: a flange round the
+top of the body.  So the totes ride on **runners** — 1x4s screwed flat to the
+inside faces of each side frame, lapped onto both stiles — and hang from
+their lips, the way every tote rack in a garage does.  Three things follow:
 
-So the bay opening (divider to divider) is sized to the tote's **rim**
-plus clearance, and the **rails** are a separate, narrower pair, positioned
-to the tote's **base** width plus a small bearing margin.  The gap between a
-rail and the divider behind it is not wasted — it is exactly the width the
-taper needs to clear on its way down.
+* A runner sits *beside* the tote's body, under its lip, so it costs no
+  height at all: the tier pitch is the tote plus its head clearance and
+  nothing else.  Three 16-gallon tiers need 30" of rack rather than the
+  34-1/2" a rail under each tote's base needed.
+* The bay opening is the rim plus a clearance each side, and the runner's
+  3/4" projection past the frame face is what catches the lip: 3/8" of
+  bearing a side at the default clearance.  Bays are therefore sized
+  exactly — no slack is spread into them, because slack widens the bay and
+  takes the bearing away with it; whatever width is left over goes to the
+  top's end overhangs instead.
+* Nothing spans a bay below the top except totes.  There is no rail across
+  the front of any tier for a tote below to hit on its way in.
 
-The two totes
--------------
-Two stock totes, read off the same kind of retailer listing the rest of this
-project's prices come from, each governing a different dimension:
-
-======================  ======================  ============  ===========
-Tote                    Exterior (L x W x H)     Base (est.)   Governs
-======================  ======================  ============  ===========
-"17 gal" (68 qt)        26-7/8 x 18 x 12-1/2"    13-3/4"        tier pitch
-"16 gal"                30-3/5 x 20-3/5 x 9-1/2" 15-3/4"* est.  bay width,
-                                                                 bench depth
-======================  ======================  ============  ===========
-
-The 17-gallon figures are corroborated across two retailers (see
-:data:`BIN_TYPES`) and its interior width is a published number, not a guess.
-The 16-gallon figures are read off a listing with no interior dimension
-published at all — its base width is *estimated* by applying the 17-gallon
-tote's own measured taper ratio to the 16-gallon's rim width, and
-:class:`Bin` carries an ``interior_measured=False`` flag wherever that is
-true.  It is the one number in this file worth a tape measure before any rail
-is cut.
-
-Because the 16-gallon tote is now both the widest and the longest of the two,
-it — not the 17-gallon — sets the bay width and the overall depth of the
-bench.  Depth is still derived, not chosen: :attr:`BasementBench.overall_d`
-comes out wider than the last version, because the longer tote does.
-
-Two full-size bays each
-------------------------
-Left to :meth:`BasementBench.bay_bins`' own fit-and-widen packer, whether
-these two totes actually share a rack is an accident of the width chosen,
-not a decision.  At the brief's own 80"-wide frame the packer gives every
-bay to the 16-gallon tote and none to the 17-gallon; a few inches wider or
-narrower it happily gives a mix, or flips to every bay being the 17-gallon
-instead — the pattern is "fill with the wider tote until the width left
-over is not enough for one more of it, then fill the remainder with the
-narrower one," which is a statement about arithmetic remainders, not about
-what the rack is supposed to hold.  "A mix of 16 and 17 gallon bins" was
-never guaranteed a bay of each on its own.
-
-:data:`DEFAULT_BAY_LAYOUT` makes it explicit instead: two bays dedicated to
-the 16-gallon tote and two to the 17-gallon, regardless of what the packer
-would have chosen.  Every tote type gets a slot with its name on it.  That
-costs bench width — two full-size bays of each needs 87-11/16" of frame,
-which is why :attr:`BasementBench.overall_w_in` defaults to **90"** rather
-than the brief's "roughly 80."  ``bay_layout`` is an ordinary parameter,
-not a special case: set it to ``None`` for the automatic packer, or to any
-other sequence of bin keys, and :meth:`~BasementBench.__post_init__` checks
-that whatever is asked for actually fits the width given rather than
-overflowing silently.
+The lip itself is the one dimension neither retailer listing gives.
+:class:`Bin` carries ``lip_measured=False`` for both totes; the figures used
+are the ones a published tote-rack build works to, and it is the first thing
+to put a tape measure on.
 
 Three sixteens or two seventeens
----------------------------------
-Left uniform, tiers waste height: two tiers pitched for the taller
-17-gallon tote gives the 16-gallon one — nine inches shorter — the same
-pitch it does not need.  :attr:`BasementBench.tier_counts`, default
-:data:`DEFAULT_TIER_COUNTS`, makes that explicit instead: three tiers of
-the 16-gallon tote, two of the 17-gallon, a decision the same way
-``bay_layout`` is, not a derivation.
+--------------------------------
+:attr:`BasementBench.tier_counts`, default :data:`DEFAULT_TIER_COUNTS`, gives
+three tiers of the 9-1/2"-tall 16-gallon tote and two of the 12-1/2"-tall
+17-gallon — a decision, the same way ``bay_layout`` is.  The frames run the
+full height, so every bay shares one :attr:`BasementBench.rack_h`, the
+largest of every type's own requirement; the type that needs less gets the
+surplus back as head clearance.  Tiers are therefore pitched *per tote*: a
+16-gallon slot is 10" apart and a 17-gallon one 15", and neither tote fits
+the other's bay.
 
-The dividers run top ledger to bottom ledger in one continuous piece, so
-every bay shares one vertical envelope regardless of what tier count is
-in it: :attr:`BasementBench.rack_h` is the largest of every type's own
-requirement at its own count, and whichever type needs less gets the
-surplus back evenly, spread across its own tiers as extra head clearance —
-the 17-gallon tote's two tiers end up with 3-1/4" of head room apiece
-instead of the bare 1/2" minimum, simply because there was height to spare
-once the 16-gallon tote's three tiers were accommodated.
+A replaceable top
+-----------------
+The arms, the front apron across their ends and the two cleats are the
+top's whole substructure.  The top — two plywood layers glued to each other,
+and a sacrificial sheet over them — is screwed down to that frame and never
+glued to it, so either the sacrificial sheet or the whole slab comes off
+without the frame noticing.
 
-Three tiers of a 9-1/2"-tall tote at the previous build's pitch — a 2x4
-rail standing on edge, 3-1/2" of overhead per tier — need 40-1/2" of rack.
-That does not fit under a 36" top at all; it would put the bottom rail
-almost 7" into the floor.  Fixing it by raising the top alone would mean a
-top around 46-47" for any real floor clearance — a tall storage unit, not
-a bench.  What actually closes most of that gap is the tier tie: a short
-cleat screwed to the underside of each tier's pair of rails, at their
-front ends, which turns a rail from a free cantilever into a
-simply-supported span.  A tied span is roughly an order of magnitude
-stiffer for the same material, which is enough to let the rails go back to
-lying flat — 1-1/2" of overhead per tier instead of 3-1/2" — and three
-tiers of the 16-gallon tote come down to 34-1/2" of rack.
-:attr:`BasementBench.top_height_in` moved from 36" to 40", not the 46-47"
-the untied version would have needed, and the floor clearance the report
-gets back is a plain 3-1/16", not a ``WARN``.
-
-The tie is the one piece of joinery this design added back after the push
-to simplify it.  It costs one more kind of part — six words on a cut
-list, ``tier_tie`` — and it is what makes the rest of the height budget
-close without turning the bench into a six-foot cabinet.
-
+Two builds
 ----------
 ``hung``
     As briefed.  Nothing touches the floor — the lowest part of the bench is
-    the bottom tier's rails — so the slab sweeps clean and there is no leg to
-    kick or level.
+    the bottom tier of totes — so the slab sweeps clean and there is no leg
+    to kick or level.
 
 ``legged``
-    Every divider runs down to a pair of 2x4 foot rails and the bench stands
-    on the floor, for a wall that turns out to be furring strips rather than
-    framing, or for hand work whose cyclic load walks a lag out of a stud.
+    Both stiles of every frame run down to a pair of 2x4 foot rails and the
+    bench stands on the floor, for a wall that turns out to be furring strips
+    rather than framing, or for hand work whose cyclic load walks a lag out
+    of a stud.  The floor carries it, so the brace is left out.
+
+Coordinates follow the rest of the repo: ``x`` along the wall from the left
+end of the top, ``y`` from the room toward the wall (``y = 0`` is the face of
+the studs, the front edge of the top is at ``-overall_d``), ``z`` up from the
+slab.
 
 Run it
 ------
@@ -187,6 +132,7 @@ from pathlib import Path
 from build123d import Box, Compound, Pos, Rotation
 
 from woodshop.checks import (
+    ELASTIC_MODULUS_MPA,
     CheckReport,
     Finding,
     Severity,
@@ -226,8 +172,8 @@ G_M_S2: float = 9.80665
 #:
 #: NDS Table 12.3.3A gives G = 0.42 for Spruce-Pine-Fir, which is what a yard
 #: in Maine sells as "whitewood" or "2x4".  Douglas fir-larch is 0.50 and every
-#: capacity below scales as G**1.5, so a DF wall is about 30% stronger than
-#: this model assumes — the safe direction to be wrong in.
+#: capacity below scales as G**1.5 or G**2, so a DF wall is stronger than this
+#: model assumes — the safe direction to be wrong in.
 SPF_SPECIFIC_GRAVITY: float = 0.42
 
 #: Reference lateral design value ``Z`` for one lag screw in single shear,
@@ -240,21 +186,12 @@ LAG_SHEAR_LB: dict[float, float] = {0.375: 210.0, 0.5: 270.0}
 
 #: Reference compression design value perpendicular to grain for SPF, psi.
 #:
-#: NDS Supplement Table 4A, ``Fc_perp = 425 psi`` — what a divider's notch
-#: bears against on the lower ledger.
+#: NDS Supplement Table 4A, ``Fc_perp = 425 psi`` — what a back stile's notch
+#: bears against on the bottom cleat.
 _FC_PERP_PSI: float = 425.0
 
-#: Allowable lateral load on one #10 x 3" structural wood screw into SPF, lb.
-SCREW_SHEAR_LB: float = 130.0
-
-#: Spacing of the screws that fasten the top's back edge into the top ledger.
-_TOP_SCREW_SPACING_IN: float = 4.0
-
-#: Wall thickness assumed when working a tote's base width back out of its
-#: published interior width, inches — a tote's interior is quoted at the
-#: bottom of the box, where it is narrowest, so interior + two walls is
-#: roughly the base's outside width.
-TOTE_WALL_IN: float = 0.125
+#: Shank diameter of the #10 structural screw that fastens a stile to a cleat.
+SCREW_DIAMETER_IN: float = 0.19
 
 #: Design mass of one full tote, kg — about 40 lb.  Not a volume calculation:
 #: what sets the number is that the tote has to come out and go back, so the
@@ -271,41 +208,22 @@ FRONT_EDGE_LOAD_KG: float = 100.0
 #: How far a person works comfortably across a bench at standing height, in.
 COMFORTABLE_REACH_IN: float = 25.0
 
-#: How far a cutter runs past the edge it opens on, mm.
+#: Past this much top overhanging each end of the frame, the width is buying
+#: a shelf rather than a bench, inches.
+_MAX_END_OVERHANG_IN: float = 6.0
+
+#: How far a cutter runs past the face it opens on, mm.
 _CUTTER_OVERRUN_MM: float = 2.0
 
-#: How close a notch has to come to a part's edge before the cutter is run
-#: past that edge rather than stopped on it, mm.
-_EDGE_TOL_MM: float = 0.01
-
-#: How far a rail sits inboard of a tote's true base edge, inches — the base
-#: overlaps the rail rather than landing right at its inner corner.
-#:
-#: This is what the rails are spaced to, not the bay opening: a bay is wider
-#: than the tote's base (that width has to clear the *rim*, which is wider
-#: still), so a rail flush against the divider would be too far out to catch
-#: anything.  The rails are positioned from the tote's own centreline
-#: outward, independent of how wide the bay ended up.
-#:
-#: 1" rather than a bare minimum: a flat rail's own across-bench footprint is
-#: its 3-1/2" width (an on-edge rail's was only its 1-1/2" thickness), so it
-#: reaches further from the bay centre for the same channel, and needs more
-#: margin to still clear the divider — ``__post_init__`` checks that
-#: directly rather than assuming it.
-RAIL_BEARING_MARGIN_IN: float = 1.0
-
-#: length along +X, width up (+Z), thickness through (+Y) — a board laid flat
-#: against the wall.
+#: length along +X, width up (+Z), thickness through (+Y) — a cleat or the
+#: apron: a board standing on edge, parallel to the wall.
 _ON_EDGE = Rotation(90, 0, 0)
 
-#: width across (+X, the flat bearing face), length through (+Y), thickness
-#: up (+Z) — a rail: a 2x4 laid flat, running front to back, tied at its
-#: front end (see :meth:`BasementBench._tier_tie`) so a flat rail is stiff
-#: enough — an untied one is not; see the deflection findings.
-_FLAT_ALONG = Rotation(0, 0, 90)
+#: thickness across (+X), length through (+Y), width up (+Z) — an arm or a
+#: runner: a board on edge running from the wall to the front.
+_FRONT_TO_BACK = Rotation(0, 90, 90)
 
-#: thickness across (+X), width through (+Y), length up (+Z) — a divider: a
-#: stud standing on end, its narrow face to the wall.
+#: thickness across (+X), width through (+Y), length up (+Z) — a stile.
 _UPRIGHT = Rotation(0, 90, 0)
 
 
@@ -382,6 +300,36 @@ def lag_withdrawal_lb_per_in(
     return 1800.0 * specific_gravity**1.5 * diameter_in**0.75
 
 
+def screw_withdrawal_lb_per_in(
+    specific_gravity: float = SPF_SPECIFIC_GRAVITY,
+    diameter_in: float = SCREW_DIAMETER_IN,
+) -> float:
+    """Return the reference withdrawal design value for a wood screw.
+
+    NDS equation 12.2-2, ``W = 2850 * G**2 * D``, side grain.
+
+    Parameters
+    ----------
+    specific_gravity : float, optional
+        Main-member specific gravity, default :data:`SPF_SPECIFIC_GRAVITY`.
+    diameter_in : float, optional
+        Shank diameter in inches, default a #10.
+
+    Returns
+    -------
+    float
+        Allowable withdrawal, lb per inch of thread penetration.
+    """
+    return 2850.0 * specific_gravity**2 * diameter_in
+
+
+def _box(x0: float, x1: float, y0: float, y1: float, z0: float, z1: float) -> Box:
+    """Return an axis-aligned box spanning the given world ranges, mm."""
+    return Pos((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2) * Box(
+        x1 - x0, y1 - y0, z1 - z0
+    )
+
+
 @dataclass(frozen=True)
 class Bin:
     """One stock storage tote the rack is sized to hold.
@@ -395,19 +343,24 @@ class Bin:
     gallons : float
         Nominal capacity, as printed on the box.
     length_in, width_in, height_in : float
-        Exterior, measured at the rim, which on a tapered box is the widest
-        point and therefore what a bay opening has to clear.
-    interior_w_in : float
-        Interior width at the base, if published.  :attr:`base_w_in` is
-        worked back from this — the number the rails are spaced to.
-    interior_measured : bool
-        Whether ``interior_w_in`` is a published figure (``True``) or
-        estimated from another tote's taper ratio (``False``).  A ``False``
-        entry is the one dimension in this file worth a tape measure before
-        cutting anything.
+        Exterior, lid on, measured at the rim — the widest point, and what a
+        bay opening has to clear.
+    lip_in : float
+        How far the rim's flange stands out from the body just below it,
+        each side.  What a runner catches.
+    lip_drop_in : float
+        From the top of the lid down to the underside of the flange — where
+        the tote's weight lands on a runner.
+    lip_measured : bool
+        Whether the two lip figures were measured on this tote (``True``) or
+        taken from a published tote-rack build (``False``).  A ``False``
+        entry is worth a tape measure before any runner is screwed on.
     source, source_url, read_on : str
-        Provenance, on the same principle as a price in ``stock.yaml``: a
-        number without a date behind it is a number somebody remembered.
+        Provenance for the exterior dimensions, on the same principle as a
+        price in ``stock.yaml``: a number without a date behind it is a
+        number somebody remembered.
+    lip_source : str
+        Where the lip figures came from.
     """
 
     key: str
@@ -416,19 +369,18 @@ class Bin:
     length_in: float
     width_in: float
     height_in: float
-    interior_w_in: float
-    interior_measured: bool
+    lip_in: float
+    lip_drop_in: float
+    lip_measured: bool
     source: str
     source_url: str
     read_on: str
+    lip_source: str
 
     @property
-    def base_w_in(self) -> float:
-        """Outside width of the tote's base, inches.
-
-        The interior width plus two walls of :data:`TOTE_WALL_IN`.
-        """
-        return self.interior_w_in + 2 * TOTE_WALL_IN
+    def body_w_in(self) -> float:
+        """Width of the body just below the lip, inches."""
+        return self.width_in - 2 * self.lip_in
 
     @property
     def label(self) -> str:
@@ -445,22 +397,23 @@ class Bin:
         )
 
 
+_LIP_SOURCE = (
+    "Family Handyman's DIY tote storage rack (HDX totes): a 1-1/4\" flange "
+    "that is about 1-5/8\" deep — read 2026-09-23 through search summaries, "
+    "the article itself was not reachable; not measured on either tote here"
+)
+
 #: The totes this rack is designed around, read from retailer listings.
 #:
 #: ``17gal``
 #:     The medium tote sold as Project Source Commander at Lowe's and as the
 #:     HDX Tough Tote at Home Depot — the same 26-7/8" x 18" x 12-1/2" box
-#:     either way.  The **taller** one, so it sets the tier pitch, and its
-#:     interior width is a published figure.
+#:     either way.  The **taller** of the two.
 #:
 #: ``16gal``
 #:     A wider, longer, and noticeably shallower medium tote — 30-3/5" x
-#:     20-3/5" x 9-1/2" — read off a listing that gives exterior dimensions
-#:     only.  It is now the **widest and longest** of the two, so it sets the
-#:     bay width and the depth of the whole bench.  Its base width is
-#:     estimated from the 17-gallon tote's own measured taper (base is about
-#:     76% of rim width) rather than measured, and :attr:`Bin.interior_measured`
-#:     is ``False`` for exactly that reason.
+#:     20-3/5" x 9-1/2".  The **widest and longest** of the two, so it sets
+#:     the depth of the whole bench.
 BIN_TYPES: dict[str, Bin] = {
     "17gal": Bin(
         key="17gal",
@@ -469,14 +422,16 @@ BIN_TYPES: dict[str, Bin] = {
         length_in=26.875,
         width_in=18.0,
         height_in=12.5,
-        interior_w_in=13.5,
-        interior_measured=True,
+        lip_in=1.25,
+        lip_drop_in=1.625,
+        lip_measured=False,
         source="Lowe's and Home Depot listings, which agree to a tenth of an inch",
         source_url=(
             "https://www.homedepot.com/p/HDX-17-Gal-Tough-Storage-Tote-in-"
             "Black-with-Red-Lid-999-17G-HDX-R/330324132"
         ),
         read_on="2026-09-22",
+        lip_source=_LIP_SOURCE,
     ),
     "16gal": Bin(
         key="16gal",
@@ -485,15 +440,13 @@ BIN_TYPES: dict[str, Bin] = {
         length_in=30.6,
         width_in=20.6,
         height_in=9.5,
-        # (17gal interior + 2 walls) / 17gal rim = the 17-gallon tote's own
-        # base/rim ratio, applied to this tote's rim because no interior
-        # figure is published for it, then converted back to an interior
-        # width the same way every other entry's is.
-        interior_w_in=((13.5 + 2 * TOTE_WALL_IN) / 18.0) * 20.6 - 2 * TOTE_WALL_IN,
-        interior_measured=False,
-        source="retailer listing (exterior dimensions only), no interior figure published",
+        lip_in=1.25,
+        lip_drop_in=1.625,
+        lip_measured=False,
+        source="retailer listing (exterior dimensions only)",
         source_url="",
         read_on="2026-09-22",
+        lip_source=_LIP_SOURCE,
     ),
 }
 
@@ -502,13 +455,9 @@ BIN_TYPES: dict[str, Bin] = {
 #: fit-and-widen packer would otherwise land on.
 #:
 #: Left to the packer, these two totes never actually mix in one rack at 80"
-#: — either three bays all sized to the 16-gallon fit with room to spare, or
-#: four all sized to the 17-gallon do, and the algorithm always prefers the
-#: wider tote when both fit.  A dedicated bay for each is a different design
-#: decision — every tote type always has a slot with its name on it, whether
-#: or not that is what the packer would pick — and it costs bench width to
-#: get it: two full-size bays of each needs 87-11/16" of frame, which is why
-#: :attr:`BasementBench.overall_w_in` defaults to 90" and not 80".
+#: — the algorithm always prefers the wider tote when it fits.  A dedicated
+#: bay for each is a design decision, and it costs bench width to get it,
+#: which is why :attr:`BasementBench.overall_w_in` defaults to 90" and not 80".
 DEFAULT_BAY_LAYOUT: tuple[str, ...] = ("16gal", "16gal", "17gal", "17gal")
 
 #: Tiers stacked in one bay of each tote: three of the shorter 16-gallon
@@ -526,7 +475,7 @@ class Mount:
     name : str
         Key in :data:`MOUNTS`.
     on_floor : bool
-        Whether the dividers run down to foot rails on the slab.
+        Whether the stiles run down to foot rails on the slab.
     summary : str
         One line on what this build is for, printed in the report.
     """
@@ -542,16 +491,16 @@ MOUNTS: dict[str, Mount] = {
         name="hung",
         on_floor=False,
         summary=(
-            "nothing on the floor — the wall carries the bench, the rack is "
-            "the bracket, and the slab can be swept"
+            "nothing on the floor — braced side frames on two lagged cleats "
+            "carry the bench, and the slab can be swept"
         ),
     ),
     "legged": Mount(
         name="legged",
         on_floor=True,
         summary=(
-            "every divider down onto foot rails — the floor carries the "
-            "bench and the wall only keeps it upright"
+            "every stile down onto foot rails — the floor carries the bench "
+            "and the wall only keeps it upright"
         ),
     ),
 }
@@ -559,11 +508,11 @@ MOUNTS: dict[str, Mount] = {
 
 @dataclass
 class BasementBench:
-    """A parametric wall-hung workbench with a 2x4-and-rails tote rack.
+    """A parametric wall-hung workbench over a rack of rim-hung totes.
 
     Three numbers are published — the width, the height of the work surface,
-    and the number of tiers.  The depth is not a choice: it is derived from
-    the longest tote in the mix, and so are the bay count and bay widths.
+    and the tiers of each tote.  The depth is derived from the longest tote,
+    and the bay widths from each bay's own tote.
 
     Parameters
     ----------
@@ -572,87 +521,76 @@ class BasementBench:
     bins : tuple of str, optional
         Keys in :data:`BIN_TYPES` — the totes on hand, default both.
     overall_w_in : float, optional
-        Published width, default 90" — wide enough for two full-size bays of
-        each tote; see :data:`DEFAULT_BAY_LAYOUT`.
+        Width of the top, default 90".  The frame is exactly as wide as its
+        bays need; the rest is end overhang.
     overall_d_in : float, optional
         Published depth.  ``None``, the default, derives it from the longest
-        tote plus the ledger behind it and the front overhang.
+        tote plus the cleat behind it, the apron in front and the overhang.
     top_height_in : float, optional
-        Height of the finished work surface off the slab, default 36".
-    top_overhang_end_in, top_overhang_front_in : float, optional
-        How far the top runs past the frame at each end and at the front,
-        default 1" and 2".
+        Height of the finished work surface off the slab, default 40".
+    top_overhang_end_in : float, optional
+        The least the top may overhang the frame at each end, default 1".
+    top_overhang_front_in : float, optional
+        How far the top runs past the apron, default 2".
     tier_counts : dict of str to int, optional
         Tiers stacked in a bay of each tote, default
-        :data:`DEFAULT_TIER_COUNTS` — three 16-gallon totes or two 17-gallon,
-        per bay.  Every key in ``bins`` needs an entry.  The rack is one
-        shared vertical envelope (the dividers run top ledger to bottom
-        ledger in one piece), so its height is the *largest* of every type's
-        own requirement at this tier count; a type whose own tiers need less
-        gets the surplus back evenly, as extra head clearance on each of its
-        own tiers rather than a gap dumped in one place.
+        :data:`DEFAULT_TIER_COUNTS`.  Every key in ``bins`` needs an entry.
     n_bays : int, optional
         Bays across.  Ignored when ``bay_layout`` is given.  ``None``, the
         default when it is not, derives the most bays that hold the
         narrowest tote and then widens as many as will fit to the widest.
     bay_layout : tuple of str, optional
-        Which tote goes in which bay, left to right — an explicit override
-        of the automatic fit-and-widen packing.  Default
-        :data:`DEFAULT_BAY_LAYOUT`: two bays each, dedicated, rather than
-        whatever the packer would otherwise land on (which is not
-        necessarily a mix at all — see the module docstring's *Two full-size
-        bays each* section).  Every key must be a key in ``bins``.  Pass
-        ``None`` to fall back to the automatic layout.
+        Which tote goes in which bay, left to right, default
+        :data:`DEFAULT_BAY_LAYOUT`.  ``None`` falls back to the packer.
     bin_side_clearance_in : float, optional
-        Minimum clear space between a tote's rim and the divider beside it,
-        default 3/8" — what the bay opening has to clear, not what supports
-        the tote.
-    rail_bearing_margin_in : float, optional
-        How far a rail sits inboard of a tote's base edge, default
-        :data:`RAIL_BEARING_MARGIN_IN` — this is what the rails are spaced
-        to, independent of the bay's own (rim-derived) clear width.
+        Clear space between a tote's rim and the frame face each side,
+        default 3/8".  With a 3/4" runner it also sets the lip's bearing.
     bin_head_clearance_in : float, optional
-        Clear space above the tallest tote, default 1/2".
+        Least clear space above a tote's lid, default 1/2".
     bin_back_clearance_in : float, optional
-        Clear space behind the longest tote, in front of the ledgers,
-        default 1/2" — what the bench's depth is built out of.
+        Clear space behind the longest tote, in front of the cleats,
+        default 1/2".
     bin_mass_kg : float, optional
         Mass of one full tote, default :data:`BIN_DESIGN_MASS_KG`.
     open_bays : tuple of int, optional
-        Bays left without rails, for a shop vac, a bucket or a stool.
+        Bays left without runners, for a shop vac, a bucket or a stool.
     frame_species : str, optional
         Solid stock for everything below the top, default ``"pine"``.
-    ledger_nominal : str, optional
-        Nominal ledger size, default ``"2x6"`` — two rows of lags need the
-        edge distance, and it is what makes the bracket as deep as it is.
+    wall_cleat_nominal : str, optional
+        The two cleats lagged to the studs, default ``"2x6"`` — two rows of
+        lags need its face width.
     frame_nominal : str, optional
-        Nominal size for the dividers and the rails, default ``"2x4"`` — the
-        one size this whole rack is built from.
-    tie_rail_nominal, foot_nominal : str, optional
-        Nominal sizes for the front tie rail and the foot rails, default
-        ``"1x4"`` and ``"2x4"``.
+        Stiles, arms and braces, default ``"2x4"``.
+    runner_nominal : str, optional
+        What the totes' lips ride on, default ``"1x4"`` screwed flat to the
+        frame: its thickness is how far it reaches under the lip.
+    apron_nominal : str, optional
+        The front apron across the arms, on edge, default ``"1x4"``.
+    foot_nominal : str, optional
+        Foot rails in the legged build, default ``"2x4"``.
     panel_material, panel_nominal_thickness : str, optional
         Sheet goods for the top, default 3/4" birch plywood.
     top_layers : int, optional
-        Structural layers in the top, default 2.
+        Plywood layers in the top, glued to each other, default 2.
     surface_material, surface_nominal_thickness : str, optional
-        The sacrificial top sheet, default 1/4" Baltic birch — screwed down
-        and not glued.
+        The sacrificial top sheet, default 1/4" Baltic birch.
     stud_spacing_in : float, optional
         Stud spacing on centre, default 16".
     stud_nominal : str, optional
         What the studs actually are, default ``"2x4"``.  A ``1x`` entry means
         furring strips on masonry, and the wall findings become an ERROR.
     first_stud_offset_in : float, optional
-        Distance from the left end of the ledger to the first stud centre.
-        ``None``, the default, centres the studs in the ledger.
+        Distance from the left end of the cleats to the first stud centre.
+        ``None``, the default, centres the studs in the cleats.
     lag_diameter_in, lag_length_in : float, optional
         Lag screw size, default 1/2" x 4".
     lags_per_stud : int, optional
-        Lags into each stud, per ledger, default 2.
+        Lags into each stud, per cleat, default 2.
+    stile_screws_per_cleat : int, optional
+        #10 structural screws from each back stile into each cleat,
+        default 4.
     top_load_kg, front_edge_load_kg : float, optional
-        The two live-load cases: what sits on the top, and what leans on its
-        front edge.  Defaults :data:`TOP_LOAD_KG` and
+        The two live-load cases.  Defaults :data:`TOP_LOAD_KG` and
         :data:`FRONT_EDGE_LOAD_KG`.
     inventory : Inventory, optional
         Stock inventory.  Loaded from ``stock.yaml`` if not given.
@@ -661,9 +599,9 @@ class BasementBench:
     ------
     ValueError
         If the mount or a bin key is unknown, if fewer than two bays or one
-        tier are asked for, if a tote will not fit the width or the depth at
-        all, or if the tiers come to more than the published height leaves
-        under the top.
+        tier are asked for, if the bays do not fit the width, if a tote will
+        not fit the depth, if its lip misses the runners or its body binds
+        on them, or if the tiers hang below the slab.
     """
 
     mount: str = "hung"
@@ -682,16 +620,16 @@ class BasementBench:
     bay_layout: tuple[str, ...] | None = DEFAULT_BAY_LAYOUT
 
     bin_side_clearance_in: float = 0.375
-    rail_bearing_margin_in: float = RAIL_BEARING_MARGIN_IN
     bin_head_clearance_in: float = 0.5
     bin_back_clearance_in: float = 0.5
     bin_mass_kg: float = BIN_DESIGN_MASS_KG
     open_bays: tuple[int, ...] = ()
 
     frame_species: str = "pine"
-    ledger_nominal: str = "2x6"
+    wall_cleat_nominal: str = "2x6"
     frame_nominal: str = "2x4"
-    tie_rail_nominal: str = "1x4"
+    runner_nominal: str = "1x4"
+    apron_nominal: str = "1x4"
     foot_nominal: str = "2x4"
 
     panel_material: str = "plywood_birch"
@@ -706,6 +644,7 @@ class BasementBench:
     lag_diameter_in: float = 0.5
     lag_length_in: float = 4.0
     lags_per_stud: int = 2
+    stile_screws_per_cleat: int = 4
 
     top_load_kg: float = TOP_LOAD_KG
     front_edge_load_kg: float = FRONT_EDGE_LOAD_KG
@@ -729,15 +668,12 @@ class BasementBench:
                 raise ValueError(f"tier_counts has no entry for bin {key!r}")
             if count < 1:
                 raise ValueError(
-                    f"a rack needs at least one tier, tier_counts[{key!r}]="
-                    f"{count}"
+                    f"a rack needs at least one tier, tier_counts[{key!r}]={count}"
                 )
         if self.bay_layout is not None:
             bad = [k for k in self.bay_layout if k not in self.bins]
             if bad:
-                raise ValueError(
-                    f"bay_layout key(s) {bad} not in bins={self.bins}"
-                )
+                raise ValueError(f"bay_layout key(s) {bad} not in bins={self.bins}")
         if len(self.bay_bins) < 2:
             if self.bay_layout is not None:
                 raise ValueError(
@@ -747,70 +683,70 @@ class BasementBench:
                 f"a {self.narrowest.label} tote is "
                 f"{mm_to_fractional_inch(inches(self.narrowest.width_in))} wide "
                 f"and needs {mm_to_fractional_inch(self.bay_cell(self.narrowest))} "
-                f"of bench per bay; {mm_to_fractional_inch(self.frame_w)} of "
-                "frame gives fewer than two"
+                f"of bench per bay; {mm_to_fractional_inch(self._frame_budget)} "
+                "of frame gives fewer than two"
             )
-        bays_need = (
-            sum(self.bay_cell(b) for b in self.bay_bins)
-            + self.n_dividers * self.divider_t
-        )
-        if bays_need > self.frame_w:
+        if self.frame_w > self._frame_budget:
             min_overall_in = (
-                bays_need + 2 * inches(self.top_overhang_end_in)
+                self.frame_w + 2 * inches(self.top_overhang_end_in)
             ) / IN
             raise ValueError(
                 f"bay_layout {self.bay_layout!r} needs "
-                f"{mm_to_fractional_inch(bays_need)} of frame, but "
+                f"{mm_to_fractional_inch(self.frame_w)} of frame, but "
                 f'overall_w_in={self.overall_w_in:g}" leaves only '
-                f"{mm_to_fractional_inch(self.frame_w)} — widen to at least "
-                f'{min_overall_in:.2f}"'
+                f"{mm_to_fractional_inch(self._frame_budget)} — widen to at "
+                f'least {min_overall_in:.2f}"'
             )
-        if self.lowest_point_z <= 0.0:
-            driver = max(
-                set(self.bay_bins),
-                key=lambda b: self.tiers_for(b) * self._tight_tier_pitch(b),
+        if self.tote_run < inches(self.longest.length_in):
+            raise ValueError(
+                f"a {self.longest.label} tote is "
+                f"{mm_to_fractional_inch(inches(self.longest.length_in))} long "
+                f"and the rack is only {mm_to_fractional_inch(self.tote_run)} "
+                "deep between the cleats and the apron"
             )
-            needed_top_height_in = self.top_height_in - self.lowest_point_z / IN
+        for bin_ in dict.fromkeys(self.bay_bins):
+            if self.lip_bearing(bin_) <= 0.0:
+                raise ValueError(
+                    f"a {bin_.label} tote's rim falls between the runners: "
+                    f"bin_side_clearance_in={self.bin_side_clearance_in:g} is "
+                    f"as much as a {self.runner_nominal} runner reaches out "
+                    f"({mm_to_fractional_inch(self.runner_t)})"
+                )
+            if self.body_clearance(bin_) <= 0.0:
+                raise ValueError(
+                    f"a {bin_.label} tote's body binds on the runners: its "
+                    f"{mm_to_fractional_inch(inches(bin_.lip_in))} lip is less "
+                    f"than the {mm_to_fractional_inch(self.lip_bearing(bin_))} "
+                    "the runners reach under it"
+                )
+            stack = (
+                inches(bin_.lip_drop_in)
+                + self.runner_h
+                + inches(self.bin_head_clearance_in)
+            )
+            if self.tier_pitch_for(bin_) < stack:
+                raise ValueError(
+                    f"at a {mm_to_fractional_inch(self.tier_pitch_for(bin_))} "
+                    f"pitch the runner above a {bin_.label} tote comes down "
+                    "onto its lid"
+                )
+        if self.rack_bottom_z <= 0.0:
+            driver = self._driving_bin
+            needed_top_height_in = self.top_height_in - self.rack_bottom_z / IN
             raise ValueError(
                 f"{self.tiers_for(driver)} tiers of the {driver.label} tote "
                 f"at {mm_to_fractional_inch(self._tight_tier_pitch(driver))} "
                 f"need {mm_to_fractional_inch(self.rack_h)} of rack, which "
-                f"hangs the bottom tier tie "
-                f"{mm_to_fractional_inch(-self.lowest_point_z)} below the slab "
+                "hangs the bottom tier's totes "
+                f"{mm_to_fractional_inch(-self.rack_bottom_z)} below the slab "
                 f'under a {self.top_height_in:g}" top — raise top_height_in '
                 f'to at least {needed_top_height_in:.1f}" (that gives zero '
                 "floor clearance; add more for a broom to pass under it)"
             )
-        if self.rail_run < inches(self.longest.length_in):
+        if self.brace_run <= 0.0:
             raise ValueError(
-                f"a {self.longest.label} tote is "
-                f"{mm_to_fractional_inch(inches(self.longest.length_in))} long "
-                f"and the rack is only {mm_to_fractional_inch(self.rail_run)} "
-                f"deep behind the front rail"
-            )
-        for bay, bin_ in enumerate(self.bay_bins):
-            base = inches(bin_.base_w_in)
-            margin_mm = inches(self.rail_bearing_margin_in)
-            if 2 * margin_mm >= base:
-                raise ValueError(
-                    f"rail_bearing_margin_in={self.rail_bearing_margin_in:g} "
-                    f"leaves no channel at all under the {bin_.label} tote's "
-                    f"{mm_to_fractional_inch(base)} base"
-                )
-            rail_outer_half = base / 2 - margin_mm + self.rail_w
-            if rail_outer_half > self.bay_clear_w(bay) / 2:
-                raise ValueError(
-                    f"bay {bay}: a {self.frame_nominal} rail sized to the "
-                    f"{bin_.label} tote's base reaches "
-                    f"{mm_to_fractional_inch(rail_outer_half)} from centre, "
-                    f"past the {mm_to_fractional_inch(self.bay_clear_w(bay) / 2)} "
-                    "to the divider — it would run through it"
-                )
-        if self.divider_w >= self.rack_h:
-            raise ValueError(
-                f"a {self.frame_nominal} divider is "
-                f"{mm_to_fractional_inch(self.divider_w)} deep and the rack "
-                f"is only {mm_to_fractional_inch(self.rack_h)} tall"
+                f"a {mm_to_fractional_inch(self.frame_d)}-deep frame leaves no "
+                "room between its stiles"
             )
 
     # ------------------------------------------------------------------
@@ -824,7 +760,7 @@ class BasementBench:
 
     @property
     def on_floor(self) -> bool:
-        """Whether the dividers run down to foot rails on the slab."""
+        """Whether the stiles run down to foot rails on the slab."""
         return self.spec.on_floor
 
     # ------------------------------------------------------------------
@@ -841,7 +777,7 @@ class BasementBench:
 
     @property
     def widest(self) -> Bin:
-        """The tote that sets the bay width."""
+        """The widest tote on hand."""
         return max(self.bin_types, key=lambda b: b.width_in)
 
     @property
@@ -851,7 +787,7 @@ class BasementBench:
 
     @property
     def tallest(self) -> Bin:
-        """The tote that sets the tier pitch."""
+        """The tallest tote on hand."""
         return max(self.bin_types, key=lambda b: b.height_in)
 
     @property
@@ -860,12 +796,10 @@ class BasementBench:
         return max(self.bin_types, key=lambda b: b.length_in)
 
     def bay_cell(self, bin_: Bin) -> float:
-        """Width one bay takes up for *bin_*, divider excluded, mm.
+        """Clear width of a bay for *bin_*, frame face to frame face, mm.
 
-        The tote's rim plus its minimum clearance either side — what the
-        divider-to-divider opening has to clear so the tote can be lowered in
-        without binding.  The rails that actually support it are narrower
-        than this and do not affect it.
+        The rim plus its clearance each side — exactly, because any slack
+        added here would come straight off the lip's bearing on the runners.
 
         Parameters
         ----------
@@ -875,21 +809,23 @@ class BasementBench:
         Returns
         -------
         float
-            The width of bench one bay of this tote consumes.
+            The bay's clear width.
         """
         return inches(bin_.width_in) + 2 * inches(self.bin_side_clearance_in)
+
+    @property
+    def _frame_budget(self) -> float:
+        """The most frame the published width allows, mm."""
+        return self.overall_w - 2 * inches(self.top_overhang_end_in)
 
     @property
     def bay_bins(self) -> tuple[Bin, ...]:
         """Which tote goes in which bay, left to right.
 
-        With ``bay_layout`` set (the default — see :data:`DEFAULT_BAY_LAYOUT`)
-        this is just that layout, looked up.  With it cleared to ``None``,
-        bays are packed automatically instead: fit as many bays of the
-        narrowest tote as the frame holds, then widen as many of them as will
-        still fit to the widest tote — which, left alone, tends to land on
-        every bay being the same size rather than a genuine mix; see the
-        module docstring.
+        With ``bay_layout`` set (the default) this is just that layout,
+        looked up.  With it cleared to ``None``, bays are packed instead: fit
+        as many bays of the narrowest tote as the width holds, then widen as
+        many of them as still fit to the widest tote.
 
         Returns
         -------
@@ -898,52 +834,41 @@ class BasementBench:
         """
         if self.bay_layout is not None:
             return tuple(BIN_TYPES[key] for key in self.bay_layout)
-        divider = self.divider_t
+        stile = self.stile_t
+        budget = self._frame_budget
         narrow, wide = self.narrowest, self.widest
         if self.n_bays is not None:
             count = self.n_bays
         else:
             count = 0
-            while (count + 1) * self.bay_cell(narrow) + (count + 2) * divider <= (
-                self.frame_w
-            ):
+            while (count + 1) * self.bay_cell(narrow) + (count + 2) * stile <= budget:
                 count += 1
         if count <= 0:
             return ()
-        budget = self.frame_w - (count + 1) * divider
-        step = self.bay_cell(wide) - self.bay_cell(narrow)
+        room = budget - (count + 1) * stile
         wide_count = count
-        if step > 0:
+        if self.bay_cell(wide) > self.bay_cell(narrow):
             while (
                 wide_count > 0
                 and wide_count * self.bay_cell(wide)
                 + (count - wide_count) * self.bay_cell(narrow)
-                > budget
+                > room
             ):
                 wide_count -= 1
         return tuple([wide] * wide_count + [narrow] * (count - wide_count))
 
     @property
     def derived_n_bays(self) -> int:
-        """Bays across — an outcome of the totes and the wall, not a choice."""
+        """Bays across."""
         return len(self.bay_bins)
 
     @property
-    def n_dividers(self) -> int:
-        """Dividers: one each side of every bay."""
+    def n_frames(self) -> int:
+        """Side frames: one each side of every bay."""
         return self.derived_n_bays + 1
 
-    @property
-    def bay_slack(self) -> float:
-        """Width left over after every bay has its tote and clearance, mm.
-
-        Shared equally between the bays.
-        """
-        used = sum(self.bay_cell(b) for b in self.bay_bins)
-        return self.frame_w - self.n_dividers * self.divider_t - used
-
     def bay_clear_w(self, bay: int) -> float:
-        """Clear width between the two dividers of one bay, mm.
+        """Clear width between the two frames of one bay, mm.
 
         Parameters
         ----------
@@ -953,51 +878,42 @@ class BasementBench:
         Returns
         -------
         float
-            Divider face to divider face.
+            Frame face to frame face.
         """
-        return self.bay_cell(self.bay_bins[bay]) + self.bay_slack / self.derived_n_bays
+        return self.bay_cell(self.bay_bins[bay])
 
-    def rail_channel(self, bay: int) -> float:
-        """Clear channel between the two rails of one bay, mm.
+    def lip_bearing(self, bin_: Bin) -> float:
+        """How far one runner reaches under a tote's lip, mm.
 
-        Sized to the tote's own base, not to the bay's (rim-derived) clear
-        width — a bay is often wider than its tote needs, because the rim it
-        was sized to is wider than the base, and any slack shared into the
-        bay widens the opening further still.  Flushing a rail against the
-        divider would follow that slack outward and let the tote fall
-        through it; instead each rail is positioned from the tote's own
-        centreline, independent of how wide the bay ended up.
+        The runner's projection past the frame face, less the rim's clearance
+        to that face.
 
         Parameters
         ----------
-        bay : int
-            Bay index.
+        bin_ : Bin
+            The tote.
 
         Returns
         -------
         float
-            Inner-face-to-inner-face rail spacing.
+            Bearing per side; zero or less and the tote drops through.
         """
-        base = inches(self.bay_bins[bay].base_w_in)
-        return base - 2 * inches(self.rail_bearing_margin_in)
+        return self.runner_t - inches(self.bin_side_clearance_in)
 
-    def rail_overlap(self, bay: int) -> float:
-        """How much of a rail's face sits under the tote's base, per side, mm.
+    def body_clearance(self, bin_: Bin) -> float:
+        """Clear space between a tote's body and each runner, mm.
 
         Parameters
         ----------
-        bay : int
-            Bay index.
+        bin_ : Bin
+            The tote.
 
         Returns
         -------
         float
-            Equal to ``rail_bearing_margin_in`` by construction; the useful
-            question is whether the rail's *own* footprint also clears the
-            divider, which :meth:`check` verifies separately.
+            The lip less the bearing; zero or less and the body binds.
         """
-        base = inches(self.bay_bins[bay].base_w_in)
-        return (base - self.rail_channel(bay)) / 2
+        return inches(bin_.lip_in) - self.lip_bearing(bin_)
 
     @property
     def n_bins(self) -> int:
@@ -1017,9 +933,10 @@ class BasementBench:
     @property
     def bin_tally(self) -> dict[str, int]:
         """How many of each tote the rack takes, by :class:`Bin` label."""
+        open_bays = set(self.open_bays)
         tally: dict[str, int] = {}
         for bay, bin_ in enumerate(self.bay_bins):
-            if bay in set(self.open_bays):
+            if bay in open_bays:
                 continue
             tally[bin_.label] = tally.get(bin_.label, 0) + self.tiers_for(bin_)
         return tally
@@ -1044,7 +961,7 @@ class BasementBench:
 
     @property
     def panel_t(self) -> float:
-        """Measured thickness of the top's structural plywood, mm."""
+        """Measured thickness of the top's plywood, mm."""
         return self.sheet.thickness_mm
 
     @property
@@ -1052,75 +969,68 @@ class BasementBench:
         """Measured thickness of the sacrificial top sheet, mm."""
         return self.surface_sheet.thickness_mm
 
-    @property
-    def ledger_t(self) -> float:
-        """Thickness of a ledger — how far it stands off the studs, mm."""
-        return float(actual_dimensions_mm(self.ledger_nominal)[0].magnitude)
+    @staticmethod
+    def _dims(nominal: str) -> tuple[float, float]:
+        """Return the (thickness, width) of a nominal size, mm."""
+        t, w = actual_dimensions_mm(nominal)
+        return float(t.magnitude), float(w.magnitude)
 
     @property
-    def ledger_w(self) -> float:
-        """Face width of a ledger — its vertical depth on the wall, mm."""
-        return float(actual_dimensions_mm(self.ledger_nominal)[1].magnitude)
+    def wall_cleat_t(self) -> float:
+        """Thickness of a wall cleat — how far it stands off the studs, mm."""
+        return self._dims(self.wall_cleat_nominal)[0]
 
     @property
-    def divider_t(self) -> float:
-        """Thickness of a divider stud — its across-bench footprint, mm."""
-        return float(actual_dimensions_mm(self.frame_nominal)[0].magnitude)
+    def wall_cleat_w(self) -> float:
+        """Face width of a wall cleat — its height on the wall, mm."""
+        return self._dims(self.wall_cleat_nominal)[1]
 
     @property
-    def divider_w(self) -> float:
-        """Width of a divider stud — how far it stands off the wall, mm."""
-        return float(actual_dimensions_mm(self.frame_nominal)[1].magnitude)
+    def stile_t(self) -> float:
+        """Thickness of every frame member — the frame's across-bench width, mm."""
+        return self._dims(self.frame_nominal)[0]
 
     @property
-    def rail_t(self) -> float:
-        """Vertical footprint of a rail laid flat, mm.
-
-        The stock's own thickness.  Contributes to :attr:`tier_pitch_for`.
-        Flat rather than on edge
-        because the tier tie (see :meth:`_tier_tie`) turns each rail into a
-        simply-supported span rather than a cantilever, which is stiff
-        enough flat — and flat stands only 1-1/2" tall per tier instead of
-        3-1/2", which is most of what buys back the rack height three tiers
-        of totes needs.
-        """
-        return self.divider_t
+    def stile_w(self) -> float:
+        """Face width of every frame member, mm — a stile's depth, an arm's height."""
+        return self._dims(self.frame_nominal)[1]
 
     @property
-    def rail_w(self) -> float:
-        """Across-bench footprint of a rail laid flat, mm.
-
-        The stock's own width.  What :meth:`_rails` positions from the
-        bay's centre, and what ``__post_init__`` checks clears the divider.
-        """
-        return self.divider_w
+    def runner_t(self) -> float:
+        """How far a runner stands out from the frame face, mm."""
+        return self._dims(self.runner_nominal)[0]
 
     @property
-    def tie_rail_t(self) -> float:
-        """Thickness of the front tie rail, mm — how far it hangs below the top."""
-        return float(actual_dimensions_mm(self.tie_rail_nominal)[0].magnitude)
+    def runner_h(self) -> float:
+        """Height of a runner on the frame face, mm."""
+        return self._dims(self.runner_nominal)[1]
 
     @property
-    def tie_rail_w(self) -> float:
-        """Face width of the front tie rail, mm."""
-        return float(actual_dimensions_mm(self.tie_rail_nominal)[1].magnitude)
+    def apron_t(self) -> float:
+        """Thickness of the front apron, mm."""
+        return self._dims(self.apron_nominal)[0]
+
+    @property
+    def apron_w(self) -> float:
+        """Height of the front apron on edge, mm."""
+        return self._dims(self.apron_nominal)[1]
 
     @property
     def foot_t(self) -> float:
         """Thickness of a foot rail, mm — zero in the hung build."""
         if not self.on_floor:
             return 0.0
-        return float(actual_dimensions_mm(self.foot_nominal)[0].magnitude)
+        return self._dims(self.foot_nominal)[0]
 
     @property
     def foot_w(self) -> float:
         """Face width of a foot rail, mm."""
-        return float(actual_dimensions_mm(self.foot_nominal)[1].magnitude)
+        return self._dims(self.foot_nominal)[1]
 
     @property
     def stud_t(self) -> float:
         """Thickness of a wall stud, mm — what a lag has to get through."""
-        return float(actual_dimensions_mm(self.stud_nominal)[0].magnitude)
+        return self._dims(self.stud_nominal)[0]
 
     @property
     def studs_are_furring(self) -> bool:
@@ -1133,20 +1043,21 @@ class BasementBench:
 
     @property
     def overall_w(self) -> float:
-        """Published overall width, mm."""
+        """Width of the top, mm."""
         return inches(self.overall_w_in)
 
     @property
     def derived_overall_d(self) -> float:
         """Depth the longest tote requires, mm.
 
-        The tote, the gap behind it, the ledger it stops against and the
-        front overhang the top needs for a clamp.
+        The cleat, the gap behind the tote, the tote, the apron in front of
+        it, and the front overhang the top needs for a clamp.
         """
         return (
-            inches(self.longest.length_in)
+            self.wall_cleat_t
             + inches(self.bin_back_clearance_in)
-            + self.ledger_t
+            + inches(self.longest.length_in)
+            + self.apron_t
             + inches(self.top_overhang_front_in)
         )
 
@@ -1164,27 +1075,38 @@ class BasementBench:
 
     @property
     def top_t(self) -> float:
-        """Total thickness of the top, structural layers plus sacrificial, mm."""
+        """Total thickness of the top, plywood plus sacrificial, mm."""
         return self.top_layers * self.panel_t + self.surface_t
 
     @property
     def structural_top_t(self) -> float:
-        """Thickness of the glued-up structural top alone, mm."""
+        """Thickness of the glued-up plywood slab alone, mm."""
         return self.top_layers * self.panel_t
 
     @property
-    def frame_x0(self) -> float:
-        """X of the frame's left end — the top overhangs it, mm."""
-        return inches(self.top_overhang_end_in)
+    def frame_w(self) -> float:
+        """Width of the frame, end frame to end frame, mm.
+
+        Exactly what the bays need — see :meth:`bay_cell`.
+        """
+        return (
+            sum(self.bay_cell(b) for b in self.bay_bins)
+            + self.n_frames * self.stile_t
+        )
 
     @property
-    def frame_w(self) -> float:
-        """Width of the frame: the ledgers, the dividers, the feet, mm."""
-        return self.overall_w - 2 * inches(self.top_overhang_end_in)
+    def frame_x0(self) -> float:
+        """X of the frame's left end, mm — the top overhangs it equally."""
+        return (self.overall_w - self.frame_w) / 2
+
+    @property
+    def end_overhang(self) -> float:
+        """How far the top runs past the frame at each end, mm."""
+        return self.frame_x0
 
     @property
     def frame_d(self) -> float:
-        """Depth of the frame from the stud faces forward, mm."""
+        """Depth of the frame from the stud faces to the apron's face, mm."""
         return self.overall_d - inches(self.top_overhang_front_in)
 
     @property
@@ -1193,27 +1115,56 @@ class BasementBench:
         return max(0.0, self.overall_d - inches(COMFORTABLE_REACH_IN))
 
     # ------------------------------------------------------------------
+    # Depths from the wall (positive into the room; world y is minus this)
+    # ------------------------------------------------------------------
+
+    @property
+    def front_stile_d(self) -> tuple[float, float]:
+        """(back face, front face) of a front stile, mm from the studs."""
+        front = self.frame_d - self.apron_t
+        return (front - self.stile_w, front)
+
+    @property
+    def arm_len(self) -> float:
+        """Length of an arm — the studs to the apron, mm."""
+        return self.frame_d - self.apron_t
+
+    @property
+    def runner_len(self) -> float:
+        """Length of a runner — the cleats' face to the apron, mm."""
+        return self.frame_d - self.apron_t - self.wall_cleat_t
+
+    @property
+    def tote_run(self) -> float:
+        """Depth a tote has, between the cleats and the apron's back face, mm."""
+        return self.runner_len
+
+    @property
+    def brace_run(self) -> float:
+        """Clear depth between a frame's two stiles, mm."""
+        return self.front_stile_d[0] - self.stile_w
+
+    # ------------------------------------------------------------------
     # Heights off the slab
     # ------------------------------------------------------------------
 
     @property
     def top_underside_z(self) -> float:
-        """Underside of the top, and the top of every divider, mm off the slab."""
+        """Underside of the top, and the top of every stile, mm off the slab."""
         return self.top_height - self.top_t
 
     @property
-    def divider_top_z(self) -> float:
-        """Top edge of a divider, mm — the top ledger bears here."""
-        return self.top_underside_z
+    def arm_bottom_z(self) -> float:
+        """Underside of the arms, mm — where they bear on the top cleat."""
+        return self.top_underside_z - self.stile_w
 
     @property
     def rack_top_z(self) -> float:
         """Ceiling a tote has to clear on its way out, mm.
 
-        The front tie rail's underside: it is laid flat at the front and a
-        tote slides out under it.
+        The apron's underside: nothing else spans a bay below the top.
         """
-        return self.top_underside_z - self.tie_rail_t
+        return self.top_underside_z - max(self.stile_w, self.apron_w)
 
     def tiers_for(self, bin_: Bin) -> int:
         """Tiers stacked in a bay of this tote.
@@ -1231,9 +1182,10 @@ class BasementBench:
         return self.tier_counts[bin_.key]
 
     def _tight_tier_pitch(self, bin_: Bin) -> float:
-        """Minimum vertical pitch one tier of this tote needs, mm.
+        """Least vertical pitch one tier of this tote needs, mm.
 
-        Rail, tote, and the bare head clearance — no surplus.
+        The tote and the bare head clearance.  The runner sits beside the
+        tote's body, under its lip, and costs no height.
 
         Parameters
         ----------
@@ -1243,133 +1195,42 @@ class BasementBench:
         Returns
         -------
         float
-            The pitch this tote would use if the rack were sized to it
-            alone.
+            The pitch this tote would use if the rack were sized to it alone.
         """
-        return (
-            self.rail_t
-            + inches(bin_.height_in)
-            + inches(self.bin_head_clearance_in)
+        return inches(bin_.height_in) + inches(self.bin_head_clearance_in)
+
+    @property
+    def _driving_bin(self) -> Bin:
+        """The tote whose tiers need the most rack height."""
+        return max(
+            dict.fromkeys(self.bay_bins),
+            key=lambda b: self.tiers_for(b) * self._tight_tier_pitch(b),
         )
-
-    def tier_pitch_for(self, bin_: Bin) -> float:
-        """Actual vertical pitch used for this tote's own tiers, mm.
-
-        The rack is one shared vertical envelope — the dividers run top
-        ledger to bottom ledger in a single piece, so every bay's tiers fit
-        inside the same :attr:`rack_h` regardless of which tote is in it.
-        A type that does not need the full height gets the difference back,
-        spread evenly across its own tiers as extra head clearance, rather
-        than as one gap in a single place.
-
-        Parameters
-        ----------
-        bin_ : Bin
-            The tote.
-
-        Returns
-        -------
-        float
-            ``rack_h`` divided evenly among this tote's own tiers.
-        """
-        return self.rack_h / self.tiers_for(bin_)
 
     @property
     def rack_h(self) -> float:
         """Total height of the rack, mm.
 
         The largest of every tote type's own tight requirement at its own
-        tier count — see :data:`DEFAULT_TIER_COUNTS`.  Three 16-gallon totes
-        and two 17-gallon are sized to land close to the same height on
-        purpose; when they do not, this is which one wins the argument.
+        tier count — the frames run the full height, so every bay shares it.
         """
-        return max(
-            self.tiers_for(b) * self._tight_tier_pitch(b)
-            for b in set(self.bay_bins)
-        )
+        driver = self._driving_bin
+        return self.tiers_for(driver) * self._tight_tier_pitch(driver)
 
-    @property
-    def rack_bottom_z(self) -> float:
-        """Underside of the bottom tier's rail, mm off the slab.
-
-        Where the lower ledger sits flush, and the reference the bracket's
-        lever arm is measured from.  The tier tie screwed to that rail's
-        underside hangs a little lower still — see :attr:`lowest_point_z`
-        for the true lowest point of the assembly.
-        """
-        return self.rack_top_z - self.rack_h
-
-    @property
-    def lowest_point_z(self) -> float:
-        """The true lowest point of the rack, mm off the slab.
-
-        The bottom tier's rail sets :attr:`rack_bottom_z`, but its own tier
-        tie is screwed to its *underside* and hangs ``tie_rail_t`` lower
-        still.  In the hung build this is the lowest point on the whole
-        bench.
-        """
-        return self.rack_bottom_z - self.tie_rail_t
-
-    @property
-    def divider_bottom_z(self) -> float:
-        """Bottom edge of a divider, mm off the slab."""
-        return self.foot_t if self.on_floor else self.rack_bottom_z
-
-    @property
-    def divider_h(self) -> float:
-        """Height of a divider, mm."""
-        return self.divider_top_z - self.divider_bottom_z
-
-    @property
-    def top_ledger_z(self) -> tuple[float, float]:
-        """(bottom, top) of the top ledger, mm.
-
-        Its top face is where the dividers and the top bear.
-        """
-        return (self.divider_top_z - self.ledger_w, self.divider_top_z)
-
-    @property
-    def rack_ledger_z(self) -> tuple[float, float]:
-        """(bottom, top) of the lower ledger, mm.
-
-        Flush with the bottom of the rack, which makes the bracket as deep
-        as the design allows.
-        """
-        return (self.rack_bottom_z, self.rack_bottom_z + self.ledger_w)
-
-    @property
-    def bracket_depth(self) -> float:
-        """Lever arm of the wall bracket, mm.
-
-        Centroid to centroid of the two ledgers.  Depends only on where the
-        ledgers sit, not on what spans between them — unchanged by whether
-        that span is plywood or 2x4s.
-        """
-        top = sum(self.top_ledger_z) / 2
-        bottom = sum(self.rack_ledger_z) / 2
-        return top - bottom
-
-    def tier_z(self, bay: int, tier: int) -> tuple[float, float]:
-        """(rail bottom, tote bottom) for one tier of one bay, mm off the slab.
+    def tier_pitch_for(self, bin_: Bin) -> float:
+        """Vertical pitch of this tote's own tiers, mm.
 
         Parameters
         ----------
-        bay : int
-            Bay index — which tote, and therefore which tier pitch, is in
-            play.
-        tier : int
-            Tier index within that bay, 0 at the top.
+        bin_ : Bin
+            The tote.
 
         Returns
         -------
-        tuple of float
-            Underside of that tier's rails, and the height a tote stands at.
+        float
+            ``rack_h`` divided evenly among this tote's tiers.
         """
-        bin_ = self.bay_bins[bay]
-        pitch = self.tier_pitch_for(bin_)
-        top = self.rack_top_z - tier * pitch - self.head_clearance(bin_)
-        bottom = top - inches(bin_.height_in)
-        return (bottom - self.rail_t, bottom)
+        return self.rack_h / self.tiers_for(bin_)
 
     def head_clearance(self, bin_: Bin) -> float:
         """Clear space above one tote in its own tier, mm.
@@ -1382,34 +1243,113 @@ class BasementBench:
         Returns
         -------
         float
-            The bare minimum (``bin_head_clearance_in``) plus whatever
-            surplus this tote's own tier count leaves inside the shared
-            ``rack_h`` — zero for whichever tote's tier count set that
-            height, positive for the other.
+            The bare minimum for whichever tote set ``rack_h``, more for the
+            other.
         """
-        surplus = self.tier_pitch_for(bin_) - self._tight_tier_pitch(bin_)
-        return inches(self.bin_head_clearance_in) + surplus
+        return self.tier_pitch_for(bin_) - inches(bin_.height_in)
+
+    @property
+    def rack_bottom_z(self) -> float:
+        """Underside of the lowest tote, mm off the slab.
+
+        In the hung build it is also the foot of every stile and the lowest
+        point on the bench.
+        """
+        return self.rack_top_z - self.rack_h
+
+    @property
+    def frame_bottom_z(self) -> float:
+        """Foot of every stile, mm off the slab."""
+        return self.foot_t if self.on_floor else self.rack_bottom_z
+
+    @property
+    def stile_h(self) -> float:
+        """Length of a stile, mm."""
+        return self.top_underside_z - self.frame_bottom_z
+
+    @property
+    def top_cleat_z(self) -> tuple[float, float]:
+        """(bottom, top) of the top wall cleat, mm — the arms bear on its top."""
+        return (self.arm_bottom_z - self.wall_cleat_w, self.arm_bottom_z)
+
+    @property
+    def bottom_cleat_z(self) -> tuple[float, float]:
+        """(bottom, top) of the bottom wall cleat, mm.
+
+        Flush with the bottom of the rack, which makes the bracket as deep as
+        the rack allows.
+        """
+        return (self.rack_bottom_z, self.rack_bottom_z + self.wall_cleat_w)
+
+    @property
+    def bracket_depth(self) -> float:
+        """Lever arm of the wall connection, mm.
+
+        Centroid to centroid of the two cleats.
+        """
+        return sum(self.top_cleat_z) / 2 - sum(self.bottom_cleat_z) / 2
+
+    def tote_z(self, bay: int, tier: int) -> tuple[float, float]:
+        """(bottom, top) of one tote, mm off the slab.
+
+        Parameters
+        ----------
+        bay : int
+            Bay index — which tote, and therefore which pitch, is in play.
+        tier : int
+            Tier index within that bay, 0 at the top.
+
+        Returns
+        -------
+        tuple of float
+            The tote's base and its lid.
+        """
+        bin_ = self.bay_bins[bay]
+        top = (
+            self.rack_top_z
+            - tier * self.tier_pitch_for(bin_)
+            - self.head_clearance(bin_)
+        )
+        return (top - inches(bin_.height_in), top)
+
+    def runner_z(self, bay: int, tier: int) -> tuple[float, float]:
+        """(bottom, top) of the runners one tote hangs on, mm off the slab.
+
+        Parameters
+        ----------
+        bay : int
+            Bay index.
+        tier : int
+            Tier index, 0 at the top.
+
+        Returns
+        -------
+        tuple of float
+            The runner's top is the underside of the tote's lip.
+        """
+        top = self.tote_z(bay, tier)[1] - inches(self.bay_bins[bay].lip_drop_in)
+        return (top - self.runner_h, top)
 
     # ------------------------------------------------------------------
-    # Positions across and through the bench
+    # Positions across the bench
     # ------------------------------------------------------------------
 
-    def divider_x(self, i: int) -> float:
-        """X of divider *i*'s centreline, mm from the left end of the top.
+    def frame_x(self, i: int) -> float:
+        """X of side frame *i*'s centre plane, mm from the left end of the top.
 
         Parameters
         ----------
         i : int
-            Divider index, 0 at the left end of the frame.
+            Frame index, 0 at the left end.
 
         Returns
         -------
         float
-            Centre of the divider in assembly coordinates.
+            Centre of the frame in assembly coordinates.
         """
-        x = self.frame_x0 + self.divider_t / 2
+        x = self.frame_x0 + self.stile_t / 2
         for bay in range(i):
-            x += self.bay_clear_w(bay) + self.divider_t
+            x += self.bay_clear_w(bay) + self.stile_t
         return x
 
     def bay_centre_x(self, bay: int) -> float:
@@ -1423,23 +1363,13 @@ class BasementBench:
         Returns
         -------
         float
-            Midway between its two dividers.
+            Midway between its two frames.
         """
-        return (self.divider_x(bay) + self.divider_x(bay + 1)) / 2
-
-    @property
-    def rail_run(self) -> float:
-        """Length of a rail or the front tie rail, mm.
-
-        It stops at the ledgers' front faces rather than running back to the
-        wall, because the bottom tier sits at exactly the height of the lower
-        ledger and would otherwise run into it.
-        """
-        return self.frame_d - self.ledger_t
+        return (self.frame_x(bay) + self.frame_x(bay + 1)) / 2
 
     @property
     def stud_positions(self) -> list[float]:
-        """X of every stud centre the ledgers cross, mm from the left of the top.
+        """X of every stud centre the cleats cross, mm from the left of the top.
 
         Returns
         -------
@@ -1464,11 +1394,6 @@ class BasementBench:
         ]
 
     @property
-    def n_lags_per_ledger(self) -> int:
-        """Lags holding one ledger to the wall."""
-        return len(self.stud_positions) * self.lags_per_stud
-
-    @property
     def lag_dia_label(self) -> str:
         """Lag diameter as a fractional-inch string."""
         return mm_to_fractional_inch(inches(self.lag_diameter_in), 32)
@@ -1487,7 +1412,7 @@ class BasementBench:
     def lag_penetration(self) -> float:
         """Thread penetration of a lag into a stud, mm."""
         tip = inches(self.lag_diameter_in)
-        return max(0.0, inches(self.lag_length_in) - self.ledger_t - tip)
+        return max(0.0, inches(self.lag_length_in) - self.wall_cleat_t - tip)
 
     # ------------------------------------------------------------------
     # Assembly
@@ -1496,17 +1421,16 @@ class BasementBench:
     def build(self) -> Compound:
         """Build the bench as a positioned build123d assembly.
 
-        The origin is the one a wall-mounted piece is actually measured from:
-        ``x`` runs along the wall from the left end of the top, ``y`` runs out
-        from the **face of the studs**, and ``z`` is height off the slab.  So
-        ``y = 0`` is the wall, ``z = 0`` is the floor, and in the hung build
-        nothing in the model touches ``z = 0`` at all.
+        ``x`` runs along the wall from the left end of the top, ``y`` runs
+        from the room toward the wall with ``y = 0`` at the face of the
+        studs, and ``z`` is height off the slab — so the whole bench sits at
+        negative ``y``, and in the hung build nothing touches ``z = 0``.
 
         Returns
         -------
         build123d.Compound
-            Top, ledgers, dividers, rails, front tie rail, and — in the
-            legged build — the foot rails, positioned.
+            Top, cleats, side frames, runners, apron and — in the legged
+            build — the foot rails, positioned.
         """
         children: list[object] = []
         mid_x = self.frame_x0 + self.frame_w / 2
@@ -1514,141 +1438,255 @@ class BasementBench:
         for i in range(self.top_layers):
             z = self.top_underside_z + self.panel_t * (i + 0.5)
             children.append(
-                Pos(self.overall_w / 2, self.overall_d / 2, z) * self._top_skin()
+                Pos(self.overall_w / 2, -self.overall_d / 2, z) * self._top_skin()
             )
         children.append(
             Pos(
                 self.overall_w / 2,
-                self.overall_d / 2,
+                -self.overall_d / 2,
                 self.top_underside_z + self.structural_top_t + self.surface_t / 2,
             )
             * self._top_surface()
         )
 
         for name, (z0, z1) in (
-            ("top_ledger", self.top_ledger_z),
-            ("rack_ledger", self.rack_ledger_z),
+            ("top_cleat", self.top_cleat_z),
+            ("bottom_cleat", self.bottom_cleat_z),
         ):
             children.append(
-                Pos(mid_x, self.ledger_t / 2, (z0 + z1) / 2)
+                Pos(mid_x, -self.wall_cleat_t / 2, (z0 + z1) / 2)
                 * _ON_EDGE
-                * self._ledger(name)
+                * self._wall_cleat(name)
             )
+
+        for i in range(self.n_frames):
+            children.extend(self._side_frame(i))
+
+        children.extend(self._runners())
 
         children.append(
             Pos(
                 mid_x,
-                self.frame_d - self.tie_rail_w / 2,
-                self.rack_top_z + self.tie_rail_t / 2,
+                -(self.frame_d - self.apron_t / 2),
+                self.top_underside_z - self.apron_w / 2,
             )
-            * self._front_rail()
+            * _ON_EDGE
+            * self._apron()
         )
 
-        divider_cz = self.divider_bottom_z + self.divider_h / 2
-        for i in range(self.n_dividers):
-            children.append(
-                Pos(self.divider_x(i), self.divider_w / 2, divider_cz)
-                * _UPRIGHT
-                * self._divider()
-            )
-
-        children.extend(self._rails())
-        children.extend(self._tier_ties())
-
         if self.on_floor:
-            for y in (
-                self.ledger_t + self.foot_w / 2,
-                self.frame_d - self.foot_w / 2,
-            ):
-                children.append(Pos(mid_x, y, self.foot_t / 2) * self._foot_rail())
+            for d in (self.stile_w / 2, sum(self.front_stile_d) / 2):
+                children.append(Pos(mid_x, -d, self.foot_t / 2) * self._foot_rail())
 
         return Compound(children=children, label=f"basement_bench_{self.mount}")
 
-    def _rails(self) -> list[object]:
-        """Return every tote-support rail, positioned.
+    def _side_frame(self, i: int) -> list[object]:
+        """Return the members of side frame *i*, positioned and jointed.
 
-        Two per bay per tier, positioned from the bay's own centre by the
-        tote's base width rather than flush against a divider — a bay is
-        wider than its tote's base (it was sized to the wider rim, plus
-        whatever slack the frame had left over), so a rail hung off the
-        divider would follow that slack outward and miss the base entirely.
-        Bays in ``open_bays`` get none.
-
-        Returns
-        -------
-        list
-            Placed :class:`~woodshop.parts.Board` rails.
-        """
-        placed: list[object] = []
-        open_bays = set(self.open_bays)
-        rail_cy = self.ledger_t + self.rail_run / 2
-        for bay in range(self.derived_n_bays):
-            if bay in open_bays:
-                continue
-            bin_ = self.bay_bins[bay]
-            centre_x = self.bay_centre_x(bay)
-            half_gap = self._rail_half_gap(bay)
-            left_x = centre_x - half_gap
-            right_x = centre_x + half_gap
-            for tier in range(self.tiers_for(bin_)):
-                cz = self.tier_z(bay, tier)[0] + self.rail_t / 2
-                for x in (left_x, right_x):
-                    placed.append(
-                        Pos(x, rail_cy, cz) * _FLAT_ALONG * self._rail()
-                    )
-        return placed
-
-    def _rail_half_gap(self, bay: int) -> float:
-        """Half the outer-edge-to-outer-edge distance between one bay's rails.
-
-        In mm — where each rail's own centreline sits, and how far a tier
-        tie has to reach to land on both.
+        Both stiles run from the foot to the underside of the top; the arm
+        runs from the studs to the front stile's face at the top, and is
+        half-lapped to each stile where they cross.  The back stile is
+        notched over both cleats.  In the hung build a brace runs corner to
+        corner between the stiles, from the foot of the back stile to the
+        underside of the arm at the front.
 
         Parameters
         ----------
-        bay : int
-            Bay index.
-
-        Returns
-        -------
-        float
-            Distance from the bay's centre to one rail's centreline.
-        """
-        return self.rail_channel(bay) / 2 + self.rail_w / 2
-
-    def _tier_ties(self) -> list[object]:
-        """Return one tier tie per bay per tier, positioned.
-
-        A short cleat screwed to the undersides of a bay's own pair of
-        rails, at their front ends — out of a tote's way, since it sits
-        below the rails rather than across their top.  It is what turns
-        each rail from a free cantilever into a simply-supported span, which
-        is the whole reason a flat rail is stiff enough here without going
-        on edge; see the deflection findings.
+        i : int
+            Frame index.
 
         Returns
         -------
         list
-            Placed :class:`~woodshop.parts.Board` ties.
+            Placed :class:`~woodshop.parts.Board` members.
+        """
+        x = self.frame_x(i)
+        half = self.stile_t / 2
+        ov = _CUTTER_OVERRUN_MM
+        z_mid = self.frame_bottom_z + self.stile_h / 2
+        top = self.top_underside_z
+        arm_z0 = self.arm_bottom_z
+        fs0, fs1 = self.front_stile_d
+
+        back = self._frame_member("back_stile", self.stile_h)
+        front = self._frame_member("front_stile", self.stile_h)
+        arm = self._frame_member("arm", self.arm_len)
+
+        placed_back = Pos(x, -self.stile_w / 2, z_mid) * _UPRIGHT * back
+        placed_front = Pos(x, -(fs0 + fs1) / 2, z_mid) * _UPRIGHT * front
+        placed_arm = (
+            Pos(x, -self.arm_len / 2, top - self.stile_w / 2) * _FRONT_TO_BACK * arm
+        )
+
+        # Half-laps at both top corners: the arm keeps the +x half, the
+        # stiles the -x half, so the corner is one thickness of wood.
+        arm_cuts = [
+            _box(x - ov - half, x, -self.stile_w, ov, arm_z0 - ov, top + ov),
+            _box(x - ov - half, x, -fs1 - ov, -fs0, arm_z0 - ov, top + ov),
+        ]
+        back_cuts = [
+            _box(x, x + half + ov, -self.stile_w, ov, arm_z0, top + ov),
+            _box(
+                x - half - ov,
+                x + half + ov,
+                -self.wall_cleat_t,
+                ov,
+                *self.top_cleat_z,
+            ),
+            self._bottom_cleat_notch(x),
+        ]
+        front_cuts = [_box(x, x + half + ov, -fs1 - ov, -fs0, arm_z0, top + ov)]
+
+        members = [
+            _cut(placed_back, back, back_cuts),
+            _cut(placed_front, front, front_cuts),
+            _cut(placed_arm, arm, arm_cuts),
+        ]
+        if not self.on_floor:
+            members.append(self._brace(x))
+        return members
+
+    def _bottom_cleat_notch(self, x: float) -> Box:
+        """Return the cutter that seats a back stile over the bottom cleat.
+
+        It opens through the stile's foot in the hung build, where the cleat
+        sits flush with the bottom of the rack.
+
+        Parameters
+        ----------
+        x : float
+            The frame's centre plane.
+
+        Returns
+        -------
+        build123d.Box
+            A positioned cutter.
+        """
+        ov = _CUTTER_OVERRUN_MM
+        z0, z1 = self.bottom_cleat_z
+        if z0 <= self.frame_bottom_z + 0.01:
+            z0 -= ov
+        half = self.stile_t / 2
+        return _box(x - half - ov, x + half + ov, -self.wall_cleat_t, ov, z0, z1)
+
+    @property
+    def brace_len(self) -> float:
+        """Long-point length of a brace, mm — corner to corner between stiles."""
+        rise = self.arm_bottom_z - self.frame_bottom_z
+        return math.hypot(self.brace_run, rise)
+
+    def _brace(self, x: float):
+        """Return one frame's brace, positioned and trimmed to fit.
+
+        Cut from a blank :attr:`brace_len` long, laid on the diagonal between
+        the stiles, and trimmed square to the back stile's face at its foot
+        and to the front stile and the arm at its head.
+
+        Parameters
+        ----------
+        x : float
+            The frame's centre plane.
+
+        Returns
+        -------
+        build123d.Shape
+            The trimmed brace, carrying its blank's cut-list metadata.
+        """
+        rise = self.arm_bottom_z - self.frame_bottom_z
+        brace = self._frame_member("brace", self.brace_len)
+        angle = math.degrees(math.atan2(rise, -self.brace_run))
+        d_mid = self.stile_w + self.brace_run / 2
+        z_mid = self.frame_bottom_z + rise / 2
+        placed = (
+            Pos(x, -d_mid, z_mid) * Rotation(angle, 0, 0) * _FRONT_TO_BACK * brace
+        )
+        half = self.stile_t / 2
+        ov = _CUTTER_OVERRUN_MM
+        window = _box(
+            x - half - ov,
+            x + half + ov,
+            -self.front_stile_d[0],
+            -self.stile_w,
+            self.frame_bottom_z,
+            self.arm_bottom_z,
+        )
+        return retag(placed & window, like=brace)
+
+    def _runners(self) -> list[object]:
+        """Return every runner, positioned on its frame face.
+
+        Two per bay per tier, one on the inside face of each of the bay's
+        frames, lapped onto both stiles.  Bays in ``open_bays`` get none.
+
+        Returns
+        -------
+        list
+            Placed :class:`~woodshop.parts.Board` runners.
         """
         placed: list[object] = []
         open_bays = set(self.open_bays)
-        tie_cy = self.ledger_t + self.rail_run - self.tie_rail_w / 2
-        for bay in range(self.derived_n_bays):
+        cy = -(self.wall_cleat_t + self.runner_len / 2)
+        offset = self.stile_t / 2 + self.runner_t / 2
+        for bay, bin_ in enumerate(self.bay_bins):
             if bay in open_bays:
                 continue
-            bin_ = self.bay_bins[bay]
-            centre_x = self.bay_centre_x(bay)
             for tier in range(self.tiers_for(bin_)):
-                rail_bottom = self.tier_z(bay, tier)[0]
-                cz = rail_bottom - self.tie_rail_t / 2
-                placed.append(
-                    Pos(centre_x, tie_cy, cz) * self._tier_tie(bay)
-                )
+                z0, z1 = self.runner_z(bay, tier)
+                for x in (self.frame_x(bay) + offset, self.frame_x(bay + 1) - offset):
+                    placed.append(
+                        Pos(x, cy, (z0 + z1) / 2) * _FRONT_TO_BACK * self._runner()
+                    )
         return placed
 
+    def _frame_member(self, label: str, length_mm: float) -> Board:
+        """Return one 2x4 frame member.
+
+        Parameters
+        ----------
+        label : str
+            ``"back_stile"``, ``"front_stile"``, ``"arm"`` or ``"brace"``.
+        length_mm : float
+            Length of the blank.
+
+        Returns
+        -------
+        Board
+            The member, with its joinery in its notes.
+        """
+        notes = {
+            "back_stile": (
+                "against the wall; notched over both cleats — the top notch "
+                "is closed above, so the stile hangs on the cleat — and "
+                f"screwed to each with {self.stile_screws_per_cleat} #10 x "
+                "3-1/2\" structural screws; half-lapped to the arm at the top"
+            ),
+            "front_stile": (
+                "at the front, full height; half-lapped to the arm, glued and "
+                "screwed, and hangs from it — the runners' front ends land "
+                "on it"
+            ),
+            "arm": (
+                "on edge under the top, studs to apron; bears on the top "
+                "cleat's top edge, half-lapped to both stiles, and carries "
+                "the frame's pull back to the wall in tension. The top screws "
+                "down into it"
+            ),
+            "brace": (
+                "corner to corner between the stiles, long point to long "
+                "point; butts the back stile at its foot and the arm and "
+                "front stile at its head, in compression, toe-screwed"
+            ),
+        }[label]
+        return Board(
+            length_mm=length_mm,
+            nominal=self.frame_nominal,
+            material=self.frame_species,
+            label=label,
+            notes=notes,
+        )
+
     def _top_skin(self) -> Panel:
-        """Return one structural layer of the top."""
+        """Return one plywood layer of the top."""
         return Panel(
             length_mm=self.overall_w,
             width_mm=self.overall_d,
@@ -1657,12 +1695,10 @@ class BasementBench:
             label="top_skin",
             grain_direction="length",
             notes=(
-                f"{self.top_layers} layers glued and screwed into one slab "
-                f"{mm_to_fractional_inch(self.structural_top_t, 32)} thick; "
-                "screwed down into the top ledger along the back edge at "
-                f'{_TOP_SCREW_SPACING_IN:g}" o.c. — those screws are the '
-                "bench's tension connection and work in shear, which is why "
-                "they are not into a plywood edge"
+                f"{self.top_layers} layers glued to each other into one slab "
+                f"{mm_to_fractional_inch(self.structural_top_t, 32)} thick, "
+                "then screwed down into the arms and the apron — never glued "
+                "to them, so the slab comes off in one piece"
             ),
         )
 
@@ -1682,192 +1718,80 @@ class BasementBench:
             ),
         )
 
-    def _ledger(self, name: str) -> Board:
-        """Return one wall ledger.
+    def _wall_cleat(self, name: str) -> Board:
+        """Return one wall cleat.
 
         Parameters
         ----------
         name : str
-            ``"top_ledger"`` or ``"rack_ledger"`` — what the part is called on
-            the cut list.  They are the same board and are deliberately not
-            consolidated, because they do different structural jobs and the
-            notes have to say which.
+            ``"top_cleat"`` or ``"bottom_cleat"`` — the same board, kept
+            apart on the cut list because they do different structural jobs.
 
         Returns
         -------
         Board
-            The ledger, with its own fixing schedule in its notes.
+            The cleat, with its fixing schedule in its notes.
         """
-        if name == "top_ledger":
+        if name == "top_cleat":
             note = (
-                f"lagged to {len(self.stud_positions)} studs, "
-                f"{self.lags_per_stud} lags per stud, {self.lag_label}; the "
-                "dividers bear on its top face and the top screws down into it"
+                f"flat against the studs, lagged to {len(self.stud_positions)} "
+                f"of them, {self.lags_per_stud} lags per stud, {self.lag_label}; "
+                "the back stiles hang on it and screw into it, and the arms "
+                "bear on its top edge — this is the tension connection"
             )
         else:
             note = (
-                "lagged to the same studs; the dividers are notched over it "
-                "and bear against its front face — the bottom of the bracket "
-                "is compression and needs no fastener to work"
+                "flat against the studs, lagged to the same studs; the back "
+                "stiles seat against its face and screw into it — the "
+                "braces' thrust arrives here, in compression"
             )
         return Board(
             length_mm=self.frame_w,
-            nominal=self.ledger_nominal,
+            nominal=self.wall_cleat_nominal,
             material=self.frame_species,
             label=name,
             notes=note,
         )
 
-    def _divider(self):
-        """Return one vertical divider stud, notched over both ledgers.
-
-        The divider is the whole bracket in one piece: it bears on the top
-        ledger's top face, carries every load hung below it down to that
-        bearing, and its lower end is notched to press against the bottom
-        ledger's front face.  It is one 2x4, one saw setup for each notch, no
-        dado, no rebate.
-        """
-        divider = Board(
-            length_mm=self.divider_h,
-            nominal=self.frame_nominal,
-            material=self.frame_species,
-            label="divider",
-            notes=(
-                "stands on end against the wall, notched over both ledgers; "
-                "bears the whole rack's weight down to the top ledger, and "
-                "presses against the lower ledger's front face — that "
-                "connection is compression and needs no fastener"
-            ),
-        )
-        cz = self.divider_bottom_z + self.divider_h / 2
-        cuts = [
-            self._divider_notch(z0, z1, cz)
-            for z0, z1 in (self.top_ledger_z, self.rack_ledger_z)
-        ]
-        cut = divider
-        for solid in cuts:
-            cut = cut - solid
-        return retag(cut, like=divider)
-
-    def _divider_notch(self, z0: float, z1: float, divider_cz: float):
-        """Return the cutter for one ledger notch, in the divider's local frame.
-
-        A divider is born with its length along +X (this becomes the
-        assembly's vertical +Z once :data:`_UPRIGHT` is applied) and its
-        width along +Y (becomes assembly +Y, depth).  The notch is described
-        here in that *unrotated* local frame: local X is height, local Y is
-        depth.
-
-        Parameters
-        ----------
-        z0, z1 : float
-            Bottom and top of the ledger, mm off the slab.
-        divider_cz : float
-            Height of the divider's centre, mm off the slab.
-
-        Returns
-        -------
-        build123d.Box
-            A positioned cutter, run past the divider's back edge — and past
-            its top or bottom edge when the notch opens on one.
-        """
-        ov = _CUTTER_OVERRUN_MM
-        x0 = z0 - divider_cz
-        x1 = z1 - divider_cz
-        # The divider's back face sits at local y = -width/2 (assembly y=0,
-        # against the wall); the notch reaches ledger_t forward from there.
-        y0 = -self.divider_w / 2 - ov
-        y1 = -self.divider_w / 2 + self.ledger_t
-        if x0 <= -self.divider_h / 2 + _EDGE_TOL_MM:
-            x0 -= ov
-        if x1 >= self.divider_h / 2 - _EDGE_TOL_MM:
-            x1 += ov
-        return Pos((x0 + x1) / 2, (y0 + y1) / 2, 0.0) * Box(
-            x1 - x0, y1 - y0, self.divider_t + 2 * ov
-        )
-
-    def _rail(self) -> Board:
-        """Return one tote-support rail.
-
-        A length of the same 2x4 the divider is cut from, laid flat — wide
-        face up — and screwed toward the divider it is nearest, close
-        enough that a bracket or a couple of screws reaches it.  Nothing is
-        notched or dadoed at that end; the connection is butted and screwed.
-        Its *other* end is screwed down into a tier tie (see
-        :meth:`_tier_tie`), which is what lets it stay flat rather than
-        needing to stand on edge.
-        """
+    def _runner(self) -> Board:
+        """Return one runner — what a tote's lip rides on."""
         return Board(
-            length_mm=self.rail_run,
-            nominal=self.frame_nominal,
+            length_mm=self.runner_len,
+            nominal=self.runner_nominal,
             material=self.frame_species,
-            label="rail",
+            label="runner",
             notes=(
-                "laid flat, wide face up; screwed toward the nearby divider "
-                "at the back, no notch, and down into the tier tie at the "
-                "front — a tote's base rests directly on the pair"
+                "screwed flat to the frame's inside face, lapped onto both "
+                "stiles and the brace where it crosses; a tote's lip rides on "
+                "its top edge"
             ),
         )
 
-    def _tier_tie(self, bay: int) -> Board:
-        """Return the tier tie for one bay, one tier.
+    def _apron(self) -> Board:
+        """Return the front apron.
 
-        A short cleat screwed to the undersides of that tier's two rails at
-        their front ends, turning each from a free cantilever into a
-        simply-supported span — the number that decided a flat rail is
-        stiff enough here is in the design report's deflection findings.
-
-        Parameters
-        ----------
-        bay : int
-            Bay index — bays are not all the same width, so neither are
-            their ties.
-
-        Returns
-        -------
-        Board
-            Spans outer rail edge to outer rail edge for this bay.
-        """
-        return Board(
-            length_mm=2 * self._rail_half_gap(bay) + self.rail_w,
-            nominal=self.tie_rail_nominal,
-            material=self.frame_species,
-            label="tier_tie",
-            notes=(
-                "screwed up into the underside of both rails at their front "
-                "ends, below the tote's own path — this is the connection "
-                "that makes the rail a simply-supported span rather than a "
-                "cantilever"
-            ),
-        )
-
-    def _front_rail(self) -> Board:
-        """Return the front tie rail.
-
-        Laid flat across the tops of every divider at the front, tying them
-        together and giving the top's front edge a screw line.  It sits at
-        the top tier only: nothing below needs a front tie, because nothing
-        below carries a load that depends on one — see the deflection
-        findings for the number that backs that up.
+        On edge across the front faces of the front stiles and the ends of
+        the arms: it ties the frames together at the front and gives the
+        top's front edge something to screw down into.
         """
         return Board(
             length_mm=self.frame_w,
-            nominal=self.tie_rail_nominal,
+            nominal=self.apron_nominal,
             material=self.frame_species,
-            label="front_rail",
+            label="front_apron",
             notes=(
-                "laid flat across the divider tops at the front; the top "
-                "screws down into it"
+                "on edge across the front stiles and arm ends; the top screws "
+                "down into it, and the totes slide out beneath it"
             ),
         )
 
     def _foot_rail(self) -> Board:
         """Return one foot rail — the legged build only.
 
-        Laid flat under every divider, front and back.  It is the part that
+        Laid flat under every stile, front and back.  It is the part that
         meets the slab, so it is the part that gets wet: plan on replacing
         it, keep it off the concrete on plastic shims or levellers, and do
-        not glue the dividers to it.
+        not glue the stiles to it.
         """
         return Board(
             length_mm=self.frame_w,
@@ -1875,7 +1799,7 @@ class BasementBench:
             material=self.frame_species,
             label="foot_rail",
             notes=(
-                "laid flat under the dividers; screwed, never glued — it is "
+                "laid flat under the stiles; screwed, never glued — it is "
                 "the sacrificial part between the frame and a damp slab, and "
                 "it is what takes the levellers"
             ),
@@ -1890,8 +1814,7 @@ class BasementBench:
 
         The lever arm is measured from the face of the studs.  The totes are
         summed bay by bay rather than lumped, because the two sizes are
-        different lengths and the shorter one therefore sits with its mass
-        further forward.
+        different lengths and each sits with its front against the apron.
 
         Parameters
         ----------
@@ -1910,18 +1833,18 @@ class BasementBench:
         open_bays = set(self.open_bays)
         tote_mass = 0.0
         tote_moment = 0.0
+        tote_front = self.frame_d - self.apron_t
         for bay, bin_ in enumerate(self.bay_bins):
             if bay in open_bays:
                 continue
             mass = self.bin_mass_kg * self.tiers_for(bin_)
-            arm = self.frame_d - inches(bin_.length_in) / 2
             tote_mass += mass
-            tote_moment += mass * arm
+            tote_moment += mass * (tote_front - inches(bin_.length_in) / 2)
         tote_arm = tote_moment / tote_mass if tote_mass else 0.0
 
         return [
             ("the top itself", top_mass, self.overall_d / 2),
-            ("frame and rails", frame_mass, self.frame_d / 2),
+            ("frames and runners", frame_mass, self.frame_d / 2),
             (f"{self.n_bins} full totes", tote_mass, tote_arm),
             ("tools and work on the top", self.top_load_kg, self.overall_d / 2),
             (
@@ -1960,6 +1883,22 @@ class BasementBench:
             Dead plus live, in newtons.
         """
         return sum(newtons(kg) for _, kg, _ in self._load_cases(parts))
+
+    @property
+    def worst_frame_share(self) -> float:
+        """Fraction of the bench's width the most-loaded frame carries.
+
+        Half of each bay beside it, plus its own thickness.
+        """
+        shares = []
+        for i in range(self.n_frames):
+            trib = self.stile_t
+            if i > 0:
+                trib += self.bay_clear_w(i - 1) / 2
+            if i < self.derived_n_bays:
+                trib += self.bay_clear_w(i) / 2
+            shares.append(trib / self.frame_w)
+        return max(shares)
 
     # ------------------------------------------------------------------
     # Checks
@@ -2007,23 +1946,25 @@ class BasementBench:
         return report
 
     def _depth_findings(self) -> list[Finding]:
-        """Report where the bench's depth came from and what it costs.
+        """Report where the bench's size came from and what it costs.
 
         Returns
         -------
         list[Finding]
-            The derivation, the reach it buys past, and the sheet of plywood
-            it spends.
+            The derivation of the depth, the reach it buys past, the end
+            overhang the width leaves, and the sheet of plywood it spends.
         """
         longest = self.longest
         findings = [
             Finding(
                 Severity.INFO,
                 "envelope",
-                f"the depth is the tote's, not a choice: a {longest.label} tote "
-                f"is {mm_to_fractional_inch(inches(longest.length_in))} long, "
-                f"plus {mm_to_fractional_inch(inches(self.bin_back_clearance_in))} "
-                f"behind it, a {mm_to_fractional_inch(self.ledger_t)} ledger and "
+                f"the depth is the tote's, not a choice: a "
+                f"{mm_to_fractional_inch(self.wall_cleat_t)} cleat, "
+                f"{mm_to_fractional_inch(inches(self.bin_back_clearance_in))} "
+                f"of gap, a {longest.label} tote "
+                f"{mm_to_fractional_inch(inches(longest.length_in))} long, a "
+                f"{mm_to_fractional_inch(self.apron_t)} apron and "
                 f"{mm_to_fractional_inch(inches(self.top_overhang_front_in))} of "
                 f"front overhang makes {mm_to_fractional_inch(self.overall_d)}",
             )
@@ -2036,6 +1977,17 @@ class BasementBench:
                     f'overall_d_in={self.overall_d_in:g}" was given rather than '
                     f"derived; the totes need "
                     f"{mm_to_fractional_inch(self.derived_overall_d)}",
+                )
+            )
+        if self.end_overhang > inches(_MAX_END_OVERHANG_IN):
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "envelope",
+                    f"the bays need {mm_to_fractional_inch(self.frame_w)} of "
+                    f"frame, so the top overhangs each end by "
+                    f"{mm_to_fractional_inch(self.end_overhang)} — narrow the "
+                    "top or add a bay",
                 )
             )
         if self.reach_over > 0:
@@ -2071,9 +2023,6 @@ class BasementBench:
     def _stud_findings(self) -> list[Finding]:
         """Report what the wall offers, and what would invalidate it.
 
-        How many studs the ledger crosses, where the lags land on it, and what
-        is behind them.
-
         Returns
         -------
         list[Finding]
@@ -2090,7 +2039,7 @@ class BasementBench:
                     Severity.ERROR,
                     "wall",
                     f"no stud falls within the {mm_to_fractional_inch(self.frame_w)} "
-                    "ledger — there is nothing to lag to",
+                    "cleat — there is nothing to lag to",
                 )
             ]
 
@@ -2102,10 +2051,10 @@ class BasementBench:
             Finding(
                 severity,
                 "wall",
-                f'{n} studs at {self.stud_spacing_in:g}" o.c. under a '
-                f"{mm_to_fractional_inch(self.frame_w)} ledger, "
+                f'{n} studs at {self.stud_spacing_in:g}" o.c. behind a '
+                f"{mm_to_fractional_inch(self.frame_w)} cleat, "
                 f"{self.lags_per_stud} lags each: "
-                f"{mm_to_fractional_inch(left)} of ledger past the left lag "
+                f"{mm_to_fractional_inch(left)} of cleat past the left lag "
                 f"and {mm_to_fractional_inch(right)} past the right "
                 f"(want {mm_to_fractional_inch(min_end, 32)}, 4 diameters)",
             )
@@ -2130,7 +2079,7 @@ class BasementBench:
                     Severity.WARN,
                     "wall",
                     f"a {self.lag_len_label} lag through a "
-                    f"{mm_to_fractional_inch(self.ledger_t)} ledger reaches "
+                    f"{mm_to_fractional_inch(self.wall_cleat_t)} cleat reaches "
                     f"only {mm_to_fractional_inch(self.lag_penetration)} into "
                     f"a {mm_to_fractional_inch(self.stud_t)} stud",
                 )
@@ -2148,20 +2097,18 @@ class BasementBench:
                 )
             )
 
-        clash = inches(self.lag_diameter_in) + self.divider_t / 2
+        clash = inches(self.lag_diameter_in) + self.stile_t / 2
         for x in studs:
-            nearest = min(
-                (abs(x - self.divider_x(i)), i) for i in range(self.n_dividers)
-            )
+            nearest = min((abs(x - self.frame_x(i)), i) for i in range(self.n_frames))
             if nearest[0] < clash:
                 findings.append(
                     Finding(
                         Severity.WARN,
                         "wall",
-                        f"the lag at {mm_to_fractional_inch(x)} lands under "
-                        f"divider {nearest[1]}, whose notch bears on the "
-                        "ledger's front face: counterbore that lag head and "
-                        "its washer flush, or the divider will not seat",
+                        f"the lag at {mm_to_fractional_inch(x)} lands behind "
+                        f"frame {nearest[1]}'s back stile, which is notched "
+                        "over the cleat: counterbore that lag head and its "
+                        "washer flush, or the stile will not seat",
                     )
                 )
         return findings
@@ -2208,24 +2155,13 @@ class BasementBench:
             Finding(
                 Severity.INFO,
                 "bracket",
-                "the rack is the bracket: "
+                f"{self.n_frames} {'' if self.on_floor else 'braced '}side "
+                "frames are the bracket: "
                 f"{mm_to_fractional_inch(self.bracket_depth)} between the two "
-                f"ledgers' centroids, so "
+                f"cleats' centroids, so "
                 f"{m_nmm / (25.4 * N_PER_LBF):.0f} lb-in of overturning "
-                f"becomes {t_lb:.0f} lb pulling the top ledger off the wall "
+                f"becomes {t_lb:.0f} lb pulling the top cleat off the wall "
                 f"and the same pushing the bottom one into it",
-            )
-        )
-        shallow_lb = pounds_force(m_nmm / self.ledger_w)
-        findings.append(
-            Finding(
-                Severity.INFO,
-                "bracket",
-                "on one ledger alone it would be "
-                f"{mm_to_fractional_inch(self.ledger_w)} of lever arm and "
-                f"{shallow_lb:.0f} lb — {shallow_lb / t_lb:.1f}x as much. This "
-                "does not depend on what spans between the ledgers, which is "
-                "why swapping the plywood rack for 2x4s changes none of it",
             )
         )
 
@@ -2234,7 +2170,7 @@ class BasementBench:
                 Finding(
                     Severity.INFO,
                     "wall",
-                    "the legged build puts every divider on a foot rail, so "
+                    "the legged build puts every stile on a foot rail, so "
                     f"the floor takes the {v_lb:.0f} lb and the lags below are "
                     "checked against the hung case anyway — the wall still "
                     "restrains the moment, and a bench that is also standing "
@@ -2274,10 +2210,8 @@ class BasementBench:
                     "wall",
                     f"shear: {shear_demand_lb:.0f} lb per lag against "
                     f"{shear_cap:.0f} lb, with the whole vertical load put on "
-                    f"the top ledger's {n_lags} lags",
-                    shear_cap / shear_demand_lb
-                    if shear_demand_lb > 0
-                    else math.inf,
+                    f"the top cleat's {n_lags} lags",
+                    shear_cap / shear_demand_lb if shear_demand_lb > 0 else math.inf,
                     remedy=(
                         f"lags_per_stud={self.lags_per_stud + 1} would make it "
                         f"{v_lb / (len(studs) * (self.lags_per_stud + 1)):.0f} lb "
@@ -2286,31 +2220,37 @@ class BasementBench:
                 )
             )
 
-        n_screws = int(self.frame_w // inches(_TOP_SCREW_SPACING_IN)) + 1
-        screw_cap = n_screws * SCREW_SHEAR_LB
+        n_screws = self.n_frames * self.stile_screws_per_cleat
+        screw_pen_in = (self.wall_cleat_t - inches(SCREW_DIAMETER_IN)) / IN
+        screw_cap = n_screws * screw_withdrawal_lb_per_in() * screw_pen_in
         findings.append(
             self._margin(
                 "joint",
-                f"the top's back edge into the top ledger: {t_lb:.0f} lb of "
-                f"tension across {n_screws} screws at "
-                f'{_TOP_SCREW_SPACING_IN:g}" o.c., {screw_cap:.0f} lb of shear '
-                "capacity",
+                f"the back stiles into the top cleat: {t_lb:.0f} lb of pull "
+                f"across {n_screws} #10 screws in withdrawal, "
+                f"{screw_cap:.0f} lb between them",
                 screw_cap / t_lb if t_lb > 0 else math.inf,
+                remedy=(
+                    f"stile_screws_per_cleat={self.stile_screws_per_cleat + 2}"
+                ),
             )
         )
 
-        bearing_mm2 = self.n_dividers * self.divider_t * self.ledger_w
+        bearing_mm2 = self.n_frames * self.stile_t * self.wall_cleat_w
         bearing_mpa = (m_nmm / self.bracket_depth) / bearing_mm2
         findings.append(
             self._margin(
                 "joint",
-                "the dividers' notches bearing on the lower ledger: "
+                "the back stiles' feet bearing on the bottom cleat: "
                 f"{bearing_mpa:.2f} MPa ({bearing_mpa * 145.0:.0f} psi) over "
-                f"{self.n_dividers} notches, against {_FC_PERP_PSI:.0f} psi "
+                f"{self.n_frames} notches, against {_FC_PERP_PSI:.0f} psi "
                 "perpendicular to grain",
                 _FC_PERP_PSI / (bearing_mpa * 145.0) if bearing_mpa > 0 else math.inf,
             )
         )
+
+        if not self.on_floor:
+            findings.append(self._brace_finding(m_nmm))
 
         per_stud_lb = t_lb / len(studs)
         findings.append(
@@ -2324,6 +2264,41 @@ class BasementBench:
             )
         )
         return findings
+
+    def _brace_finding(self, moment_nmm: float) -> Finding:
+        """Check the most-loaded frame's brace against buckling.
+
+        The frame is a triangle: the arm pulls the top back to the wall, the
+        brace pushes its foot into the wall, and the rise between them turns
+        the frame's share of the overturning moment into that pull.  The
+        brace's horizontal component matches the arm's pull.  Euler buckling
+        about the brace's weak axis, over its whole length — the runners
+        screwed across it brace it at every tier, which this ignores.
+
+        Parameters
+        ----------
+        moment_nmm : float
+            The whole bench's overturning moment.
+
+        Returns
+        -------
+        Finding
+            The brace force against its buckling load.
+        """
+        rise = self.arm_bottom_z - self.frame_bottom_z
+        pull_n = moment_nmm * self.worst_frame_share / rise
+        thrust_n = pull_n * self.brace_len / self.brace_run
+        e_mpa = ELASTIC_MODULUS_MPA[self.frame_species]
+        i_mm4 = self.stile_w * self.stile_t**3 / 12.0
+        p_cr_n = math.pi**2 * e_mpa * i_mm4 / self.brace_len**2
+        return self._margin(
+            "bracket",
+            f"the busiest frame's brace: {pounds_force(thrust_n):.0f} lb of "
+            f"thrust along {mm_to_fractional_inch(self.brace_len)} of "
+            f"{self.frame_nominal}, against {pounds_force(p_cr_n):.0f} lb to "
+            "buckle it unbraced",
+            p_cr_n / thrust_n if thrust_n > 0 else math.inf,
+        )
 
     @staticmethod
     def _margin(
@@ -2365,19 +2340,18 @@ class BasementBench:
         Returns
         -------
         list[Finding]
-            The grid the totes produced, the rim clearance, the rail bearing,
-            and what the rack gave up to be a bracket.
+            The grid the totes produced, the rim clearance, the lip bearing,
+            the tier pitches, and the gap under it all.
         """
-        tally = ", ".join(f"{n} x {label}" for label, n in self.bin_tally.items())
         open_bays = set(self.open_bays)
+        tally = ", ".join(f"{n} x {label}" for label, n in self.bin_tally.items())
         gallons = sum(
             bin_.gallons * self.tiers_for(bin_)
             for bay, bin_ in enumerate(self.bay_bins)
             if bay not in open_bays
         )
         tiers_label = "/".join(
-            f"{self.tiers_for(b)} {b.label}"
-            for b in dict.fromkeys(self.bay_bins)
+            f"{self.tiers_for(b)} {b.label}" for b in dict.fromkeys(self.bay_bins)
         )
         findings: list[Finding] = [
             Finding(
@@ -2392,10 +2366,8 @@ class BasementBench:
         wide, narrow = self.widest, self.narrowest
         if wide is not narrow and self.bay_layout is not None:
             packed = replace(self, bay_layout=None).bay_bins
-            n_wide = self.bay_layout.count(wide.key)
-            n_narrow = self.bay_layout.count(narrow.key)
             if set(packed) == {wide, narrow}:
-                packed_note = "packed automatically, this width lands on the same split"
+                packed_note = "packed automatically, this width lands on a mix too"
             elif len(set(packed)) == 1:
                 packed_note = (
                     f"packed automatically, this width gives every bay to "
@@ -2410,92 +2382,70 @@ class BasementBench:
                 Finding(
                     Severity.INFO,
                     "rack",
-                    f"bay_layout reserves {n_wide} bay(s) for the "
-                    f"{wide.label} tote and {n_narrow} for the "
+                    f"bay_layout reserves {self.bay_layout.count(wide.key)} "
+                    f"bay(s) for the {wide.label} tote and "
+                    f"{self.bay_layout.count(narrow.key)} for the "
                     f"{narrow.label} regardless of what the packer would "
                     f"choose — {packed_note}",
                 )
             )
-        elif wide is not narrow:
-            dividers = self.n_dividers * self.divider_t
-            over = self.derived_n_bays * self.bay_cell(wide) + dividers - self.frame_w
-            spare = self.frame_w - self.derived_n_bays * self.bay_cell(narrow) - dividers
-            if over > 0:
-                findings.append(
-                    Finding(
-                        Severity.INFO,
-                        "rack",
-                        f"the mix is what makes {self.derived_n_bays} bays fit: "
-                        f"{self.derived_n_bays} bays of the {wide.label} tote "
-                        f"would want {mm_to_fractional_inch(over)} more bench "
-                        f"than there is, and {self.derived_n_bays} of the "
-                        f"{narrow.label} would leave "
-                        f"{mm_to_fractional_inch(spare)} doing nothing",
-                    )
-                )
-            elif narrow not in self.bay_bins:
-                findings.append(
-                    Finding(
-                        Severity.INFO,
-                        "rack",
-                        f"every bay ended up sized for the {wide.label} tote "
-                        f"— {self.derived_n_bays} of them fit with "
-                        f"{mm_to_fractional_inch(-over)} to spare, so a "
-                        f"{narrow.label} tote was never forced into a bay of "
-                        "its own. It still goes in any bay here; it just "
-                        "rides with more clearance than it needs",
-                    )
-                )
 
         for bay, bin_ in enumerate(self.bay_bins):
-            if bay in set(self.open_bays):
+            if bay in open_bays:
                 continue
             findings.extend(
                 check_clearance(
                     f"bay {bay} ({bin_.label}, "
                     f"{mm_to_fractional_inch(self.bay_clear_w(bay))} clear), "
                     "each side of the tote's rim",
-                    self.bin_side_clearance_in * IN,
+                    inches(self.bin_side_clearance_in),
                     inches(0.25),
-                    inches(2.0),
+                    inches(0.5),
                     tight_note=(
                         "a tote is floppy plastic and goes in crooked; under a "
                         "quarter inch it binds"
                     ),
                     loose_note=(
-                        "past 2\" a side you are buying bench width to store "
-                        "air — try a narrower bay or one more of them"
+                        "every bit of clearance past the runner comes off the "
+                        "lip's bearing"
                     ),
                 )
             )
-            findings.append(
-                Finding(
-                    Severity.INFO,
-                    "rail",
-                    f"bay {bay}: rails {mm_to_fractional_inch(self.rail_channel(bay))} "
-                    f"apart under a {bin_.label} tote whose base is about "
-                    f"{mm_to_fractional_inch(inches(bin_.base_w_in))} wide — "
-                    f"{mm_to_fractional_inch(self.rail_overlap(bay))} of "
-                    "bearing a side"
-                    + ("" if bin_.interior_measured else
-                       f"; the {bin_.label} tote's base is estimated, not "
-                       "measured — check it before cutting the rails"),
-                )
-            )
 
-        for bin_ in self.bin_types:
-            if bin_ is self.tallest:
-                continue
+        for bin_ in dict.fromkeys(
+            b for bay, b in enumerate(self.bay_bins) if bay not in open_bays
+        ):
+            bearing = self.lip_bearing(bin_)
+            severity = Severity.INFO if bearing >= inches(0.25) else Severity.WARN
+            message = (
+                f"{bin_.label} bays: {self.runner_nominal} runners reach "
+                f"{mm_to_fractional_inch(self.runner_t)} past the frame, so "
+                f"the lip bears {mm_to_fractional_inch(bearing)} a side and "
+                f"the body clears the runners by "
+                f"{mm_to_fractional_inch(self.body_clearance(bin_))}"
+            )
+            if not bin_.lip_measured:
+                message += (
+                    f"; the {mm_to_fractional_inch(inches(bin_.lip_in))} lip is "
+                    "a published build's figure, not measured on this tote — "
+                    "put a tape on it before screwing a runner on"
+                )
+            findings.append(Finding(severity, "rack", message))
+
+        kinds = list(dict.fromkeys(self.bay_bins))
+        if len(kinds) > 1:
+            pitches = ", ".join(
+                f"{b.label} {mm_to_fractional_inch(self.tier_pitch_for(b))} "
+                f"with {mm_to_fractional_inch(self.head_clearance(b))} over the lid"
+                for b in kinds
+            )
             findings.append(
                 Finding(
                     Severity.INFO,
                     "rack",
-                    f"the {bin_.label} tote stands "
-                    f"{mm_to_fractional_inch(inches(self.tallest.height_in - bin_.height_in))} "
-                    f"lower than the {self.tallest.label}, so it rides with "
-                    f"{mm_to_fractional_inch(self.head_clearance(bin_))} over "
-                    "it. Uniform tiers are what let any tote go in any slot, "
-                    "and that is worth more in a shop than the inch",
+                    f"tiers are pitched per tote — {pitches} — and bays are "
+                    "sized to their own rim, so a tote only goes in a bay of "
+                    "its own kind",
                 )
             )
 
@@ -2503,7 +2453,7 @@ class BasementBench:
             findings.extend(
                 check_clearance(
                     "gap under the rack",
-                    self.lowest_point_z,
+                    self.rack_bottom_z,
                     inches(3.0),
                     inches(10.0),
                     tight_note=(
@@ -2514,16 +2464,15 @@ class BasementBench:
                 )
             )
 
-        behind = self.rail_run - inches(self.longest.length_in)
+        behind = self.tote_run - inches(self.longest.length_in)
         findings.append(
             Finding(
                 Severity.INFO,
                 "rack",
-                f"a {self.longest.label} tote sits on a "
-                f"{mm_to_fractional_inch(self.rail_run)} rail with "
-                f"{mm_to_fractional_inch(behind)} to spare, and the "
-                f"{mm_to_fractional_inch(self.ledger_t)} behind that is the "
-                "ledger — the dead space and the structure are the same space",
+                f"a {self.longest.label} tote rides "
+                f"{mm_to_fractional_inch(self.runner_len)} runners with "
+                f"{mm_to_fractional_inch(behind)} between its back and the "
+                "cleat, and slides out under the apron",
             )
         )
 
@@ -2541,15 +2490,13 @@ class BasementBench:
                 )
             )
         else:
-            cost = sum(
-                self.tiers_for(self.bay_bins[b]) for b in set(self.open_bays)
-            )
+            cost = sum(self.tiers_for(self.bay_bins[b]) for b in open_bays)
             findings.append(
                 Finding(
                     Severity.INFO,
                     "rack",
-                    f"bay(s) {sorted(set(self.open_bays))} left open at the "
-                    f"cost of {cost} totes",
+                    f"bay(s) {sorted(open_bays)} left open at the cost of "
+                    f"{cost} totes",
                 )
             )
         return findings
@@ -2557,21 +2504,14 @@ class BasementBench:
     def _stiffness_findings(self) -> list[Finding]:
         """Report what actually moves when the bench is loaded.
 
-        The benchtop, spanning divider to divider, is one candidate; the
-        rails are another.  A rail is not a cantilever in this build — the
-        tier tie at its front end makes it a simply-supported span — which
-        is what lets it stay flat instead of needing to stand on edge; the
-        plywood version's ribs were so deep this never mattered at all.
-
         Returns
         -------
         list[Finding]
-            One deflection finding per member, and one honest disclaimer.
+            The top between two arms, a runner between its stiles, and one
+            honest disclaimer.
         """
         findings: list[Finding] = []
-        widest_bay = max(
-            range(self.derived_n_bays), key=lambda b: self.bay_clear_w(b)
-        )
+        widest_bay = max(range(self.derived_n_bays), key=self.bay_clear_w)
         findings.extend(
             check_shelf_deflection(
                 self.panel_material,
@@ -2580,37 +2520,33 @@ class BasementBench:
                 thickness_mm=self.structural_top_t,
                 load_kg=self.front_edge_load_kg,
                 label=(
-                    f"the top between two dividers, {self.front_edge_load_kg:.0f} "
+                    f"the top between two arms, {self.front_edge_load_kg:.0f} "
                     "kg over one bay"
                 ),
                 run_mm=self.frame_w,
             )
         )
-
-        # Every rail in the rack shares the same span, load and cross-section
-        # regardless of which tote or tier it carries — tier count only
-        # changes how many rails there are, not how any one of them behaves.
         findings.extend(
             check_shelf_deflection(
                 self.frame_species,
-                span_mm=self.rail_run,
-                depth_mm=self.rail_w,
-                thickness_mm=self.rail_t,
+                span_mm=self.brace_run,
+                depth_mm=self.runner_t,
+                thickness_mm=self.runner_h,
                 load_kg=self.bin_mass_kg,
                 label=(
-                    f"any rail, tied at the front, {self.frame_nominal} flat "
-                    f"under a full {self.bin_mass_kg:.0f} kg tote"
+                    f"a runner between its stiles, {self.runner_nominal} on its "
+                    f"face, carrying a whole {self.bin_mass_kg:.0f} kg tote as "
+                    "if the other side carried none"
                 ),
                 limit_ratio=240.0,
             )
         )
-
         findings.append(
             Finding(
                 Severity.WARN,
                 "deflection",
                 "the wall joint is also still what moves under real use — lag "
-                "slip, the ledger crushing into the studs, and the studs "
+                "slip, the cleat crushing into the studs, and the studs "
                 "themselves bowing. None of it is in a beam formula and all "
                 "of it is why the hung build is for assembly and wiring "
                 "rather than for planing: a hand plane is a cyclic horizontal "
@@ -2625,8 +2561,8 @@ class BasementBench:
         Returns
         -------
         list[Finding]
-            Moisture, what is inside a stud bay, and the two obvious
-            additions the geometry is already ready for.
+            Moisture, what is inside a stud bay, and the obvious additions
+            the geometry is already ready for.
         """
         findings = [
             Finding(
@@ -2635,9 +2571,9 @@ class BasementBench:
                 "before any lag goes in, find out what is in those stud bays. "
                 "An exposed basement wall is where the wiring, the water line "
                 f"and the old phone cable run, and a {self.lag_len_label} lag "
-                f"reaches {mm_to_fractional_inch(self.lag_penetration)} past "
-                "the far face of nothing — but a drill bit wandering off a "
-                "stud edge reaches whatever is behind it",
+                f"reaches {mm_to_fractional_inch(self.lag_penetration)} into "
+                "the stud — but a drill bit wandering off a stud edge reaches "
+                "whatever is behind it",
             ),
             Finding(
                 Severity.INFO,
@@ -2671,7 +2607,7 @@ class BasementBench:
                     Severity.INFO,
                     "site",
                     "nothing touches the slab: the lowest part of the bench "
-                    f"is {mm_to_fractional_inch(self.lowest_point_z)} up, so "
+                    f"is {mm_to_fractional_inch(self.rack_bottom_z)} up, so "
                     "the floor sweeps clean, a wet spring does not reach the "
                     "frame, and there is no foot to level on a floor that "
                     "was never flat",
@@ -2681,26 +2617,48 @@ class BasementBench:
             Finding(
                 Severity.INFO,
                 "site",
-                "the top overhangs the front rail by "
+                "the top overhangs the apron by "
                 f"{mm_to_fractional_inch(inches(self.top_overhang_front_in))} "
                 "and each end by "
-                f"{mm_to_fractional_inch(inches(self.top_overhang_end_in))} — "
-                "that reveal is what a clamp jaw or a vice needs. A face vice "
-                "at the left end wants the front rail and the end divider "
-                "doubled behind it; nothing else in the design has to change",
+                f"{mm_to_fractional_inch(self.end_overhang)} — that reveal is "
+                "what a clamp jaw needs. A face vice at the left end wants a "
+                "block between the apron and the end frame behind it; "
+                "nothing else in the design has to change",
             )
         )
         findings.append(
             Finding(
                 Severity.INFO,
                 "site",
-                "the stud bays behind the bench are open, which is where the "
-                "power strip, the cords and the task light go — screw the "
-                "strip to the front face of the top ledger, above the totes "
-                "and below the top, where nothing can sit on it",
+                "the top is screwed down, not glued: back the screws out of "
+                "the arms and the apron and the slab lifts off whole, with "
+                "every frame, runner and tote left exactly where it was",
             )
         )
         return findings
+
+
+def _cut(placed, blank: Board, cutters: list) -> object:
+    """Subtract *cutters* from a placed member and keep its cut-list identity.
+
+    Parameters
+    ----------
+    placed : build123d.Shape
+        The member, already positioned.
+    blank : Board
+        The unplaced board it was made from, whose metadata the result keeps.
+    cutters : list of build123d.Shape
+        Positioned cutters.
+
+    Returns
+    -------
+    build123d.Shape
+        The jointed member.
+    """
+    result = placed
+    for cutter in cutters:
+        result = result - cutter
+    return retag(result, like=blank)
 
 
 # ---------------------------------------------------------------------------
@@ -2865,11 +2823,11 @@ def _spec(mount: str) -> ProjectSpec:
         summary=(
             f'{bench.overall_w_in:g}"W x '
             f"{mm_to_fractional_inch(bench.overall_d)}D with a "
-            f'{bench.top_height_in:g}" top, lagged to '
+            f'{bench.top_height_in:g}" top on two cleats lagged to '
             f"{len(bench.stud_positions)} exposed studs at "
             f'{bench.stud_spacing_in:g}" o.c. Underneath, '
             f"{bench.derived_n_bays} bays of medium storage totes ({tally}) "
-            f"on 2x4 dividers and rails — no plywood "
+            f"hung by their rims between 2x4 side frames — no plywood "
             f"below the top. {bench.spec.summary.capitalize()}."
         ),
         species=bench.frame_species,
@@ -2877,23 +2835,21 @@ def _spec(mount: str) -> ProjectSpec:
         check=bench.check,
         inventory=bench.inventory,
         notes=(
-            "The storage is the structure: two 2x6 ledgers into the studs and "
-            "2x4 dividers spanning between them turn a shelf into a "
-            "cantilever bracket, exactly as a plywood rack would, and the "
-            "check report works the load path into pounds rather than "
-            "asserting it. Rails are 2x4 laid flat, positioned from each "
-            "bay's own centre by a tote's base rather than its rim, because "
-            "a tote tapers and a pair of rails spaced to the rim lets it "
-            "fall through; a tier tie screwed to their undersides ties each "
-            "pair into a simply-supported span, which is what lets them "
-            "stay flat instead of standing on edge. Two bays are dedicated "
-            "to each tote size and three tiers of the 16-gallon tote share "
-            "the same rack height as two of the 17-gallon, both decisions "
-            "rather than whatever an automatic packer would land on — "
-            "between them they cost the extra 10\" of width and 4\" of "
-            "height over the brief's \"roughly 80\" and 36\". The one "
-            "assumption the model cannot verify is that the exposed studs "
-            "are framing and not furring strips on masonry — set "
+            "Every bay boundary is a side frame of 2x4s — back stile, front "
+            "stile, an arm under the top and a diagonal brace — hooked over "
+            "a 2x6 cleat lagged to the studs at the top and seated against a "
+            "second at the bottom, so the frames are the bracket and the "
+            "check report works the load path into pounds. Totes hang by "
+            "their lips from 1x4 runners screwed to the frame faces, which "
+            "costs no height per tier and leaves nothing spanning a bay for "
+            "a tote below to hit on its way in. The top is screwed down to "
+            "the arms and apron, never glued, so it can be replaced. Two "
+            "bays are dedicated to each tote size, three tiers of the "
+            "16-gallon and two of the 17-gallon, both decisions rather than "
+            "whatever an automatic packer would land on. The lip dimensions "
+            "come from a published tote-rack build, not a measurement; the "
+            "other assumption the model cannot verify is that the exposed "
+            "studs are framing and not furring strips on masonry — set "
             "stud_nominal to what is actually there."
         ),
         tags=["shop", "storage", "wall-mounted", mount],
@@ -2958,7 +2914,7 @@ def main() -> None:
         type=int,
         action="append",
         default=[],
-        help="leave this bay without rails; repeatable",
+        help="leave this bay without runners; repeatable",
     )
     parser.add_argument("--outdir", type=Path, default=Path("build"))
     args = parser.parse_args()
