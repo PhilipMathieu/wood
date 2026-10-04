@@ -575,8 +575,9 @@ def test_the_ground_can_be_asked_for_or_refused(bed):
 
 
 def test_the_ground_lies_at_grade_and_reaches_past_a_thin_fence():
-    from woodshop.render.model3d import GROUND_ALPHA, GROUND_COLOR, _ground_triangles
     from matplotlib.colors import to_rgb
+
+    from woodshop.render.model3d import GROUND_ALPHA, GROUND_COLOR, _ground_triangles
 
     triangles, colours = _ground_triangles(_FenceBB())
     assert triangles.shape == (2, 3, 3)
