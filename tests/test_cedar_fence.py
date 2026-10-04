@@ -8,6 +8,7 @@ difference shows.
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -1057,8 +1058,11 @@ def test_the_parts_list_says_it_is_not_an_order(panels):
 # ---------------------------------------------------------------------------
 
 
-def test_the_designs_are_three_systems_and_four_from_avo():
-    """One per system in The Lumbery's catalogue, plus four asked for by name.
+def test_the_designs_are_three_systems_four_from_avo_and_two_in_hemlock():
+    """One per Lumbery system, four asked for by name, two in hemlock.
+
+    Three systems from The Lumbery's catalogue, four AVO designs asked for by
+    name, and two priced in cedar and hemlock.
 
     The styles below the designs still exist — they are how the catalogue is
     priced and how a panel is benchmarked against sticks — but a style is a
@@ -1066,7 +1070,8 @@ def test_the_designs_are_three_systems_and_four_from_avo():
     """
     assert list(DESIGNS) == [
         "privacy", "chestnut", "rails",
-        "brewster", "concord", "four_rail", "good_neighbor",
+        "brewster", "concord", "four_rail", "four_rail_hemlock",
+        "rails_hemlock", "good_neighbor",
     ]
     assert [p.slug for p in PROJECTS] == [
         "cedar-fence-privacy",
@@ -1075,6 +1080,8 @@ def test_the_designs_are_three_systems_and_four_from_avo():
         "cedar-fence-brewster",
         "cedar-fence-concord",
         "cedar-fence-four-rail",
+        "cedar-fence-four-rail-hemlock",
+        "cedar-fence-rails-hemlock",
         "cedar-fence-good-neighbor",
     ]
 
@@ -1084,7 +1091,7 @@ def test_panels_are_panels_and_sticks_are_sticks():
     kinds = {key: type(factory()) for key, (_n, factory, _s) in DESIGNS.items()}
     for key in ("privacy", "chestnut", "brewster", "concord"):
         assert kinds[key] is PanelFence
-    for key in ("rails", "four_rail", "good_neighbor"):
+    for key in ("rails", "four_rail", "four_rail_hemlock", "rails_hemlock", "good_neighbor"):
         assert kinds[key] is CedarFence
 
 
@@ -1113,7 +1120,7 @@ def test_the_rail_design_hangs_mesh_and_the_panels_do_not():
         key: {p.label for p in extract(factory().build())}
         for key, (_n, factory, _s) in DESIGNS.items()
     }
-    for key in ("rails", "four_rail", "good_neighbor"):
+    for key in ("rails", "four_rail", "four_rail_hemlock", "rails_hemlock", "good_neighbor"):
         assert "mesh" in parts[key]
     for key in ("privacy", "chestnut", "brewster", "concord"):
         assert "mesh" not in parts[key]
@@ -1559,3 +1566,51 @@ def test_every_gallery_entry_carries_three_configurations():
         assert spec.configuration_views is not None
     drawn = configurations(PanelFence(style="concord"))
     assert [caption for caption, _a, _f in drawn] == [c for c, _l, _k in CONFIGURATIONS]
+
+
+def test_hemlock_designs_put_cedar_in_the_ground_and_hemlock_above_it():
+    for key in ("four_rail_hemlock", "rails_hemlock"):
+        fence = DESIGNS[key][1]()
+        parts = extract(fence.build())
+        by_label = {}
+        for part in parts:
+            by_label.setdefault(part.label, set()).add(part.material)
+        for label in ("line_post", "gate_post"):
+            assert by_label[label] == {"white_cedar"}, (key, label)
+        rails = by_label.get("rail") or by_label.get("square_rail")
+        assert rails == {"hemlock"}, key
+
+
+def test_hemlock_is_bought_by_the_twelve_foot_piece_and_fully_priced():
+    fence = DESIGNS["rails_hemlock"][1]()
+    parts = extract(fence.build())
+    plan = fence.plan(parts)
+    hemlock = [g for g in plan.groups if g.stock.species == "hemlock"]
+    assert {g.stock.nominal for g in hemlock} == {"4x4", "2x4"}
+    for group in hemlock:
+        # Footage plus the offcut allowance, rounded up to whole 12 ft sticks.
+        assert group.pieces == math.ceil(group.lineal_ft / 12 - 1e-9)
+        assert group.cost == group.pieces * group.stock.price_per_piece
+    summary = fence.cost_summary(parts)
+    assert not summary.unpriced
+    mesh = fence.mesh_plan(parts)
+    # The Garden Craft roll is 50 ft, so this fence buys two of them.
+    assert mesh.cost_summary.total == pytest.approx(2 * 109.00)
+
+
+def test_hemlock_rails_are_warned_about_decay_and_cedar_rails_are_not():
+    def decay(fence):
+        built = fence.build()
+        return [f for f in fence.check(built, extract(built)).findings
+                if f.code == "durability" and "hemlock" in f.message]
+
+    assert decay(DESIGNS["four_rail_hemlock"][1]())
+    assert decay(DESIGNS["rails_hemlock"][1]())
+    assert not decay(DESIGNS["four_rail"][1]())
+
+
+def test_a_square_post_and_rail_rail_is_a_sawn_board_not_a_log():
+    fence = DESIGNS["rails_hemlock"][1]()
+    rails = [p for p in extract(fence.build()) if p.label == "square_rail"]
+    assert rails and all(p.nominal == "4x4" for p in rails)
+    assert not [p for p in extract(fence.build()) if p.label == "log_rail"]

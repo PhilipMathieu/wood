@@ -2267,3 +2267,54 @@ post, the gate's hinge post, or the first line post), drawn with
 `rasterize(bounds=...)`. A close-up is always shaded: HLR has no window.
 `render_configurations` takes an optional third item per row, the focus.
 
+## Addendum: cedar and hemlock, priced — 2026-10-04
+
+The owner asked what the four-rail and post-and-rail fences cost in cedar
+and hemlock from the Lumbery, with Lowe's Garden Craft 2" x 3" garden
+fencing ($109, 4 ft x 50 ft) instead of the 2x4 roll.
+
+**Hemlock.** The Lumbery's garden store (lumberystore.com/hemlock) is a
+Square Online shop that renders its catalogue in script; the page this
+environment can fetch has no products in it. The owner copied the list:
+rough sawn native Maine hemlock by the 12 ft piece — 1x4 $6.00, 1x6 $10.50,
+2x4 $15.00, 2x8 $33.00, 2x10 $40.00, 2x12 $56.00, 4x4 $31.00 — with every
+size from 2x4 up out of stock that day. Those are in `stock.yaml` as
+`price_per_piece` / `price_length_ft: 12`, so a group buys
+`ceil(footage × 1.10 / 12)` sticks. That is a footage estimate in sticks,
+not a cutting plan; the rails here are 6–8 ft, two to a stick, so it is
+close.
+
+Hemlock is the rail, never the post. The USDA Wood Handbook rates eastern
+hemlock slightly or non-resistant to decay, where northern white cedar is
+resistant; a hemlock post is a post you dig out again. It is half again as
+stiff (8.3 GPa against 5.5), which is the one thing in its favour as a rail.
+`NON_DURABLE_SPECIES` drives a WARN on any hemlock rail or gate frame.
+
+**No 2x6.** The four-rail fence's rails are 2x6 on edge. The store sells
+2x4 and 2x8, not 2x6. `four_rail_hemlock` uses 2x4: cheaper, and sideways
+— the way a dog pushes — a 2x4 on edge is exactly as stiff as a 2x6,
+because sideways the depth is the 2" thickness either way. It is a
+narrower-looking rail than the photograph. 2x8 rails cost $267 more.
+
+**Round logs are still unpriced**, so the hemlock post and rail is the
+square version — AVO sells both. Building it found a bug: the post-and-rail
+builder drew every rail as a round `Pole` in the fence's own species,
+ignoring a square or hemlock rail choice. A square rail is now a sawn
+`Board` (`square_rail`) of its own species, tenoned into a mortise, and the
+rail check uses the rail's species and section.
+
+**The Garden Craft roll costs more here, not less.** The 38 ft brief with
+its gates needs more than 50 ft of mesh, so it is two rolls at $218 against
+one 100 ft roll of the 2x4 mesh at $159.99. It is also probably 16 ga to the
+other roll's 14 ga (the listing as relayed gives no gauge). Its closer 2x3
+pattern is the reason to buy it: small dogs and rabbits.
+
+| design (38 ft brief, heavy-duty hardware) | wood | mesh | hardware | total |
+| --- | --- | --- | --- | --- |
+| `four_rail`, all cedar, 2x4 roll | $1,713 | $160 | $595 | $2,469 |
+| `four_rail_hemlock`, Garden Craft | $944 | $218 | $595 | $1,758 |
+| `rails_hemlock`, Garden Craft | $1,008 | $218 | $676 | $1,902 |
+
+Budget hardware takes $290 off the four-rail totals and $344 off post and
+rail.
+

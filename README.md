@@ -404,6 +404,8 @@ which shows more than The Lumbery's storefront does:
 | `brewster` | Brewster: AVO's spaced board panel with a fascia and kickboard on its face | panels, posts, caps |
 | `concord` | Concord: pointed pickets, spaced — **vinyl only**; AVO sells no cedar Concord | panels, posts |
 | `four_rail` | the "Custom Cedar Fence" photo: square posts under flat caps, four 2x6 rails on edge, mesh behind | sticks by the foot, all priced, plus a roll of mesh |
+| `four_rail_hemlock` | the four-rail fence with cedar posts and caps, rough hemlock 2x4 rails and gate frames, and 2x3 garden fencing | all priced: hemlock by the 12 ft piece, cedar by the foot, two 50 ft rolls |
+| `rails_hemlock` | square post and rail: cedar 4x4 and 6x6 posts, rough 4x4 hemlock rails into mortises, hemlock gate frames, 2x3 garden fencing | all priced, unlike the round version |
 | `good_neighbor` | the "good neighbor" photo: mesh across treated posts, clamped under cedar battens, no rails | sticks by the foot, plus a roll of mesh; the treated posts are unpriced |
 
 The gallery draws every design three ways — a 6 ft bay cantilevered 2 ft past

@@ -610,6 +610,105 @@ dimensional:
     profile: ground contact
     price_source: "NOT PRICED — no treated-lumber price list this environment can read"
 
+  # Native Maine rough sawn hemlock from the Lumbery's garden store, sold by
+  # the 12 ft piece and true rough sawn (full dimension).  The store page is
+  # a script-rendered shop this environment cannot read; these prices are as
+  # the owner copied them from it.  Out-of-stock sizes are kept: the price is
+  # still the price, and the notes say which cannot be bought today.
+  #
+  # Hemlock is not rot resistant (USDA rates it slightly or nonresistant), so
+  # nothing here should go in the ground: it is rails and framing, over cedar
+  # posts.
+
+  - species: hemlock
+    nominal: "1x4"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 6.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+
+  - species: hemlock
+    nominal: "1x6"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 10.50
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+
+  - species: hemlock
+    nominal: "2x4"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 15.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+    # Out of stock on 2026-10-04.
+
+  - species: hemlock
+    nominal: "2x8"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 33.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+    # Out of stock on 2026-10-04.
+
+  - species: hemlock
+    nominal: "2x10"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 40.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+    # Out of stock on 2026-10-04.
+
+  - species: hemlock
+    nominal: "2x12"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 56.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+    # Out of stock on 2026-10-04.
+
+  - species: hemlock
+    nominal: "4x4"
+    lengths_ft: [12]
+    qty: 0
+    grade: ""
+    profile: rough sawn
+    price_per_piece: 31.00
+    price_length_ft: 12
+    price_as_of: 2026-10-04
+    price_source: "Lumbery Garden Store, Native Maine Rough Sawn Hemlock — copied from the page by the owner"
+    price_url: "https://www.lumberystore.com/hemlock"
+    # Out of stock on 2026-10-04.
+
 
 hardwood:
   - species: cherry
@@ -912,6 +1011,25 @@ unit_goods:
       under the coating. Staple to the rails and cap the edges with a
       batten — a cut mesh end at hand height is a scratch waiting to
       happen.
+
+  # The owner's alternative: lighter garden fencing, a closer 2" x 3" mesh,
+  # half the roll at two thirds the price.  Its own material key, so a fence
+  # chooses one roll or the other (``mesh_material``) rather than whichever
+  # comes first in this file.
+  - species: steel
+    item: welded wire garden fencing, 2x3, black PVC coated (Garden Craft)
+    unit: roll
+    material: steel_mesh_black_2x3
+    size: "4 ft x 50 ft"
+    qty: 0
+    coverage_sqft: 200
+    price_per_unit: 109.00
+    price_as_of: 2026-10-04
+    price_source: "Lowe's, Garden Craft 50-ft x 4-ft black PVC coated welded wire garden fencing — relayed by the owner, not read from the page"
+    notes: >-
+      2" x 3" mesh. The listing as relayed gives no wire gauge; garden
+      fencing of this kind is usually 16 ga, lighter than the 14 ga roll
+      above, which matters to a dog that leans on it.
 
   # The same wire a foot taller. Not an upgrade to the fence: the extra
   # foot goes in the ground as an apron, turned out from the posts and

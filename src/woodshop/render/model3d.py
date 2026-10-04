@@ -106,9 +106,12 @@ MATERIAL_COLORS: dict[str, str] = {
     # a season or two, which is why nobody stains a fence twice.
     "white_cedar": "#ddc49a",
     "syp_pt": "#b9b183",
+    # Rough sawn hemlock: a redder, darker tan than the cedar beside it.
+    "hemlock": "#c49a74",
     # Black PVC over galvanised wire: near-black, and not quite, because a
     # true black reads as a hole in a shaded render.
     "steel_mesh_black": "#2f3234",
+    "steel_mesh_black_2x3": "#2f3234",
     # White vinyl, a shade off white so the shading still reads.
     "vinyl_pvc": "#ecebe6",
     "plywood_cherry": "#c47a54",
@@ -129,6 +132,8 @@ _FALLBACK_COLOR = "#9e9e9e"
 #: 2.5 mm with its PVC coat.
 SCREEN_MATERIALS: dict[str, tuple[float, float, float]] = {
     "steel_mesh_black": (50.8, 101.6, 2.5),
+    # 2" x 3" garden fencing, about 16 ga: 1.6 mm wire, 2 mm coated.
+    "steel_mesh_black_2x3": (50.8, 76.2, 2.0),
 }
 
 #: Colour of the ground plane: a muted moss-grey that reads as ground without

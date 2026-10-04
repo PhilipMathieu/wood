@@ -132,6 +132,9 @@ ELASTIC_MODULUS_MPA: dict[str, float] = {
     # margin — about half of cherry — which is the whole reason a fence rail
     # spanning 8 ft is a different proposition in cedar than it looks on paper.
     "white_cedar": 5_500.0,
+    # Eastern hemlock: half again as stiff as the cedar, which is why it is
+    # the rail and not the post.
+    "hemlock": 8_300.0,
     "plywood_birch": 6_900.0,
     "plywood_cherry": 6_200.0,
     "plywood_baltic_birch": 6_500.0,
@@ -661,6 +664,8 @@ DENSITY_KG_M3: dict[str, float] = {
     "pine": 420.0,
     "poplar": 455.0,
     "white_cedar": 320.0,
+    # Eastern hemlock, specific gravity 0.40 at 12% MC.
+    "hemlock": 450.0,
     # As bought: ground-contact treatment leaves SYP saturated.  It dries
     # toward ~570 in service, so figures built on this run heavy — the safe
     # direction for racking and hinge loads.
@@ -676,6 +681,9 @@ DENSITY_KG_M3: dict[str, float] = {
     # that makes that sheet weigh what the mesh weighs is 1.95 / 0.003175.
     # Treating it as solid steel would be fourteen times out.
     "steel_mesh_black": 614.0,
+    # 2" x 3" garden fencing in a lighter wire: more wires a foot, each
+    # thinner. About 0.3 lb/ft², drawn as the same 1/8" sheet.
+    "steel_mesh_black_2x3": 460.0,
     "plywood_birch": 680.0,
     "plywood_cherry": 590.0,
     "plywood_baltic_birch": 690.0,
@@ -855,6 +863,7 @@ TANGENTIAL_SHRINKAGE_PCT: dict[str, float] = {
     "pine": 7.4,
     "poplar": 8.2,
     "white_cedar": 4.9,
+    "hemlock": 6.8,
 }
 
 #: Moisture content at which wood starts to move, in percent.

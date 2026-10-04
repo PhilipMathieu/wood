@@ -626,6 +626,10 @@ POST_AND_RAIL_RAILS: dict[str, StockChoice] = {
     "square_4": StockChoice("4x4", grade="STK", profile="rough sawn"),
 }
 
+#: Species a fence may use above ground but that will not last like cedar:
+#: USDA Wood Handbook rates eastern hemlock slightly or non-resistant to decay.
+NON_DURABLE_SPECIES: frozenset[str] = frozenset({"hemlock"})
+
 #: The mesh a log fence is built around: the material key its parts carry, and
 #: the key ``stock.yaml`` files the roll under.
 MESH_MATERIAL: str = "steel_mesh_black"
@@ -1832,15 +1836,35 @@ class CedarFence:
             rail_y = -self.post_size / 2
 
             for z, where in self._log_rail_heights():
+                # A rail is tenoned into the post, so the stick is longer
+                # than the gap it crosses.
+                length = clear + tenons * inches(self.tenon_in)
+                if not self.rail.round:
+                    # AVO's square cedar rail: sawn, its ends cut down to a
+                    # tenon that drops into a mortise in a square post.
+                    out.append(
+                        Pos(rail_x, rail_y, z)
+                        * ALONG_RUN
+                        * Board(
+                            length_mm=length,
+                            label="square_rail",
+                            notes=(
+                                f"{where} rail; each end cut down to a tenon "
+                                f"{self.tenon_in:g}\" long, into a mortise "
+                                "in the post — cut the mortises before the "
+                                "posts go in the ground"
+                            ),
+                            **self._stock(self.rail),
+                        )
+                    )
+                    continue
                 out.append(
                     Pos(rail_x, rail_y, z)
                     * POLE_ALONG_RUN
                     * Pole(
-                        # A log rail is tenoned into a hole bored in the post,
-                        # so the stick is longer than the gap it crosses.
-                        length_mm=clear + tenons * inches(self.tenon_in),
+                        length_mm=length,
                         diameter_mm=self.rail.width,
-                        material=self.species,
+                        material=self.rail.species or self.species,
                         label="log_rail",
                         nominal=self.rail.nominal,
                         grade=self.rail.grade,
@@ -2798,11 +2822,14 @@ class CedarFence:
         if not panels:
             return []
         span = max(s.length for s in panels) - self.post_size
+        # The rails may be another species than the fence (hemlock over cedar
+        # posts), and it is the rail that bends.
+        rail_e_mpa = ELASTIC_MODULUS_MPA[self.rail.species or self.species]
 
         if self.style == "log_and_mesh":
-            return self._check_log_rails(e_mpa, span)
+            return self._check_log_rails(rail_e_mpa, span) + self._check_rail_decay()
         if self.style == "four_rail":
-            return self._check_board_rails(e_mpa, span)
+            return self._check_board_rails(rail_e_mpa, span) + self._check_rail_decay()
         if self.style == "good_neighbor":
             return self._check_unrailed_mesh(span)
 
@@ -2959,6 +2986,34 @@ class CedarFence:
             ),
         ]
 
+    def _check_rail_decay(self) -> list[Finding]:
+        """Warn when rails or gate framing are a species that rots.
+
+        Cedar is the reason a cedar fence outlasts its builder; a rail of
+        anything else above it is the part that will be replaced first.
+        """
+        roles = {"rail": self.rail, "gate frame": self.gate_frame}
+        soft = sorted(
+            {
+                f"{choice.species} {role}"
+                for role, choice in roles.items()
+                if choice is not None and choice.species in NON_DURABLE_SPECIES
+            }
+        )
+        if not soft:
+            return []
+        return [
+            Finding(
+                Severity.WARN,
+                "durability",
+                f"{' and '.join(soft)}: hemlock is rated slightly or "
+                "non-resistant to decay, where the cedar posts are resistant. "
+                "Above ground and free to dry it lasts years rather than "
+                "decades — seal the cut ends and the tenons, keep the bottom "
+                "rail clear of grass, and expect to replace rails before posts",
+            )
+        ]
+
     def _check_log_rails(self, e_mpa: float, span: float) -> list[Finding]:
         """Check a round rail, which is stiffer than the square it fits in.
 
@@ -2970,7 +3025,19 @@ class CedarFence:
         that only shows up as a sagging fence.
         """
         diameter = self.rail.width
-        equivalent_breadth = 12.0 * math.pi / 64.0 * diameter
+        # A square rail is its own breadth; a log is the square of the same
+        # stiffness, which is narrower.
+        if self.rail.round:
+            equivalent_breadth = 12.0 * math.pi / 64.0 * diameter
+            kind = "log"
+            aside = (
+                " — a round rail is 59% as stiff as the square it fits inside, "
+                "which is worth knowing before swapping a 4\" log for a 4x4"
+            )
+        else:
+            equivalent_breadth = self.rail.thickness
+            kind = f"{self.rail.species or self.species} {self.rail.nominal}"
+            aside = ""
         # The rails carry the mesh, which weighs almost nothing, and then
         # whatever leans on it.  200 lb of somebody is the load worth asking
         # about; the mesh itself is a rounding error.
@@ -2987,23 +3054,26 @@ class CedarFence:
             Finding(
                 Severity.INFO if deflection <= limit else Severity.WARN,
                 "deflection",
-                f"{self.log_rails} log rails of "
+                f"{self.log_rails} {kind} rails of "
                 f"{mm_to_fractional_inch(diameter)} over the longest bay "
                 f"({mm_to_fractional_inch(span)} clear): "
                 f"{lean_kg:.0f} kg of somebody leaning on the mesh puts "
                 f"{deflection:.1f} mm into the rail carrying it "
-                f"(limit span/240 = {limit:.1f} mm) — a round rail is 59% as "
-                "stiff as the square it fits inside, which is worth knowing "
-                "before swapping a 4\" log for a 4x4",
+                f"(limit span/240 = {limit:.1f} mm){aside}",
             ),
             Finding(
                 Severity.INFO,
                 "joinery",
-                f"each rail is tenoned {self.tenon_in:g}\" into a "
-                f"{self.tenon_diameter_in:g}\" hole bored in the post, which "
-                "is the joint this fence has instead of a bracket: bore every "
-                "hole before the posts are set, because a brace and bit is no "
-                "use against a post already in the ground",
+                (
+                    f"each rail is tenoned {self.tenon_in:g}\" into a "
+                    f"{self.tenon_diameter_in:g}\" hole bored in the post"
+                    if self.rail.round
+                    else f"each rail is tenoned {self.tenon_in:g}\" into a "
+                    "mortise cut through the post"
+                )
+                + ", which is the joint this fence has instead of a bracket: "
+                "cut every one before the posts are set, because no tool is "
+                "any use against a post already in the ground",
             ),
         ]
 
@@ -6047,6 +6117,57 @@ def four_rail_fence() -> CedarFence:
     return CedarFence(style="four_rail", post_proud_in=3.0)
 
 
+def _hemlock(nominal: str) -> StockChoice:
+    """Return rough sawn hemlock of *nominal* size.
+
+    As the Lumbery's garden store sells it: by the 12 ft piece, ungraded,
+    true dimension.
+    """
+    return StockChoice(nominal, grade="", profile="rough sawn", species="hemlock")
+
+
+#: The lighter, closer 2" x 3" garden fencing the owner priced at Lowe's.
+GARDEN_MESH_MATERIAL: str = "steel_mesh_black_2x3"
+
+
+def four_rail_hemlock_fence() -> CedarFence:
+    """Return the four-rail fence with hemlock rails over cedar posts.
+
+    Cedar where the fence meets the ground — posts, gate posts and caps — and
+    rough hemlock for everything that spans, which is most of the wood and
+    most of the money.  The garden store sells no 2x6 hemlock, so the rails
+    are 2x4 on edge: a narrower rail than the photograph, and the cheaper of
+    the two sizes on either side of it (2x8 is the other).  Hung with the
+    2" x 3" garden fencing.
+    """
+    return CedarFence(
+        style="four_rail",
+        post_proud_in=3.0,
+        rail=_hemlock("2x4"),
+        gate_frame=_hemlock("2x4"),
+        mesh_material=GARDEN_MESH_MATERIAL,
+    )
+
+
+def post_and_rail_hemlock_fence() -> CedarFence:
+    """Return post and rail in square stock: cedar posts, hemlock rails.
+
+    AVO's square post and rail — 4" rails tenoned into mortised posts — rather
+    than the round one, because round cedar has no published price and
+    square cedar and hemlock both do.  Cedar 4x4 line posts and 6x6 gate
+    posts in the ground, rough 4x4 hemlock rails between them, hemlock 2x4
+    gate frames, and the 2" x 3" garden fencing.
+    """
+    return dataclasses.replace(
+        post_and_rail_fence(),
+        post=StockChoice("4x4", grade="STK", profile="rough sawn"),
+        gate_post=StockChoice("6x6", grade="STK", profile="rough sawn"),
+        rail=_hemlock("4x4"),
+        gate_frame=_hemlock("2x4"),
+        mesh_material=GARDEN_MESH_MATERIAL,
+    )
+
+
 def good_neighbor_fence() -> CedarFence:
     """Return the post-and-batten mesh fence from AVO's "good neighbor" photo.
 
@@ -6101,6 +6222,22 @@ DESIGNS: dict[str, tuple[str, Any, str]] = {
         "AVO's custom cedar fence: square posts standing proud under flat "
         "caps, four 2x6 rails on edge between them, and black welded wire "
         "behind, run to grade. The gates carry the same four rails across.",
+    ),
+    "four_rail_hemlock": (
+        "Four-rail, hemlock rails",
+        four_rail_hemlock_fence,
+        "The four-rail fence with cedar only where it meets the ground: cedar "
+        "posts and caps, rough sawn hemlock rails and gate frames from the "
+        "Lumbery's garden store, and 2x3 garden fencing behind. The rails are "
+        "2x4 on edge, since the store sells no 2x6 hemlock.",
+    ),
+    "rails_hemlock": (
+        "Square post and rail, hemlock rails",
+        post_and_rail_hemlock_fence,
+        "Post and rail in square stock: cedar 4x4 posts and 6x6 gate posts, "
+        "rough 4x4 hemlock rails tenoned into mortises in 8 ft bays, hemlock "
+        "gate frames, and 2x3 garden fencing run to grade. Priced where the "
+        "round log version cannot be.",
     ),
     "good_neighbor": (
         "Good neighbor mesh",
@@ -6217,6 +6354,20 @@ DESIGN_NOTES: dict[str, str] = {
         "sawn guide's nearest stock to what it shows. Stick-built, so every "
         "cedar line is priced off Lumbery's guide (2026-08-17) and the "
         "hardware and mesh at SKUs relayed 2026-08-18."
+    ),
+    "four_rail_hemlock": (
+        "Priced for the owner's question: the four-rail fence in cedar and "
+        "hemlock. Hemlock at the Lumbery garden store's 12 ft piece prices, "
+        "as copied from the page by the owner (2026-10-04; most sizes were "
+        "out of stock that day); cedar off the sawn guide (2026-08-17); the "
+        "Garden Craft 2x3 roll at $109 for 50 ft from Lowe's, relayed by the "
+        "owner. Hemlock is not decay resistant, and the checks say so."
+    ),
+    "rails_hemlock": (
+        "Priced for the owner's question: post and rail in cedar and hemlock. "
+        "Square rather than round, because round cedar posts and rails have "
+        "no published price. Hemlock, cedar and mesh sources as for the "
+        "four-rail hemlock design."
     ),
     "good_neighbor": (
         "Drawn from AVO's \"good neighbor\" photograph of a mesh fence on a "
