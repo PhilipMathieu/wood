@@ -406,6 +406,13 @@ which shows more than The Lumbery's storefront does:
 | `four_rail` | the "Custom Cedar Fence" photo: square posts under flat caps, four 2x6 rails on edge, mesh behind | sticks by the foot, all priced, plus a roll of mesh |
 | `good_neighbor` | the "good neighbor" photo: mesh across treated posts, clamped under cedar battens, no rails | sticks by the foot, plus a roll of mesh; the treated posts are unpriced |
 
+The gallery draws every design three ways — a 6 ft bay cantilevered 2 ft past
+each end post to tie into existing structure, 10 ft with a 4 ft gate in the
+middle, and 40 ft straight. `--design` writes the same sheet to
+`build/cedar_fence_<design>_configurations.png`, and any layout can be built in
+code with `layout=`, e.g.
+`CedarFence(style="four_rail", layout=(("fence", 3), ("gate", 4), ("fence", 3)), gate_leaves=1)`.
+
 The mesh is the only thing in any of the three that is not in the catalogue as
 drawn. A post and rail fence stops a horse and does nothing at all about a dog;
 the wire is what makes it a fence a dog stays inside, and it runs to grade

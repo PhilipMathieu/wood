@@ -6,6 +6,7 @@ from woodshop.render.model3d import (
     STANDARD_VIEWS,
     View,
     render_assembly,
+    render_configurations,
 )
 from woodshop.render.sheets import (
     render_board_diagram,
@@ -19,6 +20,7 @@ __all__ = [
     "render_sheet_diagram",
     "render_board_diagram",
     "render_assembly",
+    "render_configurations",
     "export_assembly",
     "save_figures",
     "View",

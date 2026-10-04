@@ -96,6 +96,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -130,7 +131,13 @@ from woodshop.lumber import (
 from woodshop.parts import Board, Panel, Pole, ShapedBoard
 from woodshop.pricing import CostSummary, PriceLine, format_money
 from woodshop.project import ProjectSpec
-from woodshop.render import export_assembly, render_assembly, render_cut_list
+from woodshop.render import (
+    View,
+    export_assembly,
+    render_assembly,
+    render_configurations,
+    render_cut_list,
+)
 
 IN = 25.4
 FT = 304.8
@@ -379,9 +386,11 @@ class Span:
     ----------
     kind : str
         ``"panel"`` for fence infill, ``"gate"`` for an opening a leaf hangs
-        in.
+        in, ``"cantilever"`` for infill that runs past the last post to tie
+        into something that is already there.
     x0, x1 : float
-        Post centres bounding the span, in mm along the run.
+        Post centres bounding the span, in mm along the run — except at the
+        free end of a cantilever, where there is no post.
     """
 
     kind: str
@@ -392,6 +401,99 @@ class Span:
     def length(self) -> float:
         """Post centre to post centre, mm."""
         return self.x1 - self.x0
+
+
+#: What a layout segment can be.  A layout is a sequence of ``(kind, feet)``
+#: read left to right: ``"fence"`` is a stretch divided into bays, ``"gate"``
+#: is an opening hung between two gate posts, and ``"cantilever"`` is infill
+#: carried past the end post — only at either end, because a cantilever in the
+#: middle of a run is a missing post.
+SEGMENT_KINDS: tuple[str, ...] = ("fence", "gate", "cantilever")
+
+
+def check_layout_segments(layout: tuple[tuple[str, float], ...]) -> None:
+    """Raise if *layout* is not a fence somebody could build.
+
+    Parameters
+    ----------
+    layout : tuple of (str, float)
+        ``(kind, feet)`` segments, left to right.
+
+    Raises
+    ------
+    ValueError
+        On an unknown kind, a non-positive length, a cantilever anywhere but
+        at an end, or a layout with no posts at all.
+    """
+    if not layout:
+        raise ValueError("a layout needs at least one segment")
+    for index, (kind, feet) in enumerate(layout):
+        if kind not in SEGMENT_KINDS:
+            raise ValueError(f"segment kind must be one of {SEGMENT_KINDS}, got {kind!r}")
+        if feet <= 0:
+            raise ValueError(f"segment {index} ({kind}) has length {feet!r} ft")
+        if kind == "cantilever" and 0 < index < len(layout) - 1:
+            raise ValueError(
+                "a cantilever can only end a run: in the middle of one it is a "
+                "bay with a post missing"
+            )
+    if all(kind == "cantilever" for kind, _ in layout):
+        raise ValueError("a layout of nothing but cantilevers has no posts")
+
+
+def default_segments(
+    run: float, gates: int, gate_section: float
+) -> list[tuple[str, float]]:
+    """Return the brief's layout in mm: the run split evenly around the gates."""
+    if not gates:
+        return [("fence", run)]
+    share = run / gates
+    out: list[tuple[str, float]] = []
+    for _ in range(gates):
+        out.append(("fence", share))
+        out.append(("gate", gate_section))
+    return out
+
+
+def describe_layout(layout: tuple[tuple[str, float], ...]) -> str:
+    """Return a layout as words, e.g. ``"2 ft cantilever, 6 ft fence, ..."``."""
+    return ", ".join(f"{feet:g} ft {kind}" for kind, feet in layout)
+
+
+def cantilever_findings(spans: list[Span]) -> list[Finding]:
+    """Return the warning every cantilevered end gets, if there are any.
+
+    A cantilever is infill hung off one post, and nothing in this model checks
+    it as a free cantilever — because it is not meant to be one.  It exists to
+    meet a wall, a building corner or an older fence, and it is that tie-in
+    that carries the free end.  Saying so is the check.
+    """
+    ends = [s for s in spans if s.kind == "cantilever"]
+    if not ends:
+        return []
+    lengths = ", ".join(mm_to_fractional_inch(s.length) for s in ends)
+    return [
+        Finding(
+            Severity.WARN,
+            "layout",
+            f"{len(ends)} end{'s' if len(ends) != 1 else ''} ({lengths}) "
+            "cantilever past the last post to tie into existing structure. "
+            "Fasten the free end to it — a ledger or a pair of rail brackets "
+            "into framing, not siding — because hung off one post alone a "
+            "2 ft overhang is a lever on that post every time the wind blows, "
+            "and the post will lean toward it",
+        )
+    ]
+
+
+def post_positions(spans: list[Span]) -> list[float]:
+    """Return every post centre under *spans*, skipping a cantilever's free end."""
+    xs = [spans[0].x0] + [s.x1 for s in spans]
+    if spans[0].kind == "cantilever":
+        xs = xs[1:]
+    if spans[-1].kind == "cantilever":
+        xs = xs[:-1]
+    return xs
 
 
 @dataclass(frozen=True)
@@ -921,6 +1023,11 @@ class CedarFence:
     board_rails : int, optional
         How many flat rails a ``four_rail`` bay carries, default 4 — the
         number in the photograph it is drawn from.
+    layout : tuple of (str, float), optional
+        The run as explicit ``(kind, feet)`` segments — see
+        :data:`SEGMENT_KINDS`.  ``None`` (default) lays out *run_ft* evenly
+        around *gates* sections of *gate_section_ft*.  An explicit gate
+        segment is the opening itself, filled by *gate_leaves* leaves.
     mesh_roll_height_in : float, optional
         Height of the roll the mesh comes off, default 48.
     mesh_material : str, optional
@@ -964,6 +1071,7 @@ class CedarFence:
     gate_frame: StockChoice | None = None
     log_rails: int = 3
     board_rails: int = 4
+    layout: tuple[tuple[str, float], ...] | None = None
     tenon_in: float = 3.0
     tenon_diameter_in: float = 2.0
     mesh_roll_height_in: float = 48.0
@@ -990,6 +1098,8 @@ class CedarFence:
                 "a log-and-mesh bay needs at least a top and a bottom rail to "
                 f"staple the mesh to, got log_rails={self.log_rails!r}"
             )
+        if self.layout is not None:
+            check_layout_segments(self.layout)
         if self.style == "four_rail" and self.board_rails < 2:
             raise ValueError(
                 "a four-rail bay needs at least a top and a bottom rail to "
@@ -1092,8 +1202,14 @@ class CedarFence:
 
     @property
     def overall_length(self) -> float:
-        """Run plus gate sections, post centre to post centre, mm."""
-        return self.run + self.gates * self.gate_section
+        """End to end along the run, mm: every segment, cantilevers included."""
+        return sum(length for _kind, length in self.segments())
+
+    def segments(self) -> list[tuple[str, float]]:
+        """Return the layout as ``(kind, mm)`` segments, left to right."""
+        if self.layout is not None:
+            return [(kind, feet * FT) for kind, feet in self.layout]
+        return default_segments(self.run, self.gates, self.gate_section)
 
     @property
     def max_bay(self) -> float:
@@ -1186,19 +1302,15 @@ class CedarFence:
         list[Span]
             Panels and gate openings, in order along the run.
         """
-        segments: list[tuple[str, float]] = []
-        if self.gates:
-            share = self.run / self.gates
-            for _ in range(self.gates):
-                segments.append(("fence", share))
-                segments.append(("gate", self.gate_section))
-        else:
-            segments.append(("fence", self.run))
-
         spans: list[Span] = []
         x = 0.0
-        for kind, length in segments:
-            if kind == "fence" and self.bay_ft:
+        for kind, length in self.segments():
+            if kind == "cantilever":
+                spans.append(Span("cantilever", x, x + length))
+            elif kind == "gate" and self.layout is not None:
+                # An explicit gate segment is the opening, whatever hangs in it.
+                spans.append(Span("gate", x, x + length))
+            elif kind == "fence" and self.bay_ft:
                 # Bought in fixed lengths: whole bays, then whatever is left.
                 bay = self.bay_ft * FT
                 full = int(length // bay)
@@ -1235,7 +1347,7 @@ class CedarFence:
         post cost one shovelful.
         """
         spans = self.spans()
-        boundaries = [spans[0].x0] + [s.x1 for s in spans]
+        boundaries = post_positions(spans)
         gate_x = {(s.x0, s.x1) for s in spans if s.kind == "gate"}
         flat = {x for pair in gate_x for x in pair}
 
@@ -1272,7 +1384,7 @@ class CedarFence:
         groups: list[list[Span]] = []
         current: list[Span] = []
         for span in self.spans():
-            if span.kind == "panel":
+            if span.kind in ("panel", "cantilever"):
                 current.append(span)
             elif current:
                 groups.append(current)
@@ -1306,7 +1418,10 @@ class CedarFence:
         float
             Where the boards stop, mm along the run.
         """
-        post = self._post_at(x)
+        post = self._post_map().get(round(x, 6))
+        if post is None:
+            # The free end of a cantilever: the boards stop where it does.
+            return x
         if abs(x) < 1e-6:
             return x - post.size / 2
         if abs(x - self.overall_length) < 1e-6:
@@ -1317,7 +1432,25 @@ class CedarFence:
 
     def _post_at(self, x: float) -> PostPlan:
         """Return the post standing at *x*."""
-        return {round(p.x, 6): p for p in self.posts()}[round(x, 6)]
+        return self._post_map()[round(x, 6)]
+
+    def _post_map(self) -> dict[float, PostPlan]:
+        """Return every post keyed by its rounded centre."""
+        return {round(p.x, 6): p for p in self.posts()}
+
+    def clear_extent(self, span: Span) -> tuple[float, float]:
+        """Return where *span*'s infill starts and stops between posts, mm.
+
+        Face to face where there is a post at each end; out to the free end
+        where there is not, which is what a cantilever is.
+        """
+        posts = self._post_map()
+        left = posts.get(round(span.x0, 6))
+        right = posts.get(round(span.x1, 6))
+        return (
+            span.x0 + (left.size / 2 if left else 0.0),
+            span.x1 - (right.size / 2 if right else 0.0),
+        )
 
     def cover_of(self, group: list[Span]) -> tuple[float, float]:
         """Return ``(x_start, cover)`` for the boards over a run of panels."""
@@ -1685,21 +1818,27 @@ class CedarFence:
         opposite of every board style in this file.
         """
         out: list[object] = []
-        posts = {round(p.x, 6): p for p in self.posts()}
+        posts = self._post_map()
         for span in group:
-            left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
-            clear = span.length - left.size / 2 - right.size / 2
-            centre = (span.x0 + span.x1) / 2
+            a, b = self.clear_extent(span)
+            clear, centre = b - a, (a + b) / 2
+            # A tenon at each end that lands in a post; a cantilever's free
+            # end has none, so its rail is one tenon longer than its gap and
+            # sits that half-tenon toward the post it is held by.
+            left = round(span.x0, 6) in posts
+            right = round(span.x1, 6) in posts
+            tenons = int(left) + int(right)
+            rail_x = centre + (int(right) - int(left)) * inches(self.tenon_in) / 2
             rail_y = -self.post_size / 2
 
             for z, where in self._log_rail_heights():
                 out.append(
-                    Pos(centre, rail_y, z)
+                    Pos(rail_x, rail_y, z)
                     * POLE_ALONG_RUN
                     * Pole(
                         # A log rail is tenoned into a hole bored in the post,
                         # so the stick is longer than the gap it crosses.
-                        length_mm=clear + 2 * inches(self.tenon_in),
+                        length_mm=clear + tenons * inches(self.tenon_in),
                         diameter_mm=self.rail.width,
                         material=self.species,
                         label="log_rail",
@@ -1769,11 +1908,9 @@ class CedarFence:
         fence, and for the same reason — a rail stops at the post it lands on.
         """
         out: list[object] = []
-        posts = {round(p.x, 6): p for p in self.posts()}
         for span in group:
-            left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
-            clear = span.length - left.size / 2 - right.size / 2
-            centre = (span.x0 + span.x1) / 2
+            a, b = self.clear_extent(span)
+            clear, centre = b - a, (a + b) / 2
             rail_y = -self.post_size / 2
             for z, where in self._board_rail_heights():
                 out.append(
@@ -1862,12 +1999,10 @@ class CedarFence:
 
     def _rails(self, group: list[Span]) -> list[object]:
         """Return the two rails in each bay of *group*."""
-        posts = {round(p.x, 6): p for p in self.posts()}
         out: list[object] = []
         for span in group:
-            left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
-            length = span.length - left.size / 2 - right.size / 2
-            centre = (span.x0 + span.x1) / 2
+            a, b = self.clear_extent(span)
+            length, centre = b - a, (a + b) / 2
             for z, where in self._rail_heights():
                 out.append(
                     Pos(centre, -self.rail_t / 2, z)
@@ -2329,7 +2464,7 @@ class CedarFence:
                 actual_l_mm=self.overall_length,
                 actual_w_mm=thickness,
                 actual_h_mm=self.height,
-                published_l_mm=self.run + self.gates * self.gate_section,
+                published_l_mm=self.overall_length,
                 published_w_mm=thickness,
                 published_h_mm=inches(48.0),
             )
@@ -2352,18 +2487,29 @@ class CedarFence:
         gate_posts = [p for p in posts if p.is_gate_post]
         bays = sorted({round(s.length, 1) for s in panels})
         bay_text = ", ".join(mm_to_fractional_inch(b) for b in bays)
-        findings = [
-            Finding(
-                Severity.INFO,
-                "layout",
+        if self.layout is None:
+            summary = (
                 f"{self.overall_length / FT:.0f} ft overall: "
                 f"{self.run_ft:g} ft of fence in {len(panels)} bays of "
                 f"{bay_text} on centre, plus {self.gates} gate "
                 f"section{'s' if self.gates != 1 else ''} of "
-                f"{self.gate_section_ft:g} ft — {len(posts)} posts, "
+                f"{self.gate_section_ft:g} ft"
+            )
+        else:
+            summary = (
+                f"{self.overall_length / FT:g} ft overall, laid out as "
+                f"{describe_layout(self.layout)}: {len(panels)} bay"
+                f"{'s' if len(panels) != 1 else ''} of {bay_text} on centre"
+            )
+        findings = [
+            Finding(
+                Severity.INFO,
+                "layout",
+                f"{summary} — {len(posts)} posts, "
                 f"{len(gate_posts)} of them {self.gate_post.nominal}",
             )
         ]
+        findings.extend(cantilever_findings(spans))
         if self.bay_ft:
             short = [
                 s for s in panels if abs(s.length - self.bay_ft * FT) > 1.0
@@ -3629,6 +3775,10 @@ class PanelFence:
         Species, default ``"white_cedar"``.
     inventory : Inventory, optional
         Stock to price against.  ``None`` loads ``stock.yaml``.
+    layout : tuple of (str, float), optional
+        The run as explicit ``(kind, feet)`` segments — see
+        :data:`SEGMENT_KINDS`.  A fence segment is laid in whole panels and a
+        remainder; a cantilever is one part-panel hung past the end post.
 
     Raises
     ------
@@ -3653,9 +3803,12 @@ class PanelFence:
     rail: StockChoice | None = None
     species: str = "white_cedar"
     inventory: Inventory = field(default_factory=Inventory.load)
+    layout: tuple[tuple[str, float], ...] | None = None
 
     def __post_init__(self) -> None:
         """Check the style and grade against the catalogue, and fill in stock."""
+        if self.layout is not None:
+            check_layout_segments(self.layout)
         if self.style not in AVO_STYLES:
             raise ValueError(
                 f"style must be one of {sorted(AVO_STYLES)}, got {self.style!r}"
@@ -3716,8 +3869,14 @@ class PanelFence:
 
     @property
     def overall_length(self) -> float:
-        """Run plus gate sections, post centre to post centre, mm."""
-        return self.run + self.gates * self.gate_section
+        """End to end along the run, mm: every segment, cantilevers included."""
+        return sum(length for _kind, length in self.segments())
+
+    def segments(self) -> list[tuple[str, float]]:
+        """Return the layout as ``(kind, mm)`` segments, left to right."""
+        if self.layout is not None:
+            return [(kind, feet * FT) for kind, feet in self.layout]
+        return default_segments(self.run, self.gates, self.gate_section)
 
     @property
     def post_length_ft(self) -> float:
@@ -3771,18 +3930,13 @@ class PanelFence:
         odd panel, which the catalogue will build to size and which nobody
         should discover on site.
         """
-        segments: list[tuple[str, float]] = []
-        if self.gates:
-            share = self.run / self.gates
-            for _ in range(self.gates):
-                segments.append(("fence", share))
-                segments.append(("gate", self.gate_section))
-        else:
-            segments.append(("fence", self.run))
-
         spans: list[Span] = []
         x = 0.0
-        for kind, length in segments:
+        for kind, length in self.segments():
+            if kind == "cantilever":
+                spans.append(Span("cantilever", x, x + length))
+                x += length
+                continue
             if kind == "gate":
                 spans.append(Span("gate", x, x + length))
                 x += length
@@ -3798,8 +3952,8 @@ class PanelFence:
         return spans
 
     def panels(self) -> list[Span]:
-        """Every panel span, in order."""
-        return [s for s in self.spans() if s.kind == "panel"]
+        """Every panel span, in order — a cantilevered part-panel included."""
+        return [s for s in self.spans() if s.kind in ("panel", "cantilever")]
 
     def odd_panels(self) -> list[Span]:
         """Panels that are not a full catalogue length — the custom ones."""
@@ -3814,7 +3968,7 @@ class PanelFence:
     def posts(self) -> list[PostPlan]:
         """Return every post, left to right, sized as the catalogue sells them."""
         spans = self.spans()
-        boundaries = [spans[0].x0] + [s.x1 for s in spans]
+        boundaries = post_positions(spans)
         gate_x = {x for s in spans if s.kind == "gate" for x in (s.x0, s.x1)}
         out: list[PostPlan] = []
         for x in boundaries:
@@ -3844,16 +3998,26 @@ class PanelFence:
         wrong mix means a hole in the wrong side of a post.
         """
         posts = self.posts()
+        spans = self.spans()
+        # A post with a cantilever beyond it takes rails on both faces, which
+        # makes it a line post wherever it stands.
+        ends = set()
+        if spans[0].kind != "cantilever":
+            ends.add(0)
+        if spans[-1].kind != "cantilever":
+            ends.add(len(posts) - 1)
         kinds = {"end": 0, "line": 0}
         for index, _post in enumerate(posts):
-            kinds["end" if index in (0, len(posts) - 1) else "line"] += 1
+            kinds["end" if index in ends else "line"] += 1
         return kinds
 
     def board_run(self, cover: float) -> BoardRun:
         """Fit the infill across one panel of *cover* mm."""
         board_w = self.spec.board_w
         if self.spec.infill == "solid":
-            count = max(1, int(-(-cover // board_w)))
+            # A hair of tolerance: a cover that is a whole number of boards
+            # must not round up to one more board of zero width.
+            count = max(1, math.ceil(cover / board_w - 1e-6))
             last = cover - (count - 1) * board_w
             return BoardRun(
                 count=count,
@@ -3865,7 +4029,7 @@ class PanelFence:
             # A tongue and groove board covers less than it measures; the
             # catalogue does not publish how much less.
             covers = board_w - inches(0.375)
-            count = max(1, int(-(-cover // covers)))
+            count = max(1, math.ceil(cover / covers - 1e-6))
             last = cover - (count - 1) * covers
             return BoardRun(
                 count=count,
@@ -3944,9 +4108,11 @@ class PanelFence:
     def _panel(self, span: Span) -> list[object]:
         """Return one panel, drawn as the parts it is assembled from."""
         posts = {round(p.x, 6): p for p in self.posts()}
-        left, right = posts[round(span.x0, 6)], posts[round(span.x1, 6)]
-        clear = span.length - left.size / 2 - right.size / 2
-        centre = (span.x0 + span.x1) / 2
+        left, right = posts.get(round(span.x0, 6)), posts.get(round(span.x1, 6))
+        a = span.x0 + (left.size / 2 if left else 0.0)
+        b = span.x1 - (right.size / 2 if right else 0.0)
+        clear = b - a
+        centre = (a + b) / 2
         z0 = inches(self.ground_clearance_in)
         custom = span in self.odd_panels()
         tag = "custom_" if custom else ""
@@ -3968,7 +4134,9 @@ class PanelFence:
             (z0 + self.height - inches(self.rail_inset_in), "top"),
         ):
             out.append(
-                Pos(centre, rail_y, z)
+                # Post centre to post centre: the rail is dowelled into each
+                # post, and at a cantilever's free end it simply stops there.
+                Pos((span.x0 + span.x1) / 2, rail_y, z)
                 * ALONG_RUN
                 * Board(
                     length_mm=span.length,
@@ -4096,7 +4264,7 @@ class PanelFence:
             for side in (-1, 1):
                 out.append(
                     Pos(
-                        centre,
+                        (span.x0 + span.x1) / 2,
                         rail_y + side * (baluster.thickness + choice.thickness) / 2,
                         z,
                     )
@@ -4366,7 +4534,8 @@ class PanelFence:
                     else self.post_length_ft
                 )
                 lines.append((f"{what}, {length_ft:g} ft", count, "post"))
-        for choice in dict.fromkeys((self.post, self.gate_post)):
+        wanted = [self.post] + ([self.gate_post] if gate_posts else [])
+        for choice in dict.fromkeys(wanted):
             stock = self.post_stock(choice)
             if stock is None:
                 unpriced.append(f"{choice.label} post (not in stock.yaml)")
@@ -4449,18 +4618,44 @@ class PanelFence:
         """Report how the run divides into panels, which it usually does not."""
         panels = self.panels()
         odd = self.odd_panels()
+        openings = self.gate_openings()
+        gate_text = ", ".join(
+            sorted({f"{s.length / FT:g} ft" for s in openings})
+        )
         findings = [
             Finding(
                 Severity.INFO,
                 "layout",
-                f"{self.overall_length / FT:.0f} ft overall: "
-                f"{len(panels)} panels and {len(self.posts())} posts, plus "
-                f"{len(self.gate_openings())} gate opening"
-                f"{'s' if len(self.gate_openings()) != 1 else ''} of "
-                f"{self.gate_section_ft:g} ft",
+                f"{self.overall_length / FT:g} ft overall"
+                + (
+                    f", laid out as {describe_layout(self.layout)}"
+                    if self.layout is not None
+                    else ""
+                )
+                + f": {len(panels)} panels and {len(self.posts())} posts"
+                + (
+                    f", plus {len(openings)} gate opening"
+                    f"{'s' if len(openings) != 1 else ''} of {gate_text}"
+                    if openings
+                    else ""
+                ),
             )
         ]
-        if odd:
+        findings.extend(cantilever_findings(self.spans()))
+        if odd and self.layout is not None:
+            widths = ", ".join(mm_to_fractional_inch(s.length) for s in odd)
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "layout",
+                    f"{len(odd)} of {len(panels)} panels ({widths}) are not "
+                    f"the {self.panel_ft:g} ft catalogue length and have to be "
+                    "made to size — custom panels are lead time and a separate "
+                    "price, so a layout that can move a post to land on whole "
+                    "panels is worth moving",
+                )
+            )
+        elif odd:
             widths = ", ".join(mm_to_fractional_inch(s.length) for s in odd)
             stretch_ft = (self.run_ft / self.gates) if self.gates else self.run_ft
             down = int(stretch_ft // self.panel_ft) * self.panel_ft
@@ -5590,8 +5785,16 @@ def run_design(
     name, factory, summary = DESIGNS[key]
     fence = factory()
     if isinstance(fence, PanelFence):
-        return run_panels(fence.style, outdir)
-    return run(fence.style, outdir, hardware=hardware, fence=fence)
+        report = run_panels(fence.style, outdir)
+    else:
+        report = run(fence.style, outdir, hardware=hardware, fence=fence)
+    render_configurations(
+        configurations(fence),
+        output_png=outdir / f"cedar_fence_{key}_configurations.png",
+        title=name,
+        views=CONFIGURATION_VIEWS,
+    )
+    return report
 
 
 def run_panels(style: str, outdir: Path, height_ft: float = 4.0) -> CheckReport:
@@ -5910,6 +6113,58 @@ DESIGNS: dict[str, tuple[str, Any, str]] = {
 }
 
 
+#: The three layouts every design is drawn in, as ``(caption, layout,
+#: overrides)``.  The brief (38 ft and two gate sections) is what the checks,
+#: cut list and prices describe; these are how the design reads at the scales
+#: it will actually be built in:
+#:
+#: * a single 6 ft bay whose infill runs 2 ft past each post to tie into
+#:   something already there — a house corner, a shed, an older fence;
+#: * 10 ft with a gate in the middle — a 4 ft walk gate, one leaf, which is
+#:   the width a person and a wheelbarrow need and the widest single leaf that
+#:   does not want a wheel;
+#: * 40 ft of straight fence, no gate.
+CONFIGURATIONS: tuple[tuple[str, tuple[tuple[str, float], ...], dict[str, Any]], ...] = (
+    (
+        "6 ft bay, 2 ft cantilevered each end to tie in",
+        (("cantilever", 2.0), ("fence", 6.0), ("cantilever", 2.0)),
+        {},
+    ),
+    (
+        "10 ft with a 4 ft gate in the middle",
+        (("fence", 3.0), ("gate", 4.0), ("fence", 3.0)),
+        {"gate_leaves": 1},
+    ),
+    ("40 ft straight", (("fence", 40.0),), {}),
+)
+
+
+def configured(
+    fence: "CedarFence | PanelFence",
+    layout: tuple[tuple[str, float], ...],
+    **overrides: Any,
+) -> "CedarFence | PanelFence":
+    """Return *fence* rebuilt to *layout*, everything else as it was."""
+    return dataclasses.replace(fence, layout=layout, **overrides)
+
+
+#: The two views each configuration is drawn in, from the side the fence is
+#: built to be seen from — the boards' face, the rails in front of the mesh.
+#: The standard views look from the other side, which on a fence is the back.
+CONFIGURATION_VIEWS: tuple[View, View] = (
+    View("Isometric", 22.0, 55.0),
+    View("Front", 2.0, 90.0),
+)
+
+
+def configurations(fence: "CedarFence | PanelFence") -> list[tuple[str, Compound]]:
+    """Return ``(caption, assembly)`` for *fence* in each of :data:`CONFIGURATIONS`."""
+    return [
+        (caption, configured(fence, layout, **overrides).build())
+        for caption, layout, overrides in CONFIGURATIONS
+    ]
+
+
 #: Gallery notes for the designs read from AVO's own catalogue rather than
 #: The Lumbery's; the three systems share the default note below.
 DESIGN_NOTES: dict[str, str] = {
@@ -5976,6 +6231,8 @@ def _design_spec(key: str) -> ProjectSpec:
             "price and is named as missing rather than left out quietly."
         ),
         tags=["outdoor", "fence", "vinyl" if fence.species == "vinyl_pvc" else "cedar"],
+        configurations=lambda: configurations(fence),
+        configuration_views=CONFIGURATION_VIEWS,
     )
 
 

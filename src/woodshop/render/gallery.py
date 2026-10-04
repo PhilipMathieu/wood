@@ -56,7 +56,12 @@ from woodshop.lumber import mm_to_fractional_inch
 from woodshop.pricing import CostSummary, sheet_cost_summary
 from woodshop.project import ProjectSpec, discover_projects
 from woodshop.render.export import export_assembly
-from woodshop.render.model3d import STANDARD_VIEWS, View, render_assembly
+from woodshop.render.model3d import (
+    STANDARD_VIEWS,
+    View,
+    render_assembly,
+    render_configurations,
+)
 from woodshop.render.sheets import (
     cut_sequence,
     render_board_diagram,
@@ -408,27 +413,49 @@ def _write_assets(
     slug = built.spec.slug
     assets: dict[str, Any] = {"dir": directory, "boards": [], "sheets": []}
 
-    render_assembly(
-        built.assembly,
-        output_png=directory / "views.png",
-        title=built.spec.name,
-        figsize=(12.0, 10.0),
-    )
-    assets["views"] = "views.png"
-
-    # A card wants one picture of the furniture, not a four-up drawing sheet:
-    # at card size the orthographic views are too small to read and only make
-    # the card tall enough to push everything else off the screen.
     hero_view = STANDARD_VIEWS[0]
-    render_assembly(
-        built.assembly,
-        output_png=directory / "hero.png",
-        # Nameless: a card is already labelled with the project's name, and
-        # "Isometric" over the top of it is a caption for nobody.
-        views=(View("", hero_view.elev, hero_view.azim),),
-        figsize=(6.0, 5.0),
-    )
-    assets["hero"] = "hero.png"
+    if built.spec.configurations is not None:
+        # The same design at several layouts: one row each, an isometric and
+        # a front elevation, so each is drawn at a scale that suits it.
+        configurations = built.spec.configurations()
+        views = built.spec.configuration_views or (hero_view, STANDARD_VIEWS[1])
+        render_configurations(
+            configurations,
+            output_png=directory / "views.png",
+            title=built.spec.name,
+            views=views,
+        )
+        render_configurations(
+            configurations,
+            output_png=directory / "hero.png",
+            views=(View("", views[0].elev, views[0].azim),),
+            figsize=(6.0, 2.0 * len(configurations)),
+        )
+        assets["views"] = "views.png"
+        assets["hero"] = "hero.png"
+        assets["configurations"] = [caption for caption, _ in configurations]
+    else:
+        render_assembly(
+            built.assembly,
+            output_png=directory / "views.png",
+            title=built.spec.name,
+            figsize=(12.0, 10.0),
+        )
+        assets["views"] = "views.png"
+
+        # A card wants one picture of the furniture, not a four-up drawing
+        # sheet: at card size the orthographic views are too small to read
+        # and only make the card tall enough to push everything else off the
+        # screen.
+        render_assembly(
+            built.assembly,
+            output_png=directory / "hero.png",
+            # Nameless: a card is already labelled with the project's name,
+            # and "Isometric" over the top of it is a caption for nobody.
+            views=(View("", hero_view.elev, hero_view.azim),),
+            figsize=(6.0, 5.0),
+        )
+        assets["hero"] = "hero.png"
 
     if built.hardwood is not None and built.hardwood.boards_needed:
         # The PDF first, because it is the one you carry to the saw; the PNGs
@@ -835,17 +862,28 @@ def _render_project_body(
         out.append(f'<p class="muted">{html.escape(spec.notes)}</p>')
 
     views = assets["views"]
-    img = (
-        f'<img src="{views}" alt="{html.escape(spec.name)} — four views" '
-        f'loading="lazy">'
+    configurations = assets.get("configurations")
+    alt = (
+        f"{spec.name} — {len(configurations)} configurations"
+        if configurations
+        else f"{spec.name} — four views"
     )
+    img = f'<img src="{views}" alt="{html.escape(alt)}" loading="lazy">'
+    caption = VIEWS_CAPTION
+    if configurations:
+        caption = (
+            f"Drawn in {len(configurations)} configurations: "
+            + "; ".join(configurations)
+            + ". The checks, cut list and prices below are for the design "
+            "as briefed, not for these drawings."
+        )
     # Click the drawing to see it at full size — unless it is already inlined,
     # in which case there is no separate file to open.
     if not views.startswith("data:"):
         img = f'<a href="{views}">{img}</a>'
     out.append(
         f"<figure>{img}"
-        f"<figcaption>{html.escape(VIEWS_CAPTION)}</figcaption></figure>"
+        f"<figcaption>{html.escape(caption)}</figcaption></figure>"
     )
 
     out.append(_downloads(assets))

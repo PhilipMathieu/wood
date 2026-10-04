@@ -2180,3 +2180,58 @@ points, which was plenty for a straight board edge but made the nightstand's
 circular top render as a visible 16-gon — bumped to 64, which reads as a
 circle again at gallery sizes without meaningfully changing render time (a
 few tenths of a second per view, even on the console's few thousand edges).
+
+## Three configurations instead of one long fence — 2026-10-04
+
+The gallery drew every fence design as the brief: 38 ft and two 10 ft gate
+sections, which at card size is a thin stripe with nothing legible in it. The
+drawings now show each design three ways, one row each, isometric and front:
+
+1. **a 6 ft bay with 2 ft cantilevered off each end**, to tie into whatever is
+   already there — a house corner, a shed, an older fence;
+2. **10 ft with a 4 ft gate in the middle** — 3 ft of fence, a single walk
+   leaf, 3 ft of fence;
+3. **40 ft straight**.
+
+The checks, cut list and prices on each page are still for the brief, and the
+page says so under the drawing. The configurations are pictures of the design,
+not orders.
+
+### What a layout needed
+
+Both fence classes laid themselves out from `run_ft`, `gates` and
+`gate_section_ft`, which can say "38 ft around two gates" and cannot say "a
+gate in the middle of 10 ft". They now take `layout=`, a tuple of
+`(kind, feet)` segments — `fence`, `gate`, `cantilever` — validated by
+`check_layout_segments` (a cantilever only at an end; a layout of nothing but
+cantilevers has no posts). With no layout they behave exactly as before.
+
+- **A cantilever is a span without a post at its free end.** `post_positions`
+  drops that end, `clear_extent` runs infill out to it, and on a panel fence
+  the overhang is a custom part-panel. The post beside a cantilever takes
+  rails on both faces, so the order counts it as a line post, not an end.
+- **Nothing checks the cantilever as a free cantilever**, because it is not
+  meant to be one: every layout with one gets a WARN to fasten the free end to
+  framing, not siding. A 2 ft overhang hung off one post is a lever on it.
+- **The 4 ft walk gate is a choice**, not something the request fixed: it is
+  the width a person and a barrow need and the widest single leaf that does
+  not want a wheel. `CONFIGURATIONS` holds it.
+
+### Two bugs the new layouts found
+
+- A 31-1/2" bay is exactly nine 3-1/2" boards, and the ceiling-division in
+  `PanelFence.board_run` made it ten — the tenth zero wide, which OCCT
+  refused to build. The count now has a hair of tolerance.
+- `PanelOrder` listed gate posts as unpriced on a fence with no gate.
+
+### Drawn from the front
+
+The standard views look along +Y, which on these fences is the back: the
+mesh in front of the rails, Brewster's fascia out of sight. The configuration
+sheets use `CONFIGURATION_VIEWS`, from the side the fence is built to be
+seen from. And the shaded views now clip everything below grade
+(`_clip_below_grade`, render-only, like the interpenetration trim) instead of
+leaving buried posts hanging out under the edge of the ground plane — which
+the opaque raster ground could not hide from a camera 22° up. The front
+elevations still draw from the shaded raster, so a post's depth is read from
+the cut list and the frost check rather than the picture.

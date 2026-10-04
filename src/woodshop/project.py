@@ -77,6 +77,15 @@ class ProjectSpec:
         default ``stock.yaml``.
     notes : str, optional
         Free text shown alongside the project.
+    configurations : callable, optional
+        Zero-argument callable returning ``[(caption, assembly), ...]``: the
+        same design built to several layouts.  When given, the gallery draws
+        these — one row each — instead of the single model from *build*,
+        whose cut list and checks still describe the page.
+    configuration_views : tuple of View, optional
+        Camera angles for the configuration drawings, isometric first —
+        the first is also the gallery card's picture.  Default the standard
+        isometric and front.
     tags : list[str], optional
         Free-form labels, e.g. ``["bed", "reproduction"]``.
     """
@@ -93,6 +102,8 @@ class ProjectSpec:
     inventory: Any = None
     notes: str = ""
     tags: list[str] = field(default_factory=list)
+    configurations: Callable[[], list[tuple[str, Any]]] | None = None
+    configuration_views: tuple[Any, ...] | None = None
 
 
 def discover_projects(directory: str | Path | None = None) -> list[ProjectSpec]:

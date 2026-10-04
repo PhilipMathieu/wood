@@ -1446,3 +1446,116 @@ def test_a_part_with_no_stock_entry_is_named_not_dropped():
     parts = extract(fence.build())
     summary = fence.plan(parts).cost_summary
     assert any("not in stock.yaml" in label for label in summary.unpriced)
+
+
+# ---------------------------------------------------------------------------
+# Layouts: the configurations every design is drawn in
+# ---------------------------------------------------------------------------
+
+from cedar_fence import (  # noqa: E402
+    CONFIGURATIONS,
+    check_layout_segments,
+    configurations,
+    configured,
+)
+
+TIE_IN = (("cantilever", 2.0), ("fence", 6.0), ("cantilever", 2.0))
+GATED = (("fence", 3.0), ("gate", 4.0), ("fence", 3.0))
+STRAIGHT = (("fence", 40.0),)
+
+
+def test_the_three_configurations_are_the_ones_asked_for():
+    layouts = [layout for _caption, layout, _kw in CONFIGURATIONS]
+    assert layouts == [TIE_IN, GATED, STRAIGHT]
+    assert [sum(ft for _k, ft in lay) for lay in layouts] == [10.0, 10.0, 40.0]
+
+
+@pytest.mark.parametrize(
+    "layout",
+    [
+        (),
+        (("fence", 6.0), ("cantilever", 2.0), ("fence", 6.0)),
+        (("cantilever", 2.0),),
+        (("fence", 0.0),),
+        (("wall", 6.0),),
+    ],
+)
+def test_a_layout_nobody_could_build_is_refused(layout):
+    with pytest.raises(ValueError):
+        check_layout_segments(layout)
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_a_cantilever_has_no_post_at_its_free_end(style: str):
+    fence = CedarFence(style=style, layout=TIE_IN)
+    posts = fence.posts()
+    assert [round(p.x / (12 * IN), 3) for p in posts] == [2.0, 8.0]
+    assembly = fence.build()
+    # The infill reaches the free ends, 10 ft apart, and no further.
+    bb = assembly.bounding_box()
+    assert bb.min.X == pytest.approx(0.0, abs=1.0)
+    assert bb.max.X == pytest.approx(120 * IN, abs=1.0)
+    assert fence.check(assembly, extract(assembly)).ok
+
+
+def test_a_cantilever_is_told_to_tie_in():
+    fence = CedarFence(style="picket", layout=TIE_IN)
+    report = fence.check(fence.build(), extract(fence.build()))
+    assert any(
+        f.severity is Severity.WARN and "tie into existing structure" in f.message
+        for f in report.findings
+    )
+
+
+def test_a_gate_in_the_middle_is_one_leaf_between_two_gate_posts():
+    fence = CedarFence(style="four_rail", layout=GATED, gate_leaves=1)
+    kinds = [s.kind for s in fence.spans()]
+    assert kinds == ["panel", "gate", "panel"]
+    assert [p.is_gate_post for p in fence.posts()] == [False, True, True, False]
+    leaves = {p.label for p in extract(fence.build())}
+    assert "gate_stile" in leaves
+
+
+def test_forty_feet_straight_is_five_bays_and_six_posts():
+    fence = CedarFence(style="board_on_board", layout=STRAIGHT)
+    assert len(fence.posts()) == 6
+    assert not fence.gate_openings
+
+
+@pytest.mark.parametrize("style", sorted(AVO_STYLES))
+def test_every_panel_style_takes_every_configuration(style: str):
+    for _caption, layout, overrides in CONFIGURATIONS:
+        fence = PanelFence(style=style, layout=layout, **overrides)
+        assembly = fence.build()
+        assert fence.check(assembly, extract(assembly)).ok
+
+
+def test_a_post_with_a_cantilever_beyond_it_is_a_line_post():
+    """It takes rails on both faces, so it is bored like a line post."""
+    fence = PanelFence(style="privacy_board", layout=TIE_IN)
+    assert fence.post_kinds() == {"end": 0, "line": 2}
+    custom = [what for what, _n, _u in fence.order().lines if "CUSTOM" in what]
+    assert len(custom) == 3  # 24", 72", 24" — none is an 8 ft panel
+
+
+def test_a_whole_number_of_boards_gets_no_zero_width_board():
+    """31-1/2" is exactly nine 3-1/2" boards, not nine and a sliver."""
+    fence = PanelFence(style="privacy_board")
+    run = fence.board_run(31.5 * IN)
+    assert run.count == 9 and run.last_width is None
+
+
+def test_configurations_keep_everything_but_the_layout():
+    fence = DESIGNS["rails"][1]()
+    gated = configured(fence, GATED, gate_leaves=1)
+    assert gated.style == fence.style and gated.log_rails == fence.log_rails
+    assert gated.layout == GATED and gated.gate_leaves == 1
+    assert fence.layout is None  # the original is untouched
+
+
+def test_every_gallery_entry_carries_three_configurations():
+    for spec in PROJECTS:
+        assert spec.configurations is not None
+        assert spec.configuration_views is not None
+    drawn = configurations(PanelFence(style="concord"))
+    assert [caption for caption, _ in drawn] == [c for c, _l, _k in CONFIGURATIONS]

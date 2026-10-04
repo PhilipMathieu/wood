@@ -45,6 +45,7 @@ __all__ = [
     "GROUND_COLOR",
     "GROUND_ALPHA",
     "render_assembly",
+    "render_configurations",
     "wants_ground",
 ]
 
@@ -116,7 +117,7 @@ GROUND_COLOR: str = "#6f7d72"
 
 #: How strongly the ground colour is laid over the white page.  The raster
 #: has a z-buffer and no transparency, so the ground is drawn opaque at this
-#: blend — which means what is below grade is hidden in the shaded view, as it
+#: blend, and what is below grade is clipped away in the shaded view, as it
 #: is in the yard.  The hidden-line views still draw every post to its foot.
 GROUND_ALPHA: float = 0.34
 
@@ -347,6 +348,32 @@ def _ground_triangles(
     return triangles, np.array([colour, colour])
 
 
+def _clip_below_grade(parts: list[Any], bb: Any, tolerance: float) -> list[Any]:
+    """Return *parts* with everything below ``z = 0`` cut away, render-only.
+
+    Never mutates the caller's parts: anything that does not reach below
+    grade is returned as the same object, and anything that does is replaced
+    by a new solid carrying the same material.
+    """
+    from build123d import Box, Pos
+
+    pad = 1000.0
+    below = Pos(
+        bb.center().X, bb.center().Y, (bb.min.Z - pad) / 2
+    ) * Box(bb.size.X + 2 * pad, bb.size.Y + 2 * pad, -bb.min.Z + pad)
+    out: list[Any] = []
+    for part in parts:
+        if part.bounding_box().min.Z >= -tolerance:
+            out.append(part)
+            continue
+        if part.bounding_box().max.Z <= tolerance:
+            continue  # wholly underground: nothing of it shows
+        clipped = part - below
+        clipped.material = part.material
+        out.append(clipped)
+    return out
+
+
 def _with_ground(
     geometry: tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]],
     bb: Any,
@@ -450,6 +477,43 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
             "Check that the parts carry material and stock_length_mm."
         )
 
+    prepared = _prepare(assembly, parts, views, tolerance, ground)
+
+    n = len(views)
+    cols = 2 if n > 1 else 1
+    rows = (n + cols - 1) // cols
+    fig = plt.figure(figsize=figsize)
+    if title:
+        fig.suptitle(title, fontsize=14)
+
+    for index, view in enumerate(views):
+        ax = fig.add_subplot(rows, cols, index + 1)
+        _draw_view(ax, assembly, index, prepared)
+        ax.set_title(view.name, fontsize=10)
+        ax.set_axis_off()
+
+    fig.tight_layout()
+    _save(fig, output_png, output_pdf)
+    if close:
+        plt.close(fig)
+    return fig
+
+
+def _prepare(
+    assembly: Any,
+    parts: list[Any],
+    views: tuple[View, ...],
+    tolerance: float,
+    ground: bool | None,
+) -> tuple[list[Any], list[str], Any, Any]:
+    """Resolve each view's direction and style, and tessellate if any shades.
+
+    Returns
+    -------
+    tuple
+        ``(directions, styles, geometry, center)``; *geometry* and *center*
+        are ``None`` when every view is a hidden-line drawing.
+    """
     directions = [_direction(view.elev, view.azim) for view in views]
     styles = [_resolve_style(view, d) for view, d in zip(views, directions)]
 
@@ -466,28 +530,94 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
         # overlap case, so an uncut overlap reads as a jagged seam instead
         # of a clean one. Trimming it out here, before tessellation, is
         # render-only: it never touches the parts the caller passed in.
-        geometry = _tessellate(trim_interpenetrations(parts), tolerance)
         bb = assembly.bounding_box()
         center = bb.center()
+        shaded_parts = trim_interpenetrations(parts)
         if wants_ground(bb, ground, tolerance):
-            geometry = _with_ground(geometry, bb)
+            # What is in the ground is not drawn in the shaded view, as it is
+            # not seen in the yard; the hidden-line views still draw every
+            # post to its foot, which is where its depth is read.
+            shaded_parts = _clip_below_grade(shaded_parts, bb, tolerance)
+            geometry = _with_ground(_tessellate(shaded_parts, tolerance), bb)
+        else:
+            geometry = _tessellate(shaded_parts, tolerance)
+    return directions, styles, geometry, center
 
-    n = len(views)
-    cols = 2 if n > 1 else 1
-    rows = (n + cols - 1) // cols
-    fig = plt.figure(figsize=figsize)
+
+def _draw_view(
+    ax: plt.Axes, assembly: Any, index: int, prepared: tuple[list[Any], list[str], Any, Any]
+) -> None:
+    """Draw view number *index* of a :func:`_prepare` result onto *ax*."""
+    directions, styles, geometry, center = prepared
+    if styles[index] == "hlr":
+        _draw_hlr(ax, assembly, directions[index])
+    else:
+        _draw_shaded(ax, geometry, directions[index], center)
+
+
+def render_configurations(
+    configurations: list[tuple[str, Any]],
+    output_png: str | Path | None = None,
+    output_pdf: str | Path | None = None,
+    views: tuple[View, ...] = (STANDARD_VIEWS[0], STANDARD_VIEWS[1]),
+    tolerance: float = 0.5,
+    title: str = "",
+    figsize: tuple[float, float] | None = None,
+    ground: bool | None = None,
+    close: bool = True,
+) -> plt.Figure:
+    """Draw several assemblies of one design, one row each, on one figure.
+
+    The same design built to different layouts — a short run tied into a
+    wall, a gate, a long straight run — reads better side by side than as
+    one long model, because each is drawn at its own scale.
+
+    Parameters
+    ----------
+    configurations : list of (str, build123d.Compound)
+        Caption and assembly for each row, top to bottom.
+    output_png, output_pdf : str or Path, optional
+        Where to save.
+    views : tuple of View, optional
+        The columns, default isometric and front.
+    tolerance : float, optional
+        Tessellation tolerance for the shaded views, mm.
+    title : str, optional
+        Figure title.
+    figsize : tuple, optional
+        Figure size in inches; default scales with rows and columns.
+    ground : bool or None, optional
+        As :func:`render_assembly`.
+    close : bool, optional
+        Close the figure after saving, default ``True``.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure, closed unless *close* is ``False``.
+
+    Raises
+    ------
+    ValueError
+        If *configurations* is empty or any assembly has no parts.
+    """
+    if not configurations:
+        raise ValueError("nothing to draw: no configurations given")
+    rows, cols = len(configurations), len(views)
+    fig = plt.figure(figsize=figsize or (6.0 * cols, 3.2 * rows))
     if title:
         fig.suptitle(title, fontsize=14)
-
-    for index, (view, direction, style) in enumerate(zip(views, directions, styles)):
-        ax = fig.add_subplot(rows, cols, index + 1)
-        if style == "hlr":
-            _draw_hlr(ax, assembly, direction)
-        else:
-            _draw_shaded(ax, geometry, direction, center)
-        ax.set_title(view.name, fontsize=10)
-        ax.set_axis_off()
-
+    for row, (caption, assembly) in enumerate(configurations):
+        parts = list(_iter_leaf_parts(assembly))
+        if not parts:
+            raise ValueError(f"configuration {caption!r} has no parts to draw")
+        prepared = _prepare(assembly, parts, views, tolerance, ground)
+        for col, view in enumerate(views):
+            ax = fig.add_subplot(rows, cols, row * cols + col + 1)
+            _draw_view(ax, assembly, col, prepared)
+            label = caption if not view.name else f"{caption} — {view.name.lower()}"
+            ax.set_title(label, fontsize=10)
+            ax.set_axis_off()
     fig.tight_layout()
     _save(fig, output_png, output_pdf)
     if close:

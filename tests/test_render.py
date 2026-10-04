@@ -587,3 +587,61 @@ def test_the_ground_lies_at_grade_and_reaches_past_a_thin_fence():
     # Opaque in the raster, so the colour is the ground laid over white.
     expected = GROUND_ALPHA * np.array(to_rgb(GROUND_COLOR)) + (1 - GROUND_ALPHA)
     assert np.allclose(colours[0], expected)
+
+
+def test_configurations_draw_one_row_each(tmp_path):
+    from build123d import Compound, Pos
+
+    from woodshop.parts import Board
+    from woodshop.render import render_configurations
+
+    def post(height):
+        return Compound(
+            children=[
+                Pos(0, 0, height / 2 - 600)
+                * Board(
+                    length_mm=height, nominal="4x4", material="white_cedar",
+                    label="post", rotation=(0, 90, 0),
+                )
+            ],
+            label="post",
+        )
+
+    out = tmp_path / "configs.png"
+    fig = render_configurations(
+        [("short", post(1500)), ("tall", post(2400))],
+        output_png=out,
+        views=(STANDARD_VIEWS[0], STANDARD_VIEWS[1]),
+        close=False,
+    )
+    try:
+        assert out.exists()
+        assert len(fig.axes) == 4
+        assert fig.axes[0].get_title() == "short — isometric"
+        assert fig.axes[3].get_title() == "tall — front"
+    finally:
+        plt.close(fig)
+    with pytest.raises(ValueError):
+        render_configurations([])
+
+
+def test_the_shaded_view_clips_what_is_below_grade():
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import _clip_below_grade
+
+    buried = Pos(0, 0, 0) * Board(
+        length_mm=2000, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    above = Pos(0, 0, 2000) * Board(
+        length_mm=500, nominal="4x4", material="white_cedar", label="cap",
+        rotation=(0, 90, 0),
+    )
+    bb = buried.bounding_box()
+    clipped = _clip_below_grade([buried, above], bb, 0.5)
+    assert clipped[1] is above  # untouched, the same object
+    assert clipped[0].bounding_box().min.Z == pytest.approx(0.0, abs=1e-3)
+    assert clipped[0].material == "white_cedar"
+    assert buried.bounding_box().min.Z < 0  # the caller's part is not mutated
