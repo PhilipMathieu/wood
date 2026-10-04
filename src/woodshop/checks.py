@@ -541,6 +541,15 @@ DENSITY_KG_M3: dict[str, float] = {
     "pine": 420.0,
     "poplar": 455.0,
     "white_cedar": 350.0,
+    # As bought: ground-contact treatment leaves SYP saturated.  It dries
+    # toward ~570 in service, so figures built on this run heavy — the safe
+    # direction for racking and hinge loads.
+    "syp_pt": 750.0,
+    # Rigid PVC is ~1,400 kg/m^3, but a vinyl fence is hollow extrusions with
+    # walls about a tenth of their width, drawn here as solids.  A quarter of
+    # the solid density is what makes a drawn picket weigh what a real one
+    # does — the same trick as the mesh below, for the same reason.
+    "vinyl_pvc": 350.0,
     # Welded wire mesh is 90% air, and its weight is quoted per square foot
     # rather than per cubic anything: 2" x 4" mesh in 14 ga runs about
     # 0.4 lb/ft² = 1.95 kg/m². Modelled as a 1/8" (3.175 mm) sheet, the density
@@ -682,7 +691,12 @@ def check_material_suitability(
                     "or accept a striped edge",
                 )
             )
-        elif p.shape == "shaped" and not is_sheet(p.material):
+        elif (
+            p.shape == "shaped"
+            and not is_sheet(p.material)
+            # Extruded vinyl and the like have no grain to be short across.
+            and p.grain_direction != "none"
+        ):
             findings.append(
                 Finding(
                     Severity.INFO,

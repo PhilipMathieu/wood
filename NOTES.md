@@ -1482,3 +1482,84 @@ prices drops out of the merged `unpriced`, so a fence stops reporting a hole
 that had just been filled. `ProjectSpec` gained `extras` for the same reason:
 unlike `order`, which *replaces* the buying plan, extras sit beside it, because
 a fence is bought by the foot **and** by the box.
+
+## Four more fences, from AVO's own catalogue — 2026-10-04
+
+Asked for by name: Concord and Brewster, and two photographs off
+avofenceandsupply.com — `Custom-Cedar-Fence-680x400-1.jpg` and
+`good-neighbor-IMG_0947.jpg`. AVO is the supplier behind The Lumbery's panels,
+and its own site lists styles The Lumbery's storefront does not name.
+
+### Concord is vinyl
+
+AVO sells Concord in vinyl only (white or almond, 3–6 ft, 8 ft wide) — five
+Concord products and every one of them vinyl. There is no cedar Concord to
+model. So it is modelled as what it is: `PanelStyle` gained a `material`, and
+Concord is `vinyl_pvc` throughout, drawn with real pointed pickets
+(`ShapedBoard`), and the one design in the file the sawn guide has nothing to
+say about. If the point was the *look* in cedar, the nearest cedar product is
+Spaced Picket with pointed toppers.
+
+Two consequences worth keeping:
+
+- **Vinyl has no grain.** The short-grain note on shaped parts was firing on
+  extruded pickets. A part with `grain_direction="none"` now skips it.
+- **A hollow extrusion drawn solid.** `vinyl_pvc` density is a quarter of
+  rigid PVC's, for the same reason the mesh is modelled at its areal weight:
+  the model's solid is a stand-in and the mass estimate should not believe it.
+
+### Brewster is Spaced Board with a face
+
+AVO files Brewster under Spaced Board and sells it "with fascias and
+kickboards" and Colonial rails; The Lumbery sells the panel without the name.
+The design is the trimmed version, because that is what the product photo
+shows and what distinguishes it from the `spaced_board` style already here.
+The board, fascia and kickboard sections and the grades are all unpublished,
+and `PanelStyle.assumed` carries each as a WARN so the drawing cannot pass for
+the catalogue.
+
+### The two photographs became stick-built styles
+
+Neither photograph has a dimension in it, so both are drawn from the sawn
+guide's nearest stock and say so.
+
+- **`four_rail`** — square sawn posts standing 3" proud under a flat cap block,
+  four 2x6 rails on edge let between them, mesh on the back face of the rails,
+  run to grade. The gates carry the two middle rails across so the lines run
+  through. It is the first design here where every stick is on the guide, so
+  the comparison prints its wood with no `+`: **$1,713 of cedar** plus
+  $466–$755 of hardware and mesh. Its structure check found the useful thing:
+  a 2x6 on edge is nine times stiffer carrying its own weight than resisting a
+  dog leaning on the mesh, and the second is the load that matters.
+- **`good_neighbor`** — no rails at all. The mesh runs across the face of
+  treated 4x4s, a rough cedar 1x4 batten is screwed over it into each post,
+  and a cedar cap closes post, mesh and batten together. **$320 of cedar**,
+  the least of anything here, plus treated posts nobody here can price (the
+  cedar guide is cedar only; big-box pages are blocked), recorded unpriced in
+  `stock.yaml` and named in every total. With nothing behind the mesh between
+  posts, the check warns past 6 ft bays and asks for a bottom tension wire.
+
+`StockChoice` gained a `species` so one part of a fence can be something other
+than the fence: the treated posts here, the vinyl posts on Concord.
+
+### A part with no entry used to vanish
+
+The timber plan used to filter to the fence's own species, which would have
+dropped the treated posts silently. Widening that exposed a quieter version of
+the same bug: `LinealPlan.cost_summary` ignored `unmatched`, so any part with
+no stock entry fell out of the total without a word. It now names them
+("… (not in stock.yaml)"), skipping only what is already named as bought
+another way. `PanelOrder` had the same hole for panels and posts with no entry.
+
+### Also fixed on the way
+
+`run_design` rebuilt each stick-built design from its style name, which threw
+away the factory's settings — the `rails` design's 8 ft bays and three rails
+included. `run()` now takes the configured fence.
+
+### Not done
+
+This branch is behind `main` by the renderer rewrite, and merging it conflicts
+in six files (the renderer, `checks.py`, the docs). The previews here are from
+the old painter's renderer, which visibly mis-sorts mesh behind rails on
+`four_rail`; the merge is its own piece of work.

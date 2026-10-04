@@ -188,10 +188,23 @@ class LinealPlan:
     def cost_summary(self) -> CostSummary:
         """Costed groups, unpriced groups, and the provenance of both."""
         lines = [g.price_line for g in self.groups]
+        # A part with no entry to buy it from is as missing from the total as
+        # a part whose entry has no price, and has to be named the same way
+        # rather than dropping out of the sum without a word.  Parts set
+        # aside because they are bought some other way (mesh by the roll) are
+        # already named once, under ``excluded``.
+        unmatched = list(
+            dict.fromkeys(
+                f"{part.material} {part.nominal or part.label} (not in stock.yaml)"
+                for part, reason in self.unmatched
+                if not any(reason.startswith(label) for label in self.excluded)
+            )
+        )
         return CostSummary.of(
             (line for line in lines if line is not None),
             [g.label for g, line in zip(self.groups, lines) if line is None]
-            + list(self.excluded),
+            + list(self.excluded)
+            + unmatched,
         )
 
     @property

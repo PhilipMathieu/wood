@@ -76,6 +76,10 @@ MATERIAL_COLORS: dict[str, str] = {
     # Black PVC over galvanised wire: near-black, and not quite, because a
     # true black reads as a hole in a shaded render.
     "steel_mesh_black": "#2f3234",
+    # Ground-contact treated pine, the faint green-tan of a fresh post.
+    "syp_pt": "#b9b183",
+    # White vinyl, a shade off white so the shading still reads.
+    "vinyl_pvc": "#ecebe6",
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",

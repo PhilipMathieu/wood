@@ -171,13 +171,21 @@ def test_the_round_stock_is_deliberately_unpriced(inv):
 
 def test_the_avo_panel_catalogue_is_recorded_with_its_options(inv):
     """Six styles, three heights, and the add-ons that go with them."""
-    panels = [u for u in inv.unit_goods if u.item.endswith("fence panel")]
+    every = [u for u in inv.unit_goods if u.item.endswith("fence panel")]
+    # Brewster and Concord were read from AVO's own catalogue, not The
+    # Lumbery's, and come in more heights; they are checked below.
+    avo = [u for u in every if "avofenceandsupply.com" in u.price_url]
+    panels = [u for u in every if u not in avo]
     assert len(panels) == 18
     assert {u.size for u in panels} == {
         "4 ft H x 8 ft L", "5 ft H x 8 ft L", "6 ft H x 8 ft L",
     }
-    assert all(u.price is None for u in panels)
+    assert all(u.price is None for u in every)
     assert all("lumberystore.com" in u.price_url for u in panels)
+    assert {u.item for u in avo} == {
+        "AVO Brewster fence panel", "AVO Concord fence panel",
+    }
+    assert len(avo) == 6 + 4
     options = {u.item for u in inv.unit_goods if u.item.startswith("AVO")} - {
         u.item for u in panels
     }

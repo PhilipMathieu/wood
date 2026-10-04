@@ -837,12 +837,15 @@ def panels() -> PanelFence:
     return PanelFence()
 
 
-def test_the_catalogue_is_six_styles_in_three_heights():
+def test_the_catalogue_is_six_lumbery_styles_and_two_from_avo():
     assert set(AVO_STYLES) == {
         "stockade", "privacy_board", "spaced_picket", "spaced_board",
-        "universal", "chestnut_hill",
+        "universal", "chestnut_hill", "brewster", "concord",
     }
     assert AVO_PANEL_HEIGHTS_FT == (4.0, 5.0, 6.0)
+    # AVO lists the two it was read from in more heights than The Lumbery's.
+    assert AVO_STYLES["brewster"].heights_ft == (3.0, 4.0, 5.0, 6.0, 7.0, 8.0)
+    assert AVO_STYLES["concord"].heights_ft == (3.0, 4.0, 5.0, 6.0)
 
 
 def test_the_two_board_sizes_are_theirs_not_a_nominal_lookup():
@@ -1050,36 +1053,44 @@ def test_the_parts_list_says_it_is_not_an_order(panels):
 
 
 # ---------------------------------------------------------------------------
-# Three designs, because The Lumbery sells three systems
+# The designs: The Lumbery's three systems, and four asked for from AVO's
 # ---------------------------------------------------------------------------
 
 
-def test_there_are_exactly_three_designs():
-    """One per system in the catalogue, and no fourth that only differs a bit.
+def test_the_designs_are_three_systems_and_four_from_avo():
+    """One per system in The Lumbery's catalogue, plus four asked for by name.
 
     The styles below the designs still exist — they are how the catalogue is
     priced and how a panel is benchmarked against sticks — but a style is a
     row in a price guide and a design is something somebody can buy.
     """
-    assert list(DESIGNS) == ["privacy", "chestnut", "rails"]
+    assert list(DESIGNS) == [
+        "privacy", "chestnut", "rails",
+        "brewster", "concord", "four_rail", "good_neighbor",
+    ]
     assert [p.slug for p in PROJECTS] == [
         "cedar-fence-privacy",
         "cedar-fence-chestnut",
         "cedar-fence-rails",
+        "cedar-fence-brewster",
+        "cedar-fence-concord",
+        "cedar-fence-four-rail",
+        "cedar-fence-good-neighbor",
     ]
 
 
-def test_two_are_panels_and_one_is_sticks():
+def test_panels_are_panels_and_sticks_are_sticks():
     """Which is the catalogue's own division, not a modelling convenience."""
     kinds = {key: type(factory()) for key, (_n, factory, _s) in DESIGNS.items()}
-    assert kinds["privacy"] is PanelFence
-    assert kinds["chestnut"] is PanelFence
-    assert kinds["rails"] is CedarFence
+    for key in ("privacy", "chestnut", "brewster", "concord"):
+        assert kinds[key] is PanelFence
+    for key in ("rails", "four_rail", "good_neighbor"):
+        assert kinds[key] is CedarFence
 
 
 def test_every_design_carries_its_own_summary_and_they_differ():
     summaries = [summary for _n, _f, summary in DESIGNS.values()]
-    assert len(set(summaries)) == 3
+    assert len(set(summaries)) == len(DESIGNS)
     assert all(len(s) > 80 for s in summaries)
 
 
@@ -1102,9 +1113,10 @@ def test_the_rail_design_hangs_mesh_and_the_panels_do_not():
         key: {p.label for p in extract(factory().build())}
         for key, (_n, factory, _s) in DESIGNS.items()
     }
-    assert "mesh" in parts["rails"]
-    assert "mesh" not in parts["privacy"]
-    assert "mesh" not in parts["chestnut"]
+    for key in ("rails", "four_rail", "good_neighbor"):
+        assert "mesh" in parts[key]
+    for key in ("privacy", "chestnut", "brewster", "concord"):
+        assert "mesh" not in parts[key]
 
 
 def test_a_short_bay_is_explained_rather_than_left_to_be_noticed():
@@ -1116,15 +1128,18 @@ def test_a_short_bay_is_explained_rather_than_left_to_be_noticed():
     assert any("cut" in f.message for f in layout)
 
 
-def test_the_comparison_names_all_three_and_prices_none_of_them():
+def test_the_comparison_names_every_design_and_marks_the_floors():
     text = compare_designs()
     for name, _factory, _summary in DESIGNS.values():
         assert name in text
-    # The catalogue prices none of the three; the money in the wood column is
-    # the wood at the sawn guide's rates, and it is marked as a floor.
-    assert "publishes no price for any of" in text
+    # The catalogue prices no panel; the money in the wood column is the wood
+    # at the sawn guide's rates, and it is marked as a floor.
+    assert "publishes no price for any panel" in text
     assert text.count("+") >= 3
     assert "quoted by email" in text
+    # The one design whose every stick is on the guide carries no floor mark.
+    four_rail = next(ln for ln in text.splitlines() if "Four-rail" in ln)
+    assert "+" not in four_rail
 
 
 # ---------------------------------------------------------------------------
@@ -1250,3 +1265,184 @@ def test_the_comparison_prices_the_hardware_it_cannot_price_the_panels():
     text = compare_designs()
     assert "hardware" in text
     assert "–" in text  # the budget-to-heavy range on the post-and-rail row
+
+
+# ---------------------------------------------------------------------------
+# Brewster and Concord: two styles read from AVO's own catalogue
+# ---------------------------------------------------------------------------
+
+
+def test_brewster_wears_a_fascia_and_a_kickboard_on_every_panel():
+    fence = PanelFence(style="brewster")
+    parts = extract(fence.build())
+    panels = len(fence.panels())
+    fascias = sum(p.qty for p in parts if p.label.endswith("fascia"))
+    kicks = sum(p.qty for p in parts if p.label.endswith("kickboard"))
+    assert fascias == kicks == panels
+    # Laid on the board faces, so in front of them: the trim is what shows.
+    assembly = fence.build()
+    board_y = max(
+        c.bounding_box().max.Y for c in assembly.children if c.label == "board"
+    )
+    trim_y = min(
+        c.bounding_box().min.Y for c in assembly.children if c.label == "fascia"
+    )
+    assert trim_y == pytest.approx(board_y)
+
+
+def test_brewster_says_which_of_its_numbers_are_its_own():
+    fence = PanelFence(style="brewster")
+    report = fence.check(fence.build(), extract(fence.build()))
+    assumed = " ".join(f.message for f in report.findings if f.code == "assumed")
+    assert "fascia and kickboard" in assumed
+    assert "Spaced Board" in assumed
+    assert any(
+        "avofenceandsupply.com" in f.message for f in report.findings
+    )
+
+
+def test_concord_is_vinyl_through_and_through():
+    """AVO sells Concord in vinyl only, and the model does not pretend."""
+    fence = PanelFence(style="concord")
+    parts = extract(fence.build())
+    assert fence.species == "vinyl_pvc"
+    assert {p.material for p in parts} == {"vinyl_pvc"}
+    assert fence.post.label.startswith("5x5 vinyl")
+    # No cedar to benchmark against the sawn guide.
+    from cedar_fence import benchmark
+
+    summary, notes = benchmark(fence)
+    assert summary.total is None
+    assert "cedar" in notes[0]
+
+
+def test_concord_pickets_are_pointed_and_the_vinyl_has_no_grain():
+    fence = PanelFence(style="concord")
+    assembly = fence.build()
+    parts = extract(assembly)
+    pickets = [p for p in parts if p.label.endswith("board")]
+    assert pickets and all(p.shape == "shaped" for p in pickets)
+    report = fence.check(assembly, parts)
+    # A short-grain warning on an extrusion would be advice about nothing.
+    assert not [f for f in report.findings if "short grain" in f.message]
+
+
+def test_concord_orders_its_posts_and_says_they_are_unpriced():
+    order = PanelFence(style="concord").order()
+    text = order.to_text()
+    assert "vinyl, routed" in text
+    assert "post cap" not in [what for what, _n, _u in order.lines]
+    assert any("5x5 vinyl" in label for label in order.unpriced)
+    assert any("AVO Concord fence panel" in label for label in order.unpriced)
+
+
+@pytest.mark.parametrize("style", ["brewster", "concord"])
+def test_the_new_styles_say_where_they_were_read(style: str):
+    spec = AVO_STYLES[style]
+    assert "2026-10-04" in spec.source
+    assert spec.assumed
+
+
+# ---------------------------------------------------------------------------
+# Four-rail and good-neighbour: two photographs, stick-built
+# ---------------------------------------------------------------------------
+
+
+def test_four_rail_has_four_rails_in_every_bay_and_through_the_gates():
+    fence = DESIGNS["four_rail"][1]()
+    parts = extract(fence.build())
+    bays = len([s for s in fence.spans() if s.kind == "panel"])
+    rails = sum(p.qty for p in parts if p.label == "rail")
+    assert rails == 4 * bays
+    leaves = len(fence.gate_openings) * fence.gate_leaves
+    gate_rails = sum(p.qty for p in parts if p.label == "gate_rail")
+    # Top and bottom of the frame, and the fence's two middle rails across it.
+    assert gate_rails == 4 * leaves
+
+
+def test_four_rail_posts_stand_proud_under_a_cap():
+    fence = DESIGNS["four_rail"][1]()
+    assembly = fence.build()
+    caps = [c for c in assembly.children if c.label == "post_cap"]
+    assert len(caps) == len(fence.posts())
+    top_rail = max(
+        c.bounding_box().max.Z for c in assembly.children if c.label == "rail"
+    )
+    cap_bottom = min(c.bounding_box().min.Z for c in caps)
+    assert cap_bottom - top_rail == pytest.approx(3 * IN)
+
+
+def test_four_rail_is_priced_whole():
+    """Every stick is on the sawn guide, so nothing is left out of the sum."""
+    fence = DESIGNS["four_rail"][1]()
+    parts = extract(fence.build())
+    summary = fence.cost_summary(parts)
+    assert summary.complete and summary.total is not None
+
+
+def test_a_flat_rail_is_checked_the_way_a_dog_pushes_it():
+    fence = DESIGNS["four_rail"][1]()
+    report = fence.check(fence.build(), extract(fence.build()))
+    deflection = next(f for f in report.findings if f.code == "deflection")
+    assert "sideways" in deflection.message
+    assert "9 times stiffer" in deflection.message  # (6 / 2) ** 2, rough sawn
+
+
+def test_good_neighbor_posts_are_treated_and_named_as_unpriced():
+    fence = DESIGNS["good_neighbor"][1]()
+    parts = extract(fence.build())
+    posts = [p for p in parts if p.label.endswith("post")]
+    assert posts and {p.material for p in posts} == {"syp_pt"}
+    summary = fence.cost_summary(parts)
+    assert any("syp_pt" in label for label in summary.unpriced)
+
+
+def test_good_neighbor_has_no_rails_and_a_batten_on_every_post():
+    fence = DESIGNS["good_neighbor"][1]()
+    parts = extract(fence.build())
+    labels = {p.label for p in parts}
+    assert "rail" not in labels
+    battens = sum(p.qty for p in parts if p.label == "batten")
+    assert battens == len(fence.posts())
+    # The mesh is on the post faces and the batten in front of it.
+    assembly = fence.build()
+    mesh = next(c for c in assembly.children if c.label == "mesh")
+    batten = next(c for c in assembly.children if c.label == "batten")
+    assert mesh.bounding_box().min.Y == pytest.approx(0.0)
+    assert batten.bounding_box().min.Y == pytest.approx(MESH_THICKNESS_MM)
+
+
+def test_good_neighbor_warns_about_unrailed_mesh_past_six_feet():
+    fence = DESIGNS["good_neighbor"][1]()
+    report = fence.check(fence.build(), extract(fence.build()))
+    structure = [f for f in report.findings if f.code == "structure"]
+    assert any(
+        f.severity is Severity.WARN and "tension wire" in f.message
+        for f in structure
+    )
+    short = CedarFence(style="good_neighbor", max_bay_ft=6.0)
+    report = short.check(short.build(), extract(short.build()))
+    assert not [
+        f for f in report.findings
+        if f.code == "structure" and f.severity is Severity.WARN
+    ]
+
+
+def test_treated_posts_get_the_treated_post_warnings():
+    fence = DESIGNS["good_neighbor"][1]()
+    report = fence.check(fence.build(), extract(fence.build()))
+    text = " ".join(f.message for f in report.findings)
+    assert "ground contact" in text
+    assert "G185" in text
+    assert "sapwood" not in text  # the cedar-post finding is about cedar posts
+
+
+def test_a_part_with_no_stock_entry_is_named_not_dropped():
+    """A missing entry used to vanish from the total without a word."""
+    fence = CedarFence(
+        style="good_neighbor",
+        post=StockChoice("4x4", grade="", profile="nonesuch", species="syp_pt"),
+    )
+    parts = extract(fence.build())
+    summary = fence.plan(parts).cost_summary
+    assert any("not in stock.yaml" in label for label in summary.unpriced)

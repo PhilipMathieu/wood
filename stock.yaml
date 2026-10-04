@@ -584,6 +584,33 @@ dimensional:
 #
 # O'Brien stocks cherry in 4/4, 5/4, 6/4, 8/4, 10/4 and 12/4 (16/4 to order),
 # kiln dried to 6-10% MC, sold RWL — random widths and lengths.
+  # ---------------------------------------------------------------------
+  # Pressure treated posts, for the good-neighbour mesh fence: AVO's own
+  # photograph of it (avofenceandsupply.com, good-neighbor-IMG_0947.jpg,
+  # read 2026-10-04) shows a treated 4x4 behind a cedar batten, and that is
+  # what is modelled. Southern yellow pine, ground contact (UC4A).
+  #
+  # NOT PRICED. The cedar guide above is cedar only, and the big-box pages
+  # that sell treated posts are blocked by this environment's egress
+  # policy. Dressed sizes (3-1/2" and 5-1/2"), as treated posts are sold.
+  # ---------------------------------------------------------------------
+  - species: syp_pt
+    nominal: "4x4"
+    lengths_ft: [8, 10, 12]
+    qty: 0
+    grade: ""
+    profile: ground contact
+    price_source: "NOT PRICED — no treated-lumber price list this environment can read"
+
+  - species: syp_pt
+    nominal: "6x6"
+    lengths_ft: [8, 10, 12]
+    qty: 0
+    grade: ""
+    profile: ground contact
+    price_source: "NOT PRICED — no treated-lumber price list this environment can read"
+
+
 hardwood:
   - species: cherry
     thickness_quarter: "4/4"
@@ -1125,6 +1152,117 @@ unit_goods:
 
 
   # Options, each sold per panel and each having to match the panel count.
+  # Brewster and Concord, read from AVO's own catalogue
+  # (avofenceandsupply.com) on 2026-10-04 rather than from The Lumbery's.
+  # Brewster is AVO's name for its spaced board style; Concord is sold in
+  # vinyl only. Neither page publishes a price — both are "Add to Quote".
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "3 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "7 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: white_cedar
+    item: AVO Brewster fence panel
+    unit: panel
+    size: "8 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/brewster-cedar-fence/"
+    notes: >-
+      Spaced board, with fascia and kickboard as options. AVO lists widths
+      "up to 10 ft clear"; 8 ft is drawn to match The Lumbery's panels.
+
+  - species: vinyl_pvc
+    item: AVO Concord fence panel
+    unit: panel
+    size: "3 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/concord-one-by-three-vinyl-fence/"
+    notes: >-
+      Vinyl, white or almond, pointed 1x3 pickets spaced. 8 ft wide.
+
+  - species: vinyl_pvc
+    item: AVO Concord fence panel
+    unit: panel
+    size: "4 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/concord-one-by-three-vinyl-fence/"
+    notes: >-
+      Vinyl, white or almond, pointed 1x3 pickets spaced. 8 ft wide.
+
+  - species: vinyl_pvc
+    item: AVO Concord fence panel
+    unit: panel
+    size: "5 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/concord-one-by-three-vinyl-fence/"
+    notes: >-
+      Vinyl, white or almond, pointed 1x3 pickets spaced. 8 ft wide.
+
+  - species: vinyl_pvc
+    item: AVO Concord fence panel
+    unit: panel
+    size: "6 ft H x 8 ft L"
+    qty: 0
+    price_source: "NOT PRICED — avofenceandsupply.com 2026-10-04, quote only"
+    price_url: "https://www.avofenceandsupply.com/catalog/concord-one-by-three-vinyl-fence/"
+    notes: >-
+      Vinyl, white or almond, pointed 1x3 pickets spaced. 8 ft wide.
+
   - species: white_cedar
     item: AVO board topper (dog ear, pointed, gothic or round)
     unit: panel

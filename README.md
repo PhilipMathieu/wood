@@ -38,8 +38,10 @@ projects/
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
   cedar_fence.py      38 ft of white cedar fence at 4 ft, in the three systems
-                      The Lumbery sells: Privacy Board panels, Chestnut Hill
-                      panels, and post and rail with dog mesh under it
+                      The Lumbery sells (Privacy Board panels, Chestnut Hill
+                      panels, post and rail with dog mesh) and four more from
+                      AVO's own catalogue: Brewster, Concord (vinyl), and two
+                      cedar-and-mesh fences drawn from AVO photographs
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -353,6 +355,17 @@ post lengths and burial depths are theirs).
 | `privacy` | Privacy Board: 3/4" x 3-1/2" cedar butted solid in an 8 ft panel | panels, posts, caps |
 | `chestnut` | Chestnut Hill: 2x2 balusters between doubled 6/4 rails, same both sides | panels, posts, caps |
 | `rails` | post and rail: round cedar posts, three round rails in 8 ft bays, **black coated welded wire behind the rails and run to grade** | sticks, by the lineal foot, plus a roll of mesh |
+
+Four more were asked for by name from AVO's own catalogue
+([avofenceandsupply.com](https://www.avofenceandsupply.com/), read 2026-10-04),
+which shows more than The Lumbery's storefront does:
+
+| `--design` | what it is | what you buy |
+| --- | --- | --- |
+| `brewster` | Brewster: AVO's spaced board panel with a fascia and kickboard on its face | panels, posts, caps |
+| `concord` | Concord: pointed pickets, spaced — **vinyl only**; AVO sells no cedar Concord | panels, posts |
+| `four_rail` | the "Custom Cedar Fence" photo: square posts under flat caps, four 2x6 rails on edge, mesh behind | sticks by the foot, all priced, plus a roll of mesh |
+| `good_neighbor` | the "good neighbor" photo: mesh across treated posts, clamped under cedar battens, no rails | sticks by the foot, plus a roll of mesh; the treated posts are unpriced |
 
 The mesh is the only thing in any of the three that is not in the catalogue as
 drawn. A post and rail fence stops a horse and does nothing at all about a dog;
