@@ -39,8 +39,9 @@ def render_cut_list(
     -------
     pandas.DataFrame
         Columns: ``label``, ``material``, ``grain``, ``qty``,
-        ``length``, ``width``, ``thickness`` — and ``shape`` as well if any
-        part is not rectangular.
+        ``length``, ``width``, ``thickness`` — plus ``shape`` if any part is
+        not rectangular, and ``stock`` if any part names the nominal size it
+        is cut from.
 
     Notes
     -----
@@ -50,6 +51,11 @@ def render_cut_list(
     18" disc is bought and cut as an 18-1/4" square, and nobody can hand you a
     board 1-1/2" tapering to 1".  The ``shape`` column says what to do with the
     blank once it is cut.
+
+    The ``stock`` column says what to *buy*, which stops being obvious the
+    moment a part is cut from dimensional lumber: a row reading 5-1/8" wide is
+    a 1x6 tongue and groove board, and a shop given only the finished width
+    would go looking for 5-1/8" stock that nobody sells.
     """
     columns = ["label", "material", "grain", "qty", "length", "width", "thickness"]
     # A column reading "rectangular" on every row of a bed teaches nobody
@@ -57,6 +63,11 @@ def render_cut_list(
     shaped = any(p.shape != "rectangular" for p in parts)
     if shaped:
         columns.append("shape")
+    # Milled to size out of rough hardwood, there is no nominal size to name;
+    # cut from dimensional lumber, the nominal size is what the order says.
+    stocked = any(p.nominal for p in parts)
+    if stocked:
+        columns.append("stock")
 
     rows = []
     for p in parts:
@@ -71,6 +82,8 @@ def render_cut_list(
         }
         if shaped:
             row["shape"] = p.profile or p.shape
+        if stocked:
+            row["stock"] = p.stock_spec
         rows.append(row)
 
     df = pd.DataFrame(rows, columns=columns)

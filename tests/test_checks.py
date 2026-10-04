@@ -8,8 +8,11 @@ from datetime import date, timedelta
 import pytest
 
 from woodshop.checks import (
+    DENSITY_KG_M3,
+    ELASTIC_MODULUS_MPA,
     Severity,
     alternative_sheets,
+    beam_deflection_mm,
     check_clearance,
     check_envelope,
     check_material_suitability,
@@ -577,3 +580,95 @@ def test_the_shipped_specials_are_flagged_as_sale_prices(inv):
     expired = [f for f in lapsed if "sale price that ended" in f.message]
     assert len(expired) == 5
     assert all(f.severity is Severity.WARN for f in expired)
+
+
+# ---------------------------------------------------------------------------
+# The beam sum, on its own
+# ---------------------------------------------------------------------------
+
+
+def test_deflection_goes_as_the_cube_of_the_depth():
+    """Which is the whole argument for standing a rail on edge."""
+    flat = beam_deflection_mm(
+        e_mpa=5_500.0, span_mm=1828.8, breadth_mm=101.6, depth_mm=50.8, load_kg=20.0
+    )
+    on_edge = beam_deflection_mm(
+        e_mpa=5_500.0, span_mm=1828.8, breadth_mm=50.8, depth_mm=101.6, load_kg=20.0
+    )
+    assert flat / on_edge == pytest.approx(4.0, rel=1e-6)
+
+
+def test_deflection_goes_as_the_fourth_power_of_the_span():
+    short = beam_deflection_mm(
+        e_mpa=10_300.0, span_mm=1000.0, breadth_mm=100.0, depth_mm=20.0, load_kg=10.0
+    )
+    long = beam_deflection_mm(
+        e_mpa=10_300.0, span_mm=2000.0, breadth_mm=100.0, depth_mm=20.0, load_kg=10.0
+    )
+    # Twice the span at the same total load is eight times the sag: 2^4 from
+    # the span, halved because the load per mm drops.
+    assert long / short == pytest.approx(8.0, rel=1e-6)
+
+
+def test_the_slat_check_still_agrees_with_the_sum_behind_it():
+    findings = check_slat_deflection(
+        material="cherry", span_mm=1000.0, slat_width_mm=63.5,
+        slat_thickness_mm=19.05, n_slats=4, design_load_kg=200.0,
+    )
+    expected = beam_deflection_mm(
+        e_mpa=ELASTIC_MODULUS_MPA["cherry"], span_mm=1000.0, breadth_mm=63.5,
+        depth_mm=19.05, load_kg=50.0,
+    )
+    assert f"{expected:.1f} mm" in findings[0].message
+
+
+def test_white_cedar_is_the_softest_thing_in_the_tables():
+    assert ELASTIC_MODULUS_MPA["white_cedar"] < ELASTIC_MODULUS_MPA["pine"]
+    assert DENSITY_KG_M3["white_cedar"] < DENSITY_KG_M3["pine"]
+
+
+# ---------------------------------------------------------------------------
+# Auditing exactly the entries a design buys
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_stock_audits_those_entries_and_no_others(inv):
+    entry = inv.dimensional_for(
+        "white_cedar", "1x6", grade="STK", profile="rough sawn"
+    )
+    findings = check_price_provenance(inv, stock=[entry], today=date(2026, 8, 20))
+    assert len(findings) == 1
+    assert findings[0].message.startswith("white_cedar 1x6 rough sawn (STK)")
+
+
+def test_without_it_a_softwood_part_widens_to_the_whole_species(inv):
+    """The fallback, and the reason `stock` exists."""
+    part = CutPart(
+        "picket", "white_cedar", "length", 1168.4, 152.4, 25.4, qty=60,
+        nominal="1x6", grade="STK", stock_profile="rough sawn",
+    )
+    wide = check_price_provenance(inv, [part], today=date(2026, 8, 20))
+    assert len(wide) > 20
+
+
+def test_a_log_weighs_what_a_cylinder_weighs():
+    """Not what the square it fits inside weighs, which is 27% more."""
+    log = CutPart(
+        "log_post", "white_cedar", "length", 2438.4, 127.0, 127.0, qty=1,
+        shape="pole", finished_area_each_mm2=2438.4 * 127.0,
+    )
+    square = CutPart(
+        "sawn_post", "white_cedar", "length", 2438.4, 127.0, 127.0, qty=1,
+    )
+    assert estimate_mass_kg([log]) / estimate_mass_kg([square]) == pytest.approx(
+        math.pi / 4, rel=1e-6
+    )
+
+
+def test_a_pole_in_sheet_goods_is_an_error(inv):
+    part = CutPart(
+        "post", "plywood_birch", "length", 2438.4, 127.0, 127.0, shape="pole",
+    )
+    findings = check_material_suitability([part], inv)
+    assert findings[0].severity is Severity.ERROR
+    assert "not sold as poles" in findings[0].message

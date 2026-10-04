@@ -28,6 +28,11 @@ ways:
     A flat part sawn to a profile rather than to a rectangle — a bandsawn leg,
     a curved rail, a crested headboard.
 
+``Pole``
+    Round stock that is *bought* round — a peeled cedar fence post, a rail, a
+    dowel.  The distinction from :class:`Turning` is the whole point: a spindle
+    is a square you turn most of away, and a log is a log.
+
 Stock size versus finished size
 -------------------------------
 A round part is the clearest case of a distinction that applies to everything:
@@ -99,6 +104,7 @@ from woodshop.lumber import (
     actual_dimensions_mm,
     mm_to_fractional_inch,
     plywood_thickness_mm,
+    rough_dimensions_mm,
 )
 
 __all__ = [
@@ -106,6 +112,7 @@ __all__ = [
     "Panel",
     "Disc",
     "Turning",
+    "Pole",
     "StockPart",
     "ShapedPart",
     "ShapedBoard",
@@ -117,7 +124,14 @@ __all__ = [
 GRAIN_DIRECTIONS: frozenset[str] = frozenset({"length", "width", "none"})
 
 #: Shapes a part may take.  Drives blank sizing, yield, and material checks.
-SHAPES: frozenset[str] = frozenset({"rectangular", "round", "turned", "shaped"})
+#:
+#: ``"pole"`` is round stock bought round, as against ``"turned"``, which is
+#: round stock made by removing a square's corners.  They look identical in a
+#: drawing and could not be less alike on an order: one is a line item in
+#: lineal feet, the other is a blank and a lathe.
+SHAPES: frozenset[str] = frozenset(
+    {"rectangular", "round", "turned", "shaped", "pole"}
+)
 
 #: Extra width and length left round a round blank, in mm (1/4" total).
 #:
@@ -144,6 +158,24 @@ class _StockMeta:
 
     #: One of :data:`SHAPES`.  Overridden by shaped subclasses.
     shape: str = "rectangular"
+
+    #: Nominal size the part is cut from, e.g. ``"1x6"``.  Empty for stock
+    #: milled to size out of rough hardwood, which has no nominal size.
+    nominal: str = ""
+
+    #: Grade as the supplier names it, e.g. ``"STK"``.  Empty when the design
+    #: does not care which grade it lands on.
+    grade: str = ""
+
+    #: How the stock is worked — ``"rough sawn"``, ``"dressed"``.  With
+    #: :attr:`grade`, this is what tells two inventory entries of the same
+    #: nominal size and very different prices apart.
+    stock_profile: str = ""
+
+    #: What the stock measures across its face.  Differs from the part's
+    #: width only for milled stock, where part of the face is a tongue hidden
+    #: in the next board.  ``0.0`` until a part sets it.
+    face_width_mm: float = 0.0
 
     def _record(
         self,
@@ -361,6 +393,31 @@ class Board(StockPart):
         Finished thickness.  Required when ``nominal`` is not given.
     width_mm : float, optional
         Finished width.  Required when ``nominal`` is not given.
+    actual_mm : tuple[float, float], optional
+        The stock's real ``(thickness, width)`` in mm, for stock whose
+        supplier publishes the section.  Neither dimension table is consulted
+        then, and the ``nominal`` size is kept for ordering: a rail sold as
+        "2x3, milled 2 inches by 3" is a 2x3 on the invoice and a 2x3 in the
+        fence, which no table would have said.  Requires ``nominal``.
+    rough : bool, optional
+        Size the part from the *rough sawn* table rather than the dressed one:
+        a rough 1x6 is about a full 1" x 6" where the dressed board of that
+        name is 3/4" x 5-1/2".  Only meaningful with ``nominal``.
+    covers_mm : float, optional
+        What one board *covers* when it is butted to its neighbour, for milled
+        stock where that is less than what it measures.  A 1x6 tongue and
+        groove board is 5-1/2" wide and shows about 5-1/8": the rest is the
+        tongue, and it lives inside the next board.  The part is modelled and
+        laid out at the covering width — a solid drawn at the full face would
+        interpenetrate its neighbour — while ``face_width_mm`` records what it
+        measures and ``nominal`` records what to buy.  Requires ``nominal``.
+    grade : str, optional
+        Grade the part is specified in, as the supplier names it, e.g.
+        ``"STK"``.
+    stock_profile : str, optional
+        How the stock is worked — ``"rough sawn"``, ``"dressed"``.  Set
+        automatically to ``"rough sawn"`` when ``rough=True`` and nothing else
+        is given.
     **kwargs
         Forwarded to :class:`StockPart` (``qty``, ``grain_direction``,
         ``trim_allowance_mm``, ``rotation``, ``align``, ``mode``, ``notes``).
@@ -368,14 +425,32 @@ class Board(StockPart):
     Raises
     ------
     ValueError
-        If ``nominal`` is combined with explicit dimensions, or if neither is
-        supplied.
+        If ``nominal`` is combined with explicit dimensions, if neither is
+        supplied, if ``rough`` is set without a ``nominal`` to look up, or if
+        ``covers_mm`` is not a positive width no greater than the face.
+
+    Notes
+    -----
+    ``grade`` and ``stock_profile`` buy nothing geometrically and everything
+    commercially: rough sawn 1x6 cedar is $2.30/LF in STK and $1.30 in low
+    grade, and a design that does not say which one it means cannot be priced
+    to better than 77%.  They travel to the cut list, where
+    :func:`woodshop.cutlist.dimensional.plan_dimensional` matches the part to
+    the inventory entry it actually buys.
 
     Examples
     --------
     >>> rail = Board(length_mm=2000.0, nominal="1x6", material="pine", label="rail")
     >>> rail.width_mm
     139.7
+    >>> picket = Board(length_mm=1219.2, nominal="1x6", rough=True,
+    ...                material="white_cedar", label="picket")
+    >>> round(picket.width_mm, 1), round(picket.thickness_mm, 1)
+    (152.4, 25.4)
+    >>> tg = Board(length_mm=1219.2, nominal="1x6", covers_mm=130.2,
+    ...            material="white_cedar", label="board")
+    >>> round(tg.width_mm, 1), round(tg.face_width_mm, 1)
+    (130.2, 139.7)
     """
 
     def __init__(
@@ -387,6 +462,11 @@ class Board(StockPart):
         nominal: str | None = None,
         thickness_mm: float | None = None,
         width_mm: float | None = None,
+        rough: bool = False,
+        actual_mm: tuple[float, float] | None = None,
+        covers_mm: float | None = None,
+        grade: str = "",
+        stock_profile: str = "",
         **kwargs: Any,
     ) -> None:
         if nominal is not None:
@@ -395,13 +475,41 @@ class Board(StockPart):
                     f"{label!r}: pass either nominal= or thickness_mm=/width_mm=, "
                     "not both"
                 )
-            thickness_q, width_q = actual_dimensions_mm(nominal)
-            thickness_mm = float(thickness_q.magnitude)
-            width_mm = float(width_q.magnitude)
+            if actual_mm is not None:
+                thickness_mm, width_mm = (float(v) for v in actual_mm)
+            else:
+                sizes = rough_dimensions_mm if rough else actual_dimensions_mm
+                thickness_q, width_q = sizes(nominal)
+                thickness_mm = float(thickness_q.magnitude)
+                width_mm = float(width_q.magnitude)
         elif thickness_mm is None or width_mm is None:
             raise ValueError(
                 f"{label!r}: give nominal=, or both thickness_mm= and width_mm="
             )
+        elif actual_mm is not None:
+            raise ValueError(
+                f"{label!r}: actual_mm states the section of a nominal size, "
+                "so it needs nominal= rather than explicit dimensions"
+            )
+        elif rough:
+            raise ValueError(
+                f"{label!r}: rough= sizes a part from its nominal size, so it "
+                "needs nominal= rather than explicit dimensions"
+            )
+
+        face_width_mm = width_mm
+        if covers_mm is not None:
+            if nominal is None:
+                raise ValueError(
+                    f"{label!r}: covers_mm describes a milled nominal size, so "
+                    "it needs nominal= rather than explicit dimensions"
+                )
+            if covers_mm <= 0 or covers_mm > width_mm + 1e-9:
+                raise ValueError(
+                    f"{label!r}: covers_mm must be positive and no wider than "
+                    f"the {width_mm:.1f} mm face, got {covers_mm!r}"
+                )
+            width_mm = float(covers_mm)
 
         super().__init__(
             length_mm=length_mm,
@@ -411,7 +519,12 @@ class Board(StockPart):
             label=label,
             **kwargs,
         )
-        self.nominal = nominal
+        self.nominal = nominal or ""
+        self.grade = grade
+        self.stock_profile = stock_profile or ("rough sawn" if rough else "")
+        #: What the board measures across its face, which is what it is sold
+        #: as.  Equal to ``width_mm`` unless the stock is milled to interlock.
+        self.face_width_mm = float(face_width_mm)
 
 
 class Panel(StockPart):
@@ -747,6 +860,133 @@ class Turning(ShapedPart):
         self.max_diameter_mm = largest
 
 
+class Pole(ShapedPart):
+    """Round stock bought round: a peeled log post, a log rail, a dowel.
+
+    :class:`Turning` describes a spindle, and prices it as the square blank it
+    is cut from, because nobody sells a tapered cylinder.  A log is the other
+    case entirely — you buy the round thing, by the foot, and the only work
+    done to it is a saw cut at each end.  Sizing it as a square blank would
+    overstate what it costs by a third and describe an operation nobody
+    performs.
+
+    The axis runs along +Z, matching :class:`Turning`.  The stock dimensions
+    are the round stock itself: ``stock_width_mm`` and ``stock_thickness_mm``
+    are both the diameter, so anything measuring the part in a rectangular
+    world gets the circumscribing square, which is the right answer for
+    clearances and the wrong one for cost — hence the lineal-foot buying plan
+    in :mod:`woodshop.cutlist.dimensional`.
+
+    Parameters
+    ----------
+    length_mm : float
+        Length along the axis.
+    diameter_mm : float
+        Diameter.  Round stock is graded in ranges — a "4 to 5 inch" post — so
+        this is the size to design to and not a promise about any one stick.
+    material : str
+        Species.
+    label : str
+        Part name.
+    end_diameter_mm : float, optional
+        Diameter at the +Z end, for stock with noticeable taper.  Defaults to
+        ``diameter_mm``.
+    trim_allowance_mm : float, optional
+        Extra length on the cut, default ``0.0``.
+    grain_direction : str, optional
+        Default ``"length"``: a pole is long grain along its axis, and there
+        is no other kind.
+    qty, notes, rotation, align, mode
+        As :class:`StockPart`.
+
+    Raises
+    ------
+    ValueError
+        If a dimension is non-positive.
+
+    Examples
+    --------
+    >>> post = Pole(length_mm=2438.4, diameter_mm=127.0, material="white_cedar",
+    ...             label="log_post")
+    >>> post.stock_width_mm, post.stock_length_mm
+    (127.0, 2438.4)
+    >>> post.shape
+    'pole'
+    """
+
+    shape = "pole"
+
+    def __init__(
+        self,
+        length_mm: float,
+        diameter_mm: float,
+        *,
+        material: str,
+        label: str,
+        end_diameter_mm: float | None = None,
+        trim_allowance_mm: float = 0.0,
+        grain_direction: str = "length",
+        qty: int = 1,
+        notes: str = "",
+        nominal: str = "",
+        grade: str = "",
+        stock_profile: str = "",
+        rotation: RotationLike = (0, 0, 0),
+        align: Align | tuple[Align, Align, Align] = (
+            Align.CENTER,
+            Align.CENTER,
+            Align.CENTER,
+        ),
+        mode: Mode = Mode.ADD,
+    ) -> None:
+        end = diameter_mm if end_diameter_mm is None else end_diameter_mm
+        self._build_solid(
+            bottom_diameter_mm=diameter_mm,
+            top_diameter_mm=end,
+            height_mm=length_mm,
+            rotation=rotation,
+            align=align,
+            mode=mode,
+            label=label,
+        )
+
+        largest = max(float(diameter_mm), float(end))
+        smallest = min(float(diameter_mm), float(end))
+        profile = f"round, {mm_to_fractional_inch(largest)} dia."
+        if smallest != largest:
+            profile = (
+                f"round, {mm_to_fractional_inch(largest)} tapering to "
+                f"{mm_to_fractional_inch(smallest)}"
+            )
+        self._record(
+            label=label,
+            material=material,
+            grain_direction=grain_direction,
+            qty=qty,
+            notes=notes,
+            length_mm=length_mm,
+            width_mm=largest,
+            thickness_mm=largest,
+            stock_length_mm=float(length_mm) + float(trim_allowance_mm),
+            # The stock *is* the round thing: no blank, no margin, nothing to
+            # saw off the corners.
+            stock_width_mm=largest,
+            stock_thickness_mm=largest,
+            # Seen from the side, which is the only way a pole is ever drawn
+            # flat: a rectangle if it is parallel, a trapezium if it tapers.
+            finished_area_mm2=float(length_mm) * (largest + smallest) / 2.0,
+            profile=profile,
+            trim_allowance_mm=trim_allowance_mm,
+        )
+        self.diameter_mm = float(diameter_mm)
+        self.end_diameter_mm = float(end)
+        self.max_diameter_mm = largest
+        self.nominal = nominal
+        self.grade = grade
+        self.stock_profile = stock_profile
+        self.face_width_mm = largest
+
+
 class ShapedBoard(_StockMeta, BasePartObject):
     """A flat part sawn to a shaped outline, rather than to a rectangle.
 
@@ -892,6 +1132,10 @@ _METADATA_ATTRS: tuple[str, ...] = (
     "profile",
     "trim_allowance_mm",
     "shape",
+    "nominal",
+    "grade",
+    "stock_profile",
+    "face_width_mm",
 )
 
 

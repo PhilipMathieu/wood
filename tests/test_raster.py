@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from woodshop.render.raster import Camera, rasterize
+from woodshop.render.raster import Camera, Screen, _wire_cover, rasterize
 
 RED = (1.0, 0.0, 0.0)
 BLUE = (0.0, 0.0, 1.0)
@@ -95,3 +95,45 @@ def test_world_to_pixel_mapping_round_trips_onto_its_own_geometry():
     outside = (100.0, 100.0, 0.0)
     col, row = projection.to_pixel(outside)
     assert not (0 <= row < projection.height and 0 <= col < projection.width)
+
+
+def test_wire_cover_is_exact_for_a_box_filter():
+    # A pixel two pitches wide covers exactly two wires' worth, wherever it sits.
+    s = np.linspace(0.0, 10.0, 41)
+    cover = _wire_cover(s, np.full_like(s, 20.0), pitch=10.0, wire=1.0)
+    assert np.allclose(cover, 0.1)
+    # A narrow pixel on a wire is wholly covered; one midway between is clear.
+    assert np.isclose(_wire_cover(np.array([0.0]), np.array([0.2]), 10.0, 1.0)[0], 1.0)
+    assert np.isclose(_wire_cover(np.array([5.0]), np.array([0.2]), 10.0, 1.0)[0], 0.0)
+
+
+def test_a_screen_shows_what_is_behind_it_between_its_wires():
+    behind = _quad(half_size=10.0, z=0.0)
+    mesh = _quad(half_size=10.0, z=5.0)
+    triangles = np.concatenate([behind, mesh])
+    colors = np.array([RED, RED, BLUE, BLUE])
+    screen = Screen(
+        origin=(-10.0, -10.0, 5.0), axis_a=(1.0, 0.0, 0.0), pitch_a=5.0,
+        axis_b=(0.0, 1.0, 0.0), pitch_b=5.0, wire=0.5,
+    )
+
+    image, projection = rasterize(
+        triangles, colors, _CAMERA, size=400, supersample=1,
+        screen_ids=np.array([-1, -1, 0, 0]), screens=[screen],
+    )
+
+    # Midway between wires the red face behind shows through untouched...
+    assert np.allclose(_pixel_color(image, projection, (2.5, 2.5, 5.0)), RED)
+    # ...and where two wires cross, the mesh is drawn.
+    assert np.allclose(_pixel_color(image, projection, (0.0, 0.0, 5.0)), BLUE)
+
+
+def test_bounds_draw_a_close_up_window():
+    triangles = np.concatenate([_quad(half_size=10.0, z=0.0)])
+    image, projection = rasterize(
+        triangles, np.array([RED, RED]), _CAMERA, size=200,
+        bounds=(-2.0, 2.0, -1.0, 1.0),
+    )
+    assert image.shape[:2] == (100, 200)
+    assert np.allclose(image, RED)  # the window is wholly inside the face
+    assert np.isclose(projection.scale, 50.0)

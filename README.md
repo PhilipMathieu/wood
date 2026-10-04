@@ -8,8 +8,8 @@ optimisation, and design checks that run before anything gets cut.
 
 ```
 src/woodshop/
-  parts.py            Board, Panel, Disc, Turning, ShapedBoard — solids that
-                      carry cut-list metadata
+  parts.py            Board, Panel, Disc, Turning, Pole, ShapedBoard — solids
+                      that carry cut-list metadata
   lumber.py           nominal -> actual dimension tables, kerf, fraction formatting
   inventory.py        loads stock.yaml: dimensional, hardwood, and sheet stock,
                       each price carrying the date and source behind it
@@ -22,6 +22,8 @@ src/woodshop/
   cutlist/
     extract.py        walk an assembly into a consolidated list of CutParts
     hardwood.py       nest parts on random-width boards, total board feet
+    dimensional.py    buy nominal-size stock by the lineal foot, when the
+                      supplier prices it and publishes no lengths
     optimize_1d.py    cutting stock for fixed-width lumber (CP-SAT)
     optimize_2d.py    grain-aware, guillotine-safe sheet nesting
   render/
@@ -38,6 +40,11 @@ projects/
   mysa_bed.py         Chilton Mysa sleigh bed — geometry measured off the
                       manufacturer's 360 viewer; faithful and plywood variants
   mysa_nightstand.py  Chilton Mysa nightstand — round top, three turned legs
+  cedar_fence.py      38 ft of white cedar fence at 4 ft, in the three systems
+                      The Lumbery sells (Privacy Board panels, Chestnut Hill
+                      panels, post and rail with dog mesh) and four more from
+                      AVO's own catalogue: Brewster, Concord (vinyl), and two
+                      cedar-and-mesh fences drawn from AVO photographs
   media_console.py    80" console as a slide-together grid: five record bays,
                       a CD row, half-lapped panels, no glue. Cherry-plywood
                       and painted-birch/solid-top builds
@@ -55,6 +62,10 @@ uv sync
 uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
+uv run python projects/cedar_fence.py --design all --outdir build
+uv run python projects/cedar_fence.py --compare-systems  # the three, side by side
+uv run python projects/cedar_fence.py --variants    # every cedar Lumbery stocks
+uv run python projects/cedar_fence.py --compare     # the stick-built styles, priced
 uv run python projects/media_console.py --variant both --outdir build
 ```
 
@@ -75,6 +86,12 @@ Look at the PNG. Everything else in this project *measures* the model; the
 views are the only step that would catch a part rotated about the wrong axis
 or buried inside another one.
 
+Anything that goes below `z = 0` is drawn with a transparent plane at grade, so
+a fence post reads as buried rather than as a stick hanging in space — and the
+buried third of it stays visible through the plane, which is the part nobody can
+inspect once the fence is built. Furniture, which stops at the floor, gets no
+plane; `render_assembly(..., ground=True)` overrides the guess either way.
+
 ## The gallery
 
 ```bash
@@ -82,13 +99,22 @@ uv run python scripts/build_gallery.py --outdir gallery
 open gallery/index.html
 ```
 
+`--single-file` inlines every image into one HTML document; `--fragment` writes
+that same document without a shell — a title, a stylesheet and the content — for
+a host that supplies its own `<html>`, which is what publishing the gallery as a
+web artifact or dropping it into a CMS needs.
+
 One command builds every registered project, renders it, nests its stock, runs
 its checks, and writes a static site: an index of cards and a page per project
 with the four views, the cut list, the nesting layouts, the check report styled
 by severity, and the STEP/STL/CSV to download. The pages are self-contained —
 no CDN, no external stylesheet — so they work from a file:// URL, from a USB
 stick, or from GitHub Pages. `--single-file` inlines every image into one HTML
-document you can mail to somebody.
+document you can mail to somebody, and `--fragment` writes that document without
+its shell for a host that has one of its own.
+
+The palette resolves in all three states a reader can be in: system light,
+system dark, and an explicit choice that has to beat the system either way.
 
 Costs are **omitted by default**, because the prices in `stock.yaml` are
 invented. `--with-costs` puts them back — each amount tagged with the date its
@@ -96,6 +122,12 @@ rate was quoted, or marked unverified when there is no date to tag it with.
 Provenance is published either way: every project page carries a *Prices*
 section naming each material it buys and where that material's price came
 from, which stays useful after somebody records a real one.
+
+A project that is **ordered rather than cut** — pre-assembled panels, a kit —
+publishes an `order` callable alongside `build` and `check`, and the gallery
+stops deriving a buying plan from its cut list. A fence bought as panels is not
+bought in lineal feet, and quoting it that way would price a fence nobody is
+building.
 
 A project joins the gallery by publishing a module-level `PROJECTS` list:
 
@@ -116,6 +148,34 @@ parts (`Disc`, `Turning`) are built about the **lathe axis, which runs along
 +Z — and takes profile-X as the part's *length*, so a leg's profile is drawn
 with its **height** along X, because that is the way the grain runs. Cut dimensions are stored on the part rather than measured back off its
 bounding box, so they survive being placed.
+
+### Round stock: bought round, or made round
+
+`Turning` is a spindle: a square blank with most of it turned away, priced as
+the square. `Pole` is a log: you buy the round thing by the foot, and the only
+work done to it is a cut at each end. They draw identically and could not be
+less alike on an order, so they are different classes and different `shape`
+values — and `estimate_mass_kg` knows a solid of revolution is π/4 of the box
+it sits in, which is 27% of a fence post.
+
+### Rough sawn versus dressed, and what a board covers
+
+`NOMINAL_TO_ACTUAL` holds *dressed* sizes: a 1x6 is 3/4" x 5-1/2". Rough sawn
+stock is close to full dimension, and half of Lumbery's cedar list is rough
+sawn, so `rough_dimensions_mm` is the table that describes it — a rough 1x6 is
+about a full 1" x 6". `Board(..., rough=True)` sizes a part from it. Laid out
+from the dressed table a fence is 3/8" short in every bay and 1/4" thin in
+every board.
+
+Milled stock adds a third width. A 1x6 tongue-and-groove board is 5-1/2" across
+the face and shows about 5-1/8": the rest is the tongue, and it lives inside the
+next board. `Board(..., covers_mm=...)` models the part at what it **covers**,
+records what it **measures** as `face_width_mm`, and keeps buying it by its
+**nominal** size — three different numbers for one board, and a layout that uses
+the wrong one is out by a board in forty. What a profile covers is not published
+by anybody, so the assumption lives in the project that makes it
+(`cedar_fence.ASSUMED_COVERAGE_IN`) and every design that uses it gets a `WARN`
+naming the number.
 
 ### Stock size versus finished size
 
@@ -151,9 +211,22 @@ All internal geometry is in millimetres. Inches are a presentation format —
 
 | Stock | Use | Why |
 | --- | --- | --- |
-| Dimensional lumber | `optimize_1d` | width is fixed, so only length is chosen |
+| Dimensional lumber, lengths known | `optimize_1d` | width is fixed, so only length is chosen |
+| Dimensional lumber, lengths unpublished | `plan_dimensional` | a rate per lineal foot buys material; it does not buy sticks |
 | Hardwood | `nest_hardwood` | random widths; parts are ripped across the board too |
 | Sheet goods | `pack_by_material` | per-material sheet sizes and grain |
+| Sold by the roll or the bundle | neither | it is not lumber; `plan_dimensional` names it and hands it back |
+
+`plan_dimensional` is the answer to a supplier who prices twenty-eight cedar
+profiles and lists no lengths at all. It groups the cut list by the *entry each
+part actually buys* — which is why a `Board` carries `grade` and
+`stock_profile` as well as a nominal size, since rough sawn 1x6 is $2.30/LF in
+STK and $1.30 in low grade — totals the lineal feet, adds a stated offcut
+allowance, and prices it in the unit the supplier printed. What it deliberately
+does not do is invent an 8 ft stick so that a cutting-stock solver has
+something to chew on: `uv run python projects/cedar_fence.py --assume-lengths
+8,10,12` will do that, and labels every number it produces as resting on your
+assumption.
 
 `optimize_2d` defaults to a shelf packer, whose layouts are always
 guillotine-cuttable — crosscut into strips, then rip. `strategy="maxrects"`
@@ -277,12 +350,138 @@ total          8 boards, 37.3 bd ft, $467 (UNVERIFIED — placeholder prices;
 
 | Stock | Prices | Source |
 | --- | --- | --- |
-| white cedar (28 profiles/grades) | **real** shelf prices, per lineal foot | [Lumbery's pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
+| white cedar — all 34 lines of the guide: 30 board profiles/grades, 3 shake grades, lattice | **real** shelf prices, per lineal foot, per piece, per bundle and per sheet | [Lumbery's pricing guide](https://lumbery-me.com/pricing-guide-featuring-cedar-shiplap-siding/), read 2026-08-17 |
 | cherry 6/4, red oak 4/4, white oak 5/4 and 8/4, 6 mm Baltic birch | **real** but on **sale** to 2026-08-31 | [O'Brien Hardwoods August specials](https://obrienhardwoods.com/specials) |
 | walnut 4/4 shorts | **real**, a standing special | [Atlantic Hardwoods specials](https://www.atlantichardwoods.com/specials) |
 | cherry 4/4, 5/4, 8/4, 10/4 | placeholder, undated | neither yard publishes a full list — needs a call |
 | cherry and Baltic birch plywood | placeholder, undated | as above |
 | birch plywood, pine, poplar | no price | — |
+
+Three kinds of entry, because a price sheet has more than one kind of unit.
+`dimensional` holds anything sold by the foot or the stick; `unit_goods` holds
+what is sold by the item — a bundle of shakes, a lattice panel — where the
+supplier prices the thing and publishes no geometry for it, and those entries
+record the missing coverage and thickness *as missing*. `suppliers` holds what
+applies to the order rather than to any board in it: the yard's phone number and
+its volume-discount tiers, which change every line at once or none of them.
+
+```
+uv run python projects/cedar_fence.py --variants
+```
+
+prices the same 58 ft of fence in every cedar variant Lumbery stocks — $1,708 in
+low-grade rough 1x6 up to $3,540 in 5/4x4 decking — and lists what the guide
+sells that a fence cannot use, with the reason.
+
+Two materials in that table have **no price at all**, and the file says so
+rather than filling them in: peeled round cedar, which Lumbery's guide does not
+cover because the guide is sawn stock only, and the black coated welded wire the
+log fence is built around, whose retail price is published on pages this
+environment's egress proxy blocks. Both are recorded with sizes, sources and a
+plain statement of what is missing, so every total that touches them prints as
+partial and names what it left out.
+
+## Three designs, because the yard sells three systems
+
+`projects/cedar_fence.py` builds the same 38 ft run — 4 ft high, with two 10 ft
+gate sections — three times, and the three are the three things
+[lumberystore.com/fence-panels-and-posts](https://www.lumberystore.com/fence-panels-and-posts)
+actually sells (read 2026-08-18; board sizes, rail sections, grades, heights,
+post lengths and burial depths are theirs).
+
+| `--design` | what it is | what you buy |
+| --- | --- | --- |
+| `privacy` | Privacy Board: 3/4" x 3-1/2" cedar butted solid in an 8 ft panel | panels, posts, caps |
+| `chestnut` | Chestnut Hill: 2x2 balusters between doubled 6/4 rails, same both sides | panels, posts, caps |
+| `rails` | post and rail: round cedar posts, three round rails in 8 ft bays, **black coated welded wire behind the rails and run to grade** | sticks, by the lineal foot, plus a roll of mesh |
+
+Four more were asked for by name from AVO's own catalogue
+([avofenceandsupply.com](https://www.avofenceandsupply.com/), read 2026-10-04),
+which shows more than The Lumbery's storefront does:
+
+| `--design` | what it is | what you buy |
+| --- | --- | --- |
+| `horizontal` | horizontal spaced board: rough 1x6 Lumbery cedar courses with a 1/2" gap between 4x4 posts, no rails; courses butt on the post centres under a 1x4 batten, drawn with a plan detail of that joint | sticks by the foot, all priced |
+| `brewster` | Brewster: AVO's spaced board panel with a fascia and kickboard on its face | panels, posts, caps |
+| `concord` | Concord: pointed pickets, spaced — **vinyl only**; AVO sells no cedar Concord | panels, posts |
+| `four_rail` | the "Custom Cedar Fence" photo: square posts under flat caps, four 2x6 rails on edge, mesh behind | sticks by the foot, all priced, plus a roll of mesh |
+| `four_rail_hemlock` | four-rail on cedar posts at 6 ft: the 2x3 garden fencing across the post faces, rough hemlock 2x4 rails screwed over it in 12 ft sticks, hemlock gate frames | all priced: hemlock by the 12 ft piece, cedar by the foot, two 50 ft rolls |
+| `rails_hemlock` | square post and rail: cedar posts at 6 ft, the 2x3 garden fencing across their faces, rough 4x4 hemlock rails screwed over it in 12 ft sticks | all priced, unlike the round version |
+| `good_neighbor` | the "good neighbor" photo: mesh across treated posts, clamped under cedar battens, no rails | sticks by the foot, plus a roll of mesh; the treated posts are unpriced |
+
+The gallery draws every design three ways — a 6 ft bay cantilevered 2 ft past
+each end post to tie into existing structure, 10 ft with a 4 ft gate in the
+middle, and 40 ft straight (48 ft for the two hemlock designs, which is four
+12 ft rails a course) — each as an isometric, a front elevation and a
+close-up at one post, where the rails, mesh and boards meet. `--design` writes the same sheet to
+`build/cedar_fence_<design>_configurations.png`, and any layout can be built in
+code with `layout=`, e.g.
+`CedarFence(style="four_rail", layout=(("fence", 3), ("gate", 4), ("fence", 3)), gate_leaves=1)`.
+
+The mesh is the only thing in any of the three that is not in the catalogue as
+drawn. A post and rail fence stops a horse and does nothing at all about a dog;
+the wire is what makes it a fence a dog stays inside, and it runs to grade
+rather than holding the 2" clearance a boarded fence keeps to stay out of the
+wet, because a dog goes under a 2" gap without breaking stride.
+
+Earlier drafts of this project offered nine or ten designs that differed by an
+inch of reveal. Those are still in the file — `STYLES` and `AVO_STYLES` are how
+the price guide is walked and how a panel is benchmarked against the sticks it
+is made of — but they are catalogue machinery, not choices. A style is a row in
+a price list; a design is something you can order.
+
+**The two panel designs have no cut list**, because nothing in them is cut: they
+have an **order**, counted in panels, posts and caps, and the gallery prints it
+as one. Only the post and rail design is bought by the foot.
+
+The difference is not cosmetic, and the checks are where it shows:
+
+| | post and rail | the two panel designs |
+| --- | --- | --- |
+| the bay | the rail: 8 ft, and a 3 ft remainder a saw can make | the panel: 8 ft, and a 3 ft remainder that has to be **custom** |
+| a 38 ft run | two 8 ft bays and a 3 ft one, each side of the gates | four 8 ft panels and two 3 ft custom ones |
+| burial | 4 ft, to clear the frost line | 2 ft, per their sizing table — half what the frost line asks |
+| the gates | drawn, and **quoted by email**: the catalogue will not price a gate | the same |
+
+### The half of a fence that a cut list cannot describe
+
+Hinges, a latch, a cane bolt, the staples holding the mesh on, the caps over the
+post ends and the yard of stone the posts stand in used to be a single warning
+saying these things existed and were in no total. They are in the total now,
+counted from the same geometry the cut list comes from — a hinge count is a leaf
+count, a staple count is feet of mesh and a post count, a yard of stone is nine
+holes **minus nine posts**.
+
+```
+$ python projects/cedar_fence.py --design rails --hardware budget
+```
+
+Hardware comes in two tiers, and `--hardware` picks which one to price:
+
+| tier | what it is | this fence |
+| --- | --- | --- |
+| `heavy duty` | the fitting that outlives the fence | $676 |
+| `budget` | the imported one that does the same job | $333 |
+
+The other tier's total prints beside whichever you asked for, because the choice
+is worth more than most of the decisions above it — and nearly the whole swing
+is hinges, the one fitting here that carries a load rather than merely closing.
+
+These prices are **not** from the yard, and `price_source` says so on every line:
+they are big-box and farm-store prices with SKUs, relayed by the owner on a day
+that is recorded, because the egress proxy blocks every one of those domains.
+The stock entries that price the wrong package are in `stock.yaml` too, so the
+design can say why not to buy them — a 50 lb keg of staples is 3,350 against the
+243 this fence needs, and half-cubic-foot bags of stone work out over six times
+the bulk rate for the same stone.
+
+A panel fence buys almost none of this: its gates arrive hung and its caps come
+with AVO's posts. What it does buy is the stone, because the holes are the same
+holes — and that one line is the only priced thing on a panel order.
+
+`projects/cedar_fence.py` is the project built entirely on the real ones: every
+line of its total is dated, and the same guide that prices the stock publishes
+no lengths for it, which is why that project buys by the foot and says so.
 
 Three states, and the file distinguishes all three. A **shelf price** is good
 until it goes stale. A **sale price** carries `price_valid_until`, so the check

@@ -6,6 +6,7 @@ its checks, and writes a static site::
     uv run python scripts/build_gallery.py
     uv run python scripts/build_gallery.py --outdir docs --with-costs
     uv run python scripts/build_gallery.py --single-file --outdir build
+    uv run python scripts/build_gallery.py --fragment --outdir build
 
 Projects are found through :func:`woodshop.project.discover_projects`, which
 reads the module-level ``PROJECTS`` list from each module in ``projects/``.  A
@@ -50,6 +51,15 @@ def main() -> None:
         help="write one self-contained HTML file with images inlined",
     )
     parser.add_argument(
+        "--fragment",
+        action="store_true",
+        help=(
+            "write that one file as an HTML fragment — title, stylesheet and "
+            "content, with no document shell — for a host that supplies its "
+            "own: an artifact, a CMS, a page template"
+        ),
+    )
+    parser.add_argument(
         "--only",
         action="append",
         default=None,
@@ -77,6 +87,7 @@ def main() -> None:
         dpi=args.dpi,
         show_costs=args.with_costs,
         single_file=args.single_file,
+        fragment=args.fragment,
     )
     print(f"\nWrote {index}")
     if not args.with_costs:

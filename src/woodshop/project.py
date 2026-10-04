@@ -53,6 +53,21 @@ class ProjectSpec:
         Takes ``(assembly, parts)`` and returns a
         :class:`woodshop.checks.CheckReport`.  ``None`` if the project has no
         checks of its own.
+    order : callable, optional
+        Takes no arguments and returns what to *buy*, for a design that is
+        bought rather than cut — pre-assembled panels, a kit, anything sold by
+        the piece.  It must offer ``lines`` (``(what, how many, unit)``) and a
+        ``cost_summary``.  When a project supplies one, nothing derives a
+        buying plan from its cut list, because for that project the cut list
+        is a description of what arrives rather than a list of what to order.
+    extras : callable, optional
+        Takes ``(assembly, parts)`` and returns an object offering ``lines``
+        (``(what, how many, unit)``) and a ``cost_summary``, for everything a
+        project buys that is neither cut from stock nor ordered as a finished
+        piece — hinges, a roll of wire, a yard of stone.  Unlike *order* this
+        does not replace the buying plan; it sits beside it, because a fence
+        is bought by the foot **and** by the box, and a total that holds only
+        the first looks finished when it is a third of the order.
     species : str, optional
         Primary solid-wood species, used to plan hardwood purchases.
     source_url : str, optional
@@ -62,6 +77,16 @@ class ProjectSpec:
         default ``stock.yaml``.
     notes : str, optional
         Free text shown alongside the project.
+    configurations : callable, optional
+        Zero-argument callable returning ``[(caption, assembly), ...]``: the
+        same design built to several layouts.  An entry may carry a third
+        item, the world point a close-up view is centred on.  When given, the gallery draws
+        these — one row each — instead of the single model from *build*,
+        whose cut list and checks still describe the page.
+    configuration_views : tuple of View, optional
+        Camera angles for the configuration drawings, isometric first —
+        the first is also the gallery card's picture.  Default the standard
+        isometric and front.
     tags : list[str], optional
         Free-form labels, e.g. ``["bed", "reproduction"]``.
     """
@@ -71,11 +96,15 @@ class ProjectSpec:
     summary: str
     build: Callable[[], Any]
     check: Callable[[Any, list], Any] | None = None
+    order: Callable[[], Any] | None = None
+    extras: Callable[[Any, list], Any] | None = None
     species: str = "cherry"
     source_url: str = ""
     inventory: Any = None
     notes: str = ""
     tags: list[str] = field(default_factory=list)
+    configurations: Callable[[], list[tuple]] | None = None
+    configuration_views: tuple[Any, ...] | None = None
 
 
 def discover_projects(directory: str | Path | None = None) -> list[ProjectSpec]:

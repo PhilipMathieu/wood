@@ -35,10 +35,20 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgb
 
 from woodshop.render.hlr import hlr_polylines
-from woodshop.render.raster import Camera, rasterize
+from woodshop.render.raster import Camera, Screen, rasterize
 from woodshop.render.trim import trim_interpenetrations
 
-__all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly"]
+__all__ = [
+    "View",
+    "STANDARD_VIEWS",
+    "MATERIAL_COLORS",
+    "GROUND_COLOR",
+    "GROUND_ALPHA",
+    "SCREEN_MATERIALS",
+    "render_assembly",
+    "render_configurations",
+    "wants_ground",
+]
 
 
 @dataclass(frozen=True)
@@ -59,12 +69,23 @@ class View:
         orthographic views — and ``"shaded"`` otherwise, so an isometric
         or any other oblique angle renders with material colour without the
         caller having to say so.
+    window_mm : tuple of float, optional
+        ``(width, height)`` of a close-up: draw only this much of the model,
+        in mm across the image, centred on a focus point the caller gives
+        (:func:`render_configurations`) or on the model's centre.  Default
+        ``None`` draws the whole model.  Shaded views only.
+    offset_mm : tuple of float, optional
+        ``(x, y, z)`` added to the focus point for this view only, so one
+        row's focus can serve a close-up and a detail somewhere else on the
+        same post.  Default no offset.
     """
 
     name: str
     elev: float
     azim: float
     style: str = "auto"
+    window_mm: tuple[float, float] | None = None
+    offset_mm: tuple[float, float, float] | None = None
 
 
 #: Isometric plus the three orthographic views, in the order they are drawn.
@@ -86,14 +107,60 @@ MATERIAL_COLORS: dict[str, str] = {
     "white_oak": "#c8ab7d",
     "pine": "#e8cf9f",
     "poplar": "#d6d2b0",
+    # Fresh northern white cedar is pale straw; left outside it silvers within
+    # a season or two, which is why nobody stains a fence twice.
     "white_cedar": "#ddc49a",
     "syp_pt": "#b9b183",
+    # Rough sawn hemlock: a redder, darker tan than the cedar beside it.
+    "hemlock": "#c49a74",
+    # Black PVC over galvanised wire: near-black, and not quite, because a
+    # true black reads as a hole in a shaded render.
+    "steel_mesh_black": "#2f3234",
+    "steel_mesh_black_2x3": "#2f3234",
+    # White vinyl, a shade off white so the shading still reads.
+    "vinyl_pvc": "#ecebe6",
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",
 }
 
 _FALLBACK_COLOR = "#9e9e9e"
+
+#: Materials drawn as a see-through grid of wires instead of a solid, keyed
+#: by material: ``(horizontal pitch, vertical pitch, wire)`` in mm.
+#:
+#: Welded mesh is modelled as a thin sheet (a wire per solid would be
+#: hundreds of solids a bay), and drawn as a sheet it is an opaque black
+#: board that hides the rails and posts behind it.  The shaded views draw
+#: the sheet as the wire grid it stands for.  2" x 4" mesh is vertical wires
+#: every 2" and horizontal wires every 4"; 14 ga is 2.0 mm of steel, about
+#: 2.5 mm with its PVC coat.
+SCREEN_MATERIALS: dict[str, tuple[float, float, float]] = {
+    "steel_mesh_black": (50.8, 101.6, 2.5),
+    # 2" x 3" garden fencing, about 16 ga: 1.6 mm wire, 2 mm coated.
+    "steel_mesh_black_2x3": (50.8, 76.2, 2.0),
+}
+
+#: Colour of the ground plane: a muted moss-grey that reads as ground without
+#: competing with the cedar in front of it.
+GROUND_COLOR: str = "#6f7d72"
+
+#: How strongly the ground colour is laid over the white page.  The raster
+#: has a z-buffer and no transparency, so the ground is drawn opaque at this
+#: blend, and what is below grade is clipped away in the shaded view, as it
+#: is in the yard.  The hidden-line views still draw every post to its foot.
+GROUND_ALPHA: float = 0.34
+
+#: How far the ground reaches past the model, as a fraction of its footprint.
+GROUND_MARGIN: float = 0.05
+
+#: How far it reaches across the *narrow* axis, as a fraction of the long one.
+#:
+#: A fence is 58 ft long and 8 inches deep, so a plane that only cleared the
+#: model would be a ribbon rather than ground.  Giving the short axis a share
+#: of the long one puts some earth in front of the fence and some behind it,
+#: which is what makes it read as the ground the posts are in.
+GROUND_ASPECT: float = 0.08
 
 #: Direction the fake light comes from, so faces at different angles separate.
 _LIGHT = (0.35, -0.62, 0.70)
@@ -166,6 +233,8 @@ def _is_axis_aligned(direction: tuple[float, float, float]) -> bool:
 def _resolve_style(view: View, direction: tuple[float, float, float]) -> str:
     """Return ``"hlr"`` or ``"shaded"`` for *view*, expanding ``"auto"``."""
     if view.style == "auto":
+        if view.window_mm is not None:
+            return "shaded"
         return "hlr" if _is_axis_aligned(direction) else "shaded"
     return view.style
 
@@ -258,6 +327,67 @@ def _tessellate(
     return tri_array, color_array, edges, edge_colors
 
 
+def _screen_for(part: Any, spec: tuple[float, float, float]) -> Screen:
+    """Return the wire grid a flat *part* stands for.
+
+    The sheet's plane is the two axes its bounding box is widest along.
+    Where one of them is vertical, the wires spaced along it get the
+    vertical pitch; the grid starts at the sheet's corner, as a roll cut to
+    length does.
+    """
+    pitch_h, pitch_v, wire = spec
+    bb = part.bounding_box()
+    extents = (bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
+    thin = int(np.argmin(extents))
+    in_plane = [axis for axis in range(3) if axis != thin]
+    vertical = 2 if 2 in in_plane else in_plane[1]
+    horizontal = in_plane[0] if in_plane[0] != vertical else in_plane[1]
+    unit = np.eye(3)
+    return Screen(
+        origin=(bb.min.X, bb.min.Y, bb.min.Z),
+        axis_a=unit[horizontal],
+        pitch_a=pitch_h,
+        axis_b=unit[vertical],
+        pitch_b=pitch_v,
+        wire=wire,
+    )
+
+
+def _tessellate_scene(parts: list[Any], tolerance: float) -> tuple:
+    """Tessellate *parts* as :func:`_tessellate` does, with mesh as screens.
+
+    Returns
+    -------
+    tuple
+        ``(triangles, colors, edges, edge_colors, screen_ids, screens)``:
+        :func:`_tessellate`'s four, then one :func:`~woodshop.render.raster.\
+rasterize` screen index per triangle (``-1`` for an opaque face) and the
+        screens those indices name — one per part in :data:`SCREEN_MATERIALS`.
+    """
+    solid = [part for part in parts if part.material not in SCREEN_MATERIALS]
+    mesh = [part for part in parts if part.material in SCREEN_MATERIALS]
+    triangles, colors, edges, edge_colors = _tessellate(solid, tolerance)
+    tri_chunks, color_chunks = [triangles], [colors]
+    id_chunks = [np.full(len(triangles), -1, dtype=int)]
+    screens: list[Screen] = []
+    for part in mesh:
+        m_tris, m_cols, m_edges, m_edge_cols = _tessellate([part], tolerance)
+        id_chunks.append(np.full(len(m_tris), len(screens), dtype=int))
+        screens.append(_screen_for(part, SCREEN_MATERIALS[part.material]))
+        tri_chunks.append(m_tris)
+        color_chunks.append(m_cols)
+        edges += m_edges
+        edge_colors += m_edge_cols
+    return (
+        np.concatenate(tri_chunks),
+        np.concatenate(color_chunks),
+        edges,
+        edge_colors,
+        np.concatenate(id_chunks),
+        screens,
+    )
+
+
 def _draw_hlr(ax: plt.Axes, assembly: Any, direction: tuple[float, float, float]) -> None:
     """Draw one orthographic view of *assembly* as an OCCT hidden-line drawing."""
     up_hint, _, _ = _camera_basis(direction)
@@ -275,18 +405,109 @@ def _draw_hlr(ax: plt.Axes, assembly: Any, direction: tuple[float, float, float]
     ax.autoscale()
 
 
+def _ground_triangles(
+    bb: Any, margin: float = GROUND_MARGIN
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return two triangles covering the ground at ``z = 0``, and their colour.
+
+    Grade is ``z = 0`` in every outdoor model here, so the plane needs no
+    argument beyond the model's own footprint.
+
+    Parameters
+    ----------
+    bb : build123d.BoundBox
+        The assembly's bounding box.
+    margin : float, optional
+        Overhang past the model as a fraction of its footprint, default
+        :data:`GROUND_MARGIN`.
+
+    Returns
+    -------
+    triangles : numpy.ndarray
+        ``(2, 3, 3)`` world-space triangles.
+    colors : numpy.ndarray
+        ``(2, 3)`` RGB: :data:`GROUND_COLOR` laid over white at
+        :data:`GROUND_ALPHA`.
+    """
+    footprint = max(bb.size.X, bb.size.Y)
+    pad_x = max(bb.size.X * margin, footprint * GROUND_ASPECT, 25.0)
+    pad_y = max(bb.size.Y * margin, footprint * GROUND_ASPECT, 25.0)
+    x0, x1 = bb.min.X - pad_x, bb.max.X + pad_x
+    y0, y1 = bb.min.Y - pad_y, bb.max.Y + pad_y
+    a, b, c, d = (x0, y0, 0.0), (x1, y0, 0.0), (x1, y1, 0.0), (x0, y1, 0.0)
+    triangles = np.array([[a, b, c], [a, c, d]], dtype=float)
+    ground = np.array(to_rgb(GROUND_COLOR))
+    colour = GROUND_ALPHA * ground + (1.0 - GROUND_ALPHA) * np.ones(3)
+    return triangles, np.array([colour, colour])
+
+
+def _clip_below_grade(parts: list[Any], bb: Any, tolerance: float) -> list[Any]:
+    """Return *parts* with everything below ``z = 0`` cut away, render-only.
+
+    Never mutates the caller's parts: anything that does not reach below
+    grade is returned as the same object, and anything that does is replaced
+    by a new solid carrying the same material.
+    """
+    from build123d import Box, Pos
+
+    pad = 1000.0
+    below = Pos(
+        bb.center().X, bb.center().Y, (bb.min.Z - pad) / 2
+    ) * Box(bb.size.X + 2 * pad, bb.size.Y + 2 * pad, -bb.min.Z + pad)
+    out: list[Any] = []
+    for part in parts:
+        if part.bounding_box().min.Z >= -tolerance:
+            out.append(part)
+            continue
+        if part.bounding_box().max.Z <= tolerance:
+            continue  # wholly underground: nothing of it shows
+        clipped = part - below
+        clipped.material = part.material
+        out.append(clipped)
+    return out
+
+
+def _with_ground(geometry: tuple, bb: Any) -> tuple:
+    """Return :func:`_tessellate_scene` *geometry* with the ground added.
+
+    The ground is two opaque triangles and no edges.
+    """
+    triangles, colors, edges, edge_colors, screen_ids, screens = geometry
+    g_tris, g_cols = _ground_triangles(bb)
+    return (
+        np.concatenate([triangles, g_tris]),
+        np.concatenate([colors, g_cols]),
+        edges,
+        edge_colors,
+        np.concatenate([screen_ids, np.full(len(g_tris), -1, dtype=int)]),
+        screens,
+    )
+
+
 def _draw_shaded(
     ax: plt.Axes,
-    geometry: tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]],
+    geometry: tuple,
     direction: tuple[float, float, float],
     center: Any,
+    window: tuple[float, float] | None = None,
+    focus: tuple[float, float, float] | None = None,
 ) -> None:
-    """Draw one shaded, z-buffered raster view of pre-tessellated *geometry*."""
-    triangles, colors, edges, edge_colors = geometry
+    """Draw one shaded, z-buffered raster view of pre-tessellated *geometry*.
+
+    With *window* — ``(width, height)`` in mm — draw only that much of the
+    scene, centred on *focus* (default *center*).
+    """
+    triangles, colors, edges, edge_colors, screen_ids, screens = geometry
     _, right, up = _camera_basis(direction)
-    camera = Camera(
-        center=(center.X, center.Y, center.Z), right=right, up=up, forward=direction
-    )
+    origin = np.array((center.X, center.Y, center.Z))
+    camera = Camera(center=origin, right=right, up=up, forward=direction)
+    bounds = None
+    if window is not None:
+        target = origin if focus is None else np.asarray(focus, dtype=float)
+        u = float((target - origin) @ np.asarray(right))
+        v = float((target - origin) @ np.asarray(up))
+        width, height = window
+        bounds = (u - width / 2, u + width / 2, v - height / 2, v + height / 2)
     image, _ = rasterize(
         triangles,
         colors,
@@ -295,6 +516,9 @@ def _draw_shaded(
         edge_colors=edge_colors,
         size=_RASTER_LONG_SIDE,
         supersample=_RASTER_SUPERSAMPLE,
+        screen_ids=screen_ids,
+        screens=screens,
+        bounds=bounds,
     )
     ax.imshow(image)
 
@@ -307,6 +531,7 @@ def render_assembly(
     tolerance: float = 0.5,
     title: str = "",
     figsize: tuple[float, float] = (14.0, 12.0),
+    ground: bool | None = None,
     close: bool = True,
 ) -> plt.Figure:
     """Draw *assembly* from several angles on one figure.
@@ -334,6 +559,12 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
         Figure title.
     figsize : tuple, optional
         Figure size in inches.
+    ground : bool or None, optional
+        Draw the ground at ``z = 0`` in the shaded views.  ``None`` (default)
+        draws it when the model goes below zero, which is the same thing as
+        saying "when part of this is in the ground": a fence post four feet
+        down is otherwise a stick hanging in space, and a nightstand does not
+        want a slab through its feet.
     close : bool, optional
         Close the figure after saving, default ``True``.  Set ``False`` to keep
         it for interactive display — but then it is the caller's job to close
@@ -356,6 +587,43 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
             "Check that the parts carry material and stock_length_mm."
         )
 
+    prepared = _prepare(assembly, parts, views, tolerance, ground)
+
+    n = len(views)
+    cols = 2 if n > 1 else 1
+    rows = (n + cols - 1) // cols
+    fig = plt.figure(figsize=figsize)
+    if title:
+        fig.suptitle(title, fontsize=14)
+
+    for index, view in enumerate(views):
+        ax = fig.add_subplot(rows, cols, index + 1)
+        _draw_view(ax, assembly, index, prepared, view)
+        ax.set_title(view.name, fontsize=10)
+        ax.set_axis_off()
+
+    fig.tight_layout()
+    _save(fig, output_png, output_pdf)
+    if close:
+        plt.close(fig)
+    return fig
+
+
+def _prepare(
+    assembly: Any,
+    parts: list[Any],
+    views: tuple[View, ...],
+    tolerance: float,
+    ground: bool | None,
+) -> tuple[list[Any], list[str], Any, Any]:
+    """Resolve each view's direction and style, and tessellate if any shades.
+
+    Returns
+    -------
+    tuple
+        ``(directions, styles, geometry, center)``; *geometry* and *center*
+        are ``None`` when every view is a hidden-line drawing.
+    """
     directions = [_direction(view.elev, view.azim) for view in views]
     styles = [_resolve_style(view, d) for view, d in zip(views, directions)]
 
@@ -372,30 +640,136 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
         # overlap case, so an uncut overlap reads as a jagged seam instead
         # of a clean one. Trimming it out here, before tessellation, is
         # render-only: it never touches the parts the caller passed in.
-        geometry = _tessellate(trim_interpenetrations(parts), tolerance)
-        center = assembly.bounding_box().center()
+        bb = assembly.bounding_box()
+        center = bb.center()
+        shaded_parts = trim_interpenetrations(parts)
+        if wants_ground(bb, ground, tolerance):
+            # What is in the ground is not drawn in the shaded view, as it is
+            # not seen in the yard; the hidden-line views still draw every
+            # post to its foot, which is where its depth is read.
+            shaded_parts = _clip_below_grade(shaded_parts, bb, tolerance)
+            geometry = _with_ground(_tessellate_scene(shaded_parts, tolerance), bb)
+        else:
+            geometry = _tessellate_scene(shaded_parts, tolerance)
+    return directions, styles, geometry, center
 
-    n = len(views)
-    cols = 2 if n > 1 else 1
-    rows = (n + cols - 1) // cols
-    fig = plt.figure(figsize=figsize)
+
+def _draw_view(
+    ax: plt.Axes,
+    assembly: Any,
+    index: int,
+    prepared: tuple[list[Any], list[str], Any, Any],
+    view: View | None = None,
+    focus: tuple[float, float, float] | None = None,
+) -> None:
+    """Draw view number *index* of a :func:`_prepare` result onto *ax*.
+
+    A *view* with a ``window_mm`` is drawn as a close-up on *focus*.
+    """
+    directions, styles, geometry, center = prepared
+    if styles[index] == "hlr":
+        _draw_hlr(ax, assembly, directions[index])
+    else:
+        window = view.window_mm if view is not None else None
+        if view is not None and view.offset_mm is not None:
+            base = (
+                np.array((center.X, center.Y, center.Z))
+                if focus is None
+                else np.asarray(focus, dtype=float)
+            )
+            focus = tuple(base + np.asarray(view.offset_mm, dtype=float))
+        _draw_shaded(ax, geometry, directions[index], center, window, focus)
+
+
+def render_configurations(
+    configurations: list[tuple],
+    output_png: str | Path | None = None,
+    output_pdf: str | Path | None = None,
+    views: tuple[View, ...] = (STANDARD_VIEWS[0], STANDARD_VIEWS[1]),
+    tolerance: float = 0.5,
+    title: str = "",
+    figsize: tuple[float, float] | None = None,
+    ground: bool | None = None,
+    close: bool = True,
+) -> plt.Figure:
+    """Draw several assemblies of one design, one row each, on one figure.
+
+    The same design built to different layouts — a short run tied into a
+    wall, a gate, a long straight run — reads better side by side than as
+    one long model, because each is drawn at its own scale.
+
+    Parameters
+    ----------
+    configurations : list of tuple
+        ``(caption, assembly)`` or ``(caption, assembly, focus)`` for each
+        row, top to bottom.  *focus* is the world point, mm, a close-up view
+        (one with ``window_mm``) is centred on; default the model's centre.
+    output_png, output_pdf : str or Path, optional
+        Where to save.
+    views : tuple of View, optional
+        The columns, default isometric and front.
+    tolerance : float, optional
+        Tessellation tolerance for the shaded views, mm.
+    title : str, optional
+        Figure title.
+    figsize : tuple, optional
+        Figure size in inches; default scales with rows and columns.
+    ground : bool or None, optional
+        As :func:`render_assembly`.
+    close : bool, optional
+        Close the figure after saving, default ``True``.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The figure, closed unless *close* is ``False``.
+
+    Raises
+    ------
+    ValueError
+        If *configurations* is empty or any assembly has no parts.
+    """
+    if not configurations:
+        raise ValueError("nothing to draw: no configurations given")
+    rows, cols = len(configurations), len(views)
+    fig = plt.figure(figsize=figsize or (6.0 * cols, 3.2 * rows))
     if title:
         fig.suptitle(title, fontsize=14)
-
-    for index, (view, direction, style) in enumerate(zip(views, directions, styles)):
-        ax = fig.add_subplot(rows, cols, index + 1)
-        if style == "hlr":
-            _draw_hlr(ax, assembly, direction)
-        else:
-            _draw_shaded(ax, geometry, direction, center)
-        ax.set_title(view.name, fontsize=10)
-        ax.set_axis_off()
-
+    for row, (caption, assembly, *rest) in enumerate(configurations):
+        focus = rest[0] if rest else None
+        parts = list(_iter_leaf_parts(assembly))
+        if not parts:
+            raise ValueError(f"configuration {caption!r} has no parts to draw")
+        prepared = _prepare(assembly, parts, views, tolerance, ground)
+        for col, view in enumerate(views):
+            ax = fig.add_subplot(rows, cols, row * cols + col + 1)
+            _draw_view(ax, assembly, col, prepared, view, focus)
+            label = caption if not view.name else f"{caption} — {view.name.lower()}"
+            ax.set_title(label, fontsize=10)
+            ax.set_axis_off()
     fig.tight_layout()
     _save(fig, output_png, output_pdf)
     if close:
         plt.close(fig)
     return fig
+
+
+def wants_ground(bb: Any, ground: bool | None, tolerance: float = 0.5) -> bool:
+    """Return whether a model with bounding box *bb* gets a ground plane.
+
+    Parameters
+    ----------
+    bb : build123d.BoundBox
+        The model's bounding box.
+    ground : bool or None
+        An explicit answer, or ``None`` to decide from the model: anything
+        reaching more than *tolerance* below ``z = 0`` is in the ground.
+    tolerance : float, optional
+        Slack in mm, default 0.5.
+    """
+    if ground is not None:
+        return ground
+    return bb.min.Z < -tolerance
 
 
 def _save(

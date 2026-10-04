@@ -39,6 +39,12 @@ def bed() -> ProjectSpec:
     return next(s for s in discover_projects() if s.slug == "mysa-bed-queen-plywood")
 
 
+@pytest.fixture(scope="module")
+def fence() -> ProjectSpec:
+    """Return the one fence design built from sticks, not ordered as panels."""
+    return next(s for s in discover_projects() if s.slug == "cedar-fence-rails")
+
+
 # ---------------------------------------------------------------------------
 # slugify
 # ---------------------------------------------------------------------------
@@ -326,3 +332,163 @@ def test_the_single_file_build_gets_the_same_cards(tmp_path, nightstand):
     assert 'id="mysa-nightstand"' in text
     # And no card links to a page the single file does not carry.
     assert 'href="mysa-nightstand/index.html"' not in text
+
+
+# ---------------------------------------------------------------------------
+# A project bought by the lineal foot rather than the board foot
+# ---------------------------------------------------------------------------
+
+
+def test_a_dimensional_project_gets_a_lineal_plan_not_a_nesting(fence):
+    """Nesting a fence post on a random-width board answers nobody's question."""
+    built = build_project(fence)
+    assert built.hardwood is None
+    assert built.lineal is not None
+    assert built.lineal_ft > 250
+
+
+def test_the_mesh_is_unmatched_because_it_is_not_lumber(fence):
+    """Wire off a roll has no nominal size, and saying so beats guessing one."""
+    built = build_project(fence)
+    assert {part.label for part, _reason in built.lineal.unmatched} == {
+        "mesh",
+        "gate_mesh",
+    }
+    assert all("roll" in reason for _part, reason in built.lineal.unmatched)
+
+
+def test_its_total_is_real_and_dated(fence):
+    summary = build_project(fence).cost_summary
+    assert summary.verified
+    assert summary.oldest_as_of == datetime.date(2026, 8, 17)
+
+
+def test_its_price_report_names_the_entries_it_buys_not_the_whole_species(fence):
+    built = build_project(fence)
+    assert len(built.price_report.findings) == len(built.lineal.groups)
+    # There are thirty-odd cedar entries in the guide; this design buys four,
+    # and the report is about those four.
+    assert 1 <= len(built.lineal.groups) <= 6
+    assert all(
+        f.severity in (Severity.INFO, Severity.WARN)
+        for f in built.price_report.findings
+    )
+
+
+def test_the_page_publishes_the_footage_and_the_offcut_allowance(fence, tmp_path):
+    build_gallery([fence], outdir=tmp_path, show_costs=True)
+    page = (tmp_path / fence.slug / "index.html").read_text(encoding="utf-8")
+    assert "lineal ft" in page
+    assert "offcuts" in page
+    assert "as of 2026-08-17" in page
+
+
+# ---------------------------------------------------------------------------
+# One file, and one file with no document shell
+# ---------------------------------------------------------------------------
+
+
+def test_single_file_is_a_whole_document(fence, tmp_path):
+    index = build_gallery([fence], outdir=tmp_path, single_file=True)
+    page = index.read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>")
+    assert "<body>" in page
+    assert "data:image/png;base64," in page
+
+
+def test_a_fragment_brings_its_style_and_leaves_the_shell_to_its_host(fence, tmp_path):
+    index = build_gallery([fence], outdir=tmp_path, fragment=True)
+    page = index.read_text(encoding="utf-8")
+    for shell in ("<!doctype", "<html", "<head>", "<body>"):
+        assert shell not in page.lower()
+    assert page.startswith("<title>")
+    assert "<style>" in page
+    # Still self-contained: a fragment that pointed at sibling files could not
+    # be pasted anywhere.
+    assert "data:image/png;base64," in page
+    assert 'src="views.png"' not in page
+
+
+def test_a_fragment_needs_no_second_flag(fence, tmp_path):
+    """`--fragment` implies `--single-file`; asking for both is not required."""
+    index = build_gallery([fence], outdir=tmp_path, fragment=True)
+    assert not (tmp_path / fence.slug / "index.html").exists()
+    assert index.name == "index.html"
+
+
+def test_the_theme_resolves_in_all_three_states(fence, tmp_path):
+    """System-dark, explicitly dark, and explicitly light on a dark machine."""
+    page = build_gallery([fence], outdir=tmp_path, fragment=True).read_text()
+    assert '@media (prefers-color-scheme: dark)' in page
+    assert ':root:not([data-theme="light"])' in page
+    assert ':root[data-theme="dark"]' in page
+    # And the body paints its own ground rather than borrowing the host's.
+    assert "background: var(--bg)" in page
+
+
+# ---------------------------------------------------------------------------
+# A design that is ordered rather than cut
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def panels() -> ProjectSpec:
+    return next(s for s in discover_projects() if s.slug == "cedar-fence-privacy")
+
+
+def test_a_project_with_an_order_derives_no_buying_plan(panels):
+    """A fence bought as panels is not bought in lineal feet."""
+    built = build_project(panels)
+    assert built.order is not None
+    assert built.lineal is None
+    assert built.hardwood is None
+
+
+def test_its_total_names_what_the_catalogue_does_not_price(panels):
+    """The one priced line is the stone; the panels above it are all named."""
+    summary = build_project(panels).cost_summary
+    assert not summary.complete
+    assert any("panel" in label for label in summary.unpriced)
+    assert [line.label for line in summary.lines] == ['stone 3/4" crushed, bulk']
+
+
+def test_the_page_lists_pieces_and_says_nothing_is_cut(panels, tmp_path):
+    build_gallery([panels], outdir=tmp_path, show_costs=True)
+    page = (tmp_path / panels.slug / "index.html").read_text(encoding="utf-8")
+    assert "4 panels:" in page or "4 panel" in page
+    assert "Nothing in this design is cut" in page or "nothing in this design" in page.lower()
+    assert "lineal ft" not in page
+
+
+def test_a_supplier_unit_is_not_naively_pluralised(panels, tmp_path):
+    """"9 eachs" is what a naive pluraliser does to a catalogue's own unit."""
+    build_gallery([panels], outdir=tmp_path)
+    page = (tmp_path / panels.slug / "index.html").read_text(encoding="utf-8")
+    assert "eachs" not in page
+    assert "9 each:" in page
+
+
+def test_a_fence_is_bought_two_ways_at_once(fence):
+    """By the foot for its cedar, and by the roll and the box for the rest."""
+    built = build_project(fence)
+    assert built.lineal is not None
+    assert built.extras is not None
+    bought = {what for what, _count, _unit in built.extras.lines}
+    assert any("mesh" in what for what in bought)
+    assert any("hinge" in what for what in bought)
+    assert any("crushed" in what for what in bought)
+
+
+def test_the_mesh_is_not_reported_as_a_gap_once_the_roll_is_in_the_total(fence):
+    """The lineal plan is right to exclude it, and wrong to keep saying so."""
+    built = build_project(fence)
+    assert any("mesh" in label for label in built.lineal.cost_summary.unpriced)
+    assert not any("mesh" in label for label in built.cost_summary.unpriced)
+    assert built.cost_summary.total > 1000
+
+
+def test_an_ordered_project_gets_no_extras_because_its_order_holds_them(panels):
+    """A panel fence's stone is a line on its order, not a plan beside it."""
+    built = build_project(panels)
+    assert built.extras is None
+    assert built.order is not None

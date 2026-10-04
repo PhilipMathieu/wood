@@ -22,9 +22,11 @@ from woodshop.cutlist.optimize_2d import optimize_2d  # noqa: E402
 from woodshop.inventory import Inventory  # noqa: E402
 from woodshop.parts import Board  # noqa: E402
 from woodshop.render import (  # noqa: E402
+    STANDARD_VIEWS,
     export_assembly,
     render_assembly,
     render_board_diagram,
+    render_cut_list,
     render_sheet_diagram,
     save_figures,
 )
@@ -508,3 +510,193 @@ def test_the_shape_column_appears_only_when_something_is_not_a_rectangle():
     shaped = render_cut_list([_disc()])
     assert "shape" in shaped.columns
     assert "round" in shaped["shape"].iloc[0]
+
+
+def test_the_stock_column_appears_only_when_a_part_names_its_nominal_size():
+    milled = CutPart(
+        "picket", "white_cedar", "length", 1168.4, 130.2, 19.05, qty=60,
+        nominal="1x6", grade="STK", stock_profile="tongue & groove, dressed",
+    )
+    plain = CutPart("slat", "cherry", "length", 1587.5, 63.5, 19.05, qty=16)
+
+    assert "stock" not in render_cut_list([plain]).columns
+
+    df = render_cut_list([milled])
+    assert df["stock"].iloc[0] == "1x6 tongue & groove, dressed (STK)"
+    # The width column is what it covers; the stock column is what to order,
+    # and a shop given only the first would go looking for 5-1/8" boards.
+    assert df["width"].iloc[0] == "5-1/8\""
+
+
+# ---------------------------------------------------------------------------
+# The ground, for the models that are in it
+# ---------------------------------------------------------------------------
+
+
+class _FenceBB:
+    """A bounding box shaped like the fence: long, thin, and half underground."""
+
+    min = type("p", (), {"X": 0.0, "Y": 0.0, "Z": -1219.2})()
+    max = type("p", (), {"X": 17678.4, "Y": 203.2, "Z": 1219.2})()
+    size = type("s", (), {"X": 17678.4, "Y": 203.2, "Z": 2438.4})()
+
+
+def test_a_model_that_goes_below_grade_gets_a_ground_plane():
+    """A post four feet down is otherwise a stick hanging in space."""
+    from build123d import Compound, Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import wants_ground
+
+    post = Pos(0, 0, 0) * Board(
+        length_mm=2438.4, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    buried = Compound(children=[post], label="post")
+    assert buried.bounding_box().min.Z < 0
+    assert wants_ground(buried.bounding_box(), None)
+    # And it renders with one, in the shaded view.
+    fig = render_assembly(buried, views=(STANDARD_VIEWS[0],), close=False)
+    plt.close(fig)
+
+
+def test_furniture_gets_no_slab_through_its_feet(bed):
+    from woodshop.render.model3d import wants_ground
+
+    assert not wants_ground(bed.build().bounding_box(), None)
+
+
+def test_the_ground_can_be_asked_for_or_refused(bed):
+    from woodshop.render.model3d import wants_ground
+
+    bb = bed.build().bounding_box()
+    assert wants_ground(bb, True)
+    assert not wants_ground(_FenceBB(), False)
+
+
+def test_the_ground_lies_at_grade_and_reaches_past_a_thin_fence():
+    from matplotlib.colors import to_rgb
+
+    from woodshop.render.model3d import GROUND_ALPHA, GROUND_COLOR, _ground_triangles
+
+    triangles, colours = _ground_triangles(_FenceBB())
+    assert triangles.shape == (2, 3, 3)
+    assert (triangles[..., 2] == 0.0).all()
+    ys = triangles[..., 1]
+    assert ys.max() - ys.min() > _FenceBB.size.Y * 2
+    # Opaque in the raster, so the colour is the ground laid over white.
+    expected = GROUND_ALPHA * np.array(to_rgb(GROUND_COLOR)) + (1 - GROUND_ALPHA)
+    assert np.allclose(colours[0], expected)
+
+
+def test_configurations_draw_one_row_each(tmp_path):
+    from build123d import Compound, Pos
+
+    from woodshop.parts import Board
+    from woodshop.render import render_configurations
+
+    def post(height):
+        return Compound(
+            children=[
+                Pos(0, 0, height / 2 - 600)
+                * Board(
+                    length_mm=height, nominal="4x4", material="white_cedar",
+                    label="post", rotation=(0, 90, 0),
+                )
+            ],
+            label="post",
+        )
+
+    out = tmp_path / "configs.png"
+    fig = render_configurations(
+        [("short", post(1500)), ("tall", post(2400))],
+        output_png=out,
+        views=(STANDARD_VIEWS[0], STANDARD_VIEWS[1]),
+        close=False,
+    )
+    try:
+        assert out.exists()
+        assert len(fig.axes) == 4
+        assert fig.axes[0].get_title() == "short — isometric"
+        assert fig.axes[3].get_title() == "tall — front"
+    finally:
+        plt.close(fig)
+    with pytest.raises(ValueError):
+        render_configurations([])
+
+
+def test_render_configurations_draws_a_close_up_on_each_rows_focus(tmp_path):
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import (
+        View,
+        _direction,
+        _resolve_style,
+        render_configurations,
+    )
+
+    post = Pos(0, 0, 600) * Board(
+        length_mm=1200, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    close = View("Close-up", 0.0, -90.0, window_mm=(300.0, 200.0))
+    # Even square on an axis, a close-up is shaded: HLR has no window.
+    assert _resolve_style(close, _direction(close.elev, close.azim)) == "shaded"
+
+    fig = render_configurations(
+        [("post", post, (0.0, 0.0, 1100.0))], views=(close,), close=False,
+    )
+    try:
+        (image,) = fig.axes[0].get_images()
+        height, width = image.get_array().shape[:2]
+        assert abs(width / height - 1.5) < 0.02
+    finally:
+        plt.close(fig)
+
+
+def test_mesh_is_drawn_as_a_screen_not_a_solid():
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import SCREEN_MATERIALS, _tessellate_scene
+
+    mesh = Pos(0, 0, 600) * Board(
+        length_mm=1800, width_mm=1200, thickness_mm=3.175,
+        material="steel_mesh_black", label="mesh", rotation=(90, 0, 0),
+    )
+    rail = Pos(0, 0, 1000) * Board(
+        length_mm=1800, nominal="2x4", material="white_cedar", label="rail",
+    )
+    triangles, _colors, _edges, _edge_colors, ids, screens = _tessellate_scene(
+        [mesh, rail], tolerance=0.5
+    )
+    assert len(screens) == 1 and len(ids) == len(triangles)
+    assert (ids == 0).any() and (ids == -1).any()
+    (screen,) = screens
+    pitch_h, pitch_v, wire = SCREEN_MATERIALS["steel_mesh_black"]
+    # Vertical wires every 2" along the run, horizontal every 4" up it.
+    assert screen.pitch_b == pitch_v and screen.axis_b[2] == 1.0
+    assert screen.pitch_a == pitch_h and screen.wire == wire
+
+
+def test_the_shaded_view_clips_what_is_below_grade():
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import _clip_below_grade
+
+    buried = Pos(0, 0, 0) * Board(
+        length_mm=2000, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    above = Pos(0, 0, 2000) * Board(
+        length_mm=500, nominal="4x4", material="white_cedar", label="cap",
+        rotation=(0, 90, 0),
+    )
+    bb = buried.bounding_box()
+    clipped = _clip_below_grade([buried, above], bb, 0.5)
+    assert clipped[1] is above  # untouched, the same object
+    assert clipped[0].bounding_box().min.Z == pytest.approx(0.0, abs=1e-3)
+    assert clipped[0].material == "white_cedar"
+    assert buried.bounding_box().min.Z < 0  # the caller's part is not mutated

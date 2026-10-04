@@ -47,6 +47,7 @@ from woodshop.checks import (
     check_price_provenance,
     estimate_mass_kg,
 )
+from woodshop.cutlist.dimensional import LinealPlan, plan_dimensional
 from woodshop.cutlist.extract import CutPart, extract
 from woodshop.cutlist.hardwood import HardwoodPlan, nest_hardwood
 from woodshop.cutlist.optimize_2d import Cut2DResult, pack_by_material
@@ -55,7 +56,12 @@ from woodshop.lumber import mm_to_fractional_inch
 from woodshop.pricing import CostSummary, sheet_cost_summary
 from woodshop.project import ProjectSpec, discover_projects
 from woodshop.render.export import export_assembly
-from woodshop.render.model3d import STANDARD_VIEWS, View, render_assembly
+from woodshop.render.model3d import (
+    STANDARD_VIEWS,
+    View,
+    render_assembly,
+    render_configurations,
+)
 from woodshop.render.sheets import (
     cut_sequence,
     render_board_diagram,
@@ -123,7 +129,25 @@ class ProjectBuild:
     report : CheckReport
         The design-check findings, empty if the project defines no checks.
     hardwood : HardwoodPlan or None
-        Solid-stock buying plan, ``None`` if the project uses no solid stock.
+        Random-width hardwood buying plan, ``None`` if the project buys no
+        hardwood.
+    order : object or None
+        What to buy, for a project that is ordered rather than cut — see
+        :attr:`woodshop.project.ProjectSpec.order`.  When it is set the
+        buying plans below are not derived at all: a fence bought as panels is
+        not bought in lineal feet, and quoting it that way would be a price
+        for a fence nobody is building.
+    extras : object or None
+        Everything the project buys that is neither cut nor ordered as a
+        finished piece — see :attr:`woodshop.project.ProjectSpec.extras`.
+        Unlike *order* it sits beside the buying plan rather than replacing
+        it.
+    lineal : LinealPlan or None
+        Dimensional-stock buying plan, in lineal feet, ``None`` if the project
+        buys no dimensional lumber.  A project has one or the other: a cherry
+        bed is bought by the board foot off random-width boards, a cedar fence
+        by the lineal foot off a nominal size, and the two are different
+        questions rather than two formats of one answer.
     sheets : dict[str, Cut2DResult]
         Sheet-goods nesting, keyed as :func:`pack_by_material` keys them.
     mass_kg : float
@@ -143,6 +167,9 @@ class ProjectBuild:
     parts: list[CutPart]
     report: CheckReport
     hardwood: HardwoodPlan | None = None
+    lineal: LinealPlan | None = None
+    order: Any = None
+    extras: Any = None
     sheets: dict[str, Cut2DResult] = field(default_factory=dict)
     mass_kg: float = 0.0
     price_report: CheckReport = field(default_factory=CheckReport)
@@ -151,7 +178,14 @@ class ProjectBuild:
     @property
     def board_feet(self) -> float:
         """Board feet of solid stock this project buys."""
-        return 0.0 if self.hardwood is None else self.hardwood.board_feet
+        if self.hardwood is not None:
+            return self.hardwood.board_feet
+        return 0.0 if self.lineal is None else self.lineal.board_feet
+
+    @property
+    def lineal_ft(self) -> float:
+        """Lineal feet of dimensional stock this project buys."""
+        return 0.0 if self.lineal is None else self.lineal.lineal_ft
 
     @property
     def sheets_used(self) -> int:
@@ -167,8 +201,14 @@ class ProjectBuild:
         publish a bare number and hope the caption is read.
         """
         summary = CostSummary()
+        if self.order is not None:
+            summary = summary + self.order.cost_summary
+        if self.extras is not None:
+            summary = summary + self.extras.cost_summary
         if self.hardwood is not None:
             summary = summary + self.hardwood.cost_summary
+        if self.lineal is not None:
+            summary = summary + self.lineal.cost_summary
         if self.sheets and self.inventory is not None:
             summary = summary + sheet_cost_summary(self.sheets, self.inventory)
         return summary
@@ -213,14 +253,20 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
     solid = [p for p in parts if p.material not in sheet_materials]
     sheet = [p for p in parts if p.material in sheet_materials]
 
-    # Only species bought rough get a hardwood nesting plan; a softwood
-    # project (cedar, pine) buys dimensional stock and has nothing to nest.
-    rough_species = {h.species for h in inv.hardwood}
-    hardwood = (
-        nest_hardwood(solid, inv, spec.species)
-        if solid and spec.species in rough_species
-        else None
-    )
+    # Which plan a project gets is a question about how its stock is *sold*,
+    # not about what it is made of: hardwood arrives in random widths and is
+    # priced by the board foot, dimensional lumber comes in a nominal size and
+    # is priced by the foot or the stick.  Nesting a fence post on a random
+    # width board would answer a question nobody asked.
+    order = spec.order() if spec.order is not None else None
+    extras = spec.extras(assembly, parts) if spec.extras is not None else None
+    hardwood = lineal = None
+    if order is not None:
+        solid = []          # ordered, not cut: derive no buying plan from it
+    if solid and any(h.species == spec.species for h in inv.hardwood):
+        hardwood = nest_hardwood(solid, inv, spec.species)
+    elif solid:
+        lineal = plan_dimensional(solid, inv)
     sheets = pack_by_material(sheet, inv) if sheet else {}
 
     return ProjectBuild(
@@ -229,9 +275,26 @@ def build_project(spec: ProjectSpec, inventory: Inventory | None = None) -> Proj
         parts=parts,
         report=report,
         hardwood=hardwood,
+        lineal=lineal,
+        order=order,
+        extras=extras,
         sheets=sheets,
         mass_kg=estimate_mass_kg(parts),
-        price_report=CheckReport().extend(check_price_provenance(inv, parts)),
+        price_report=CheckReport().extend(
+            check_price_provenance(
+                inv,
+                parts,
+                # A design that named its grade and profile — or handed over
+                # an order — has already said which entries it buys; the
+                # species-wide fallback would name every cedar entry in the
+                # file instead of the handful.
+                stock=(
+                    getattr(order, "stock_used", None)
+                    if order is not None
+                    else (lineal.stock_used if lineal is not None else None)
+                ),
+            )
+        ),
         inventory=inv,
     )
 
@@ -243,6 +306,7 @@ def build_gallery(
     dpi: int = 110,
     show_costs: bool = False,
     single_file: bool = False,
+    fragment: bool = False,
     downloads: bool = True,
     generated: str | None = None,
 ) -> Path:
@@ -266,6 +330,12 @@ def build_gallery(
         Write one self-contained ``index.html`` with every image inlined as a
         ``data:`` URI and no per-project pages, default ``False``.  Useful for
         sending someone the whole thing as one file; large, and no downloads.
+    fragment : bool, optional
+        Write that same one file as an HTML *fragment* — a title, a stylesheet
+        and the content, with no document shell of its own — for a host that
+        supplies one: a published artifact, a CMS, a page template.  Implies
+        *single_file*, because a fragment that referenced sibling files would
+        be a fragment nobody could paste anywhere.
     downloads : bool, optional
         Write STEP, STL, and CSV alongside each page, default ``True``.
         Ignored when *single_file* is set.
@@ -301,16 +371,17 @@ def build_gallery(
             built,
             root / spec.slug,
             dpi=dpi,
-            downloads=downloads and not single_file,
+            downloads=downloads and not (single_file or fragment),
         )
         pages.append((built, assets))
 
-    if single_file:
+    if single_file or fragment:
         for _, assets in pages:
             _inline_images(assets, root)
         index = root / "index.html"
         index.write_text(
-            _render_single_file(pages, show_costs, stamp), encoding="utf-8"
+            _render_single_file(pages, show_costs, stamp, fragment=fragment),
+            encoding="utf-8",
         )
         return index
 
@@ -342,27 +413,50 @@ def _write_assets(
     slug = built.spec.slug
     assets: dict[str, Any] = {"dir": directory, "boards": [], "sheets": []}
 
-    render_assembly(
-        built.assembly,
-        output_png=directory / "views.png",
-        title=built.spec.name,
-        figsize=(12.0, 10.0),
-    )
-    assets["views"] = "views.png"
-
-    # A card wants one picture of the furniture, not a four-up drawing sheet:
-    # at card size the orthographic views are too small to read and only make
-    # the card tall enough to push everything else off the screen.
     hero_view = STANDARD_VIEWS[0]
-    render_assembly(
-        built.assembly,
-        output_png=directory / "hero.png",
-        # Nameless: a card is already labelled with the project's name, and
-        # "Isometric" over the top of it is a caption for nobody.
-        views=(View("", hero_view.elev, hero_view.azim),),
-        figsize=(6.0, 5.0),
-    )
-    assets["hero"] = "hero.png"
+    if built.spec.configurations is not None:
+        # The same design at several layouts: one row each, in the spec's
+        # views (an isometric and a front elevation by default), so each is
+        # drawn at a scale that suits it.
+        configurations = built.spec.configurations()
+        views = built.spec.configuration_views or (hero_view, STANDARD_VIEWS[1])
+        render_configurations(
+            configurations,
+            output_png=directory / "views.png",
+            title=built.spec.name,
+            views=views,
+        )
+        render_configurations(
+            configurations,
+            output_png=directory / "hero.png",
+            views=(View("", views[0].elev, views[0].azim),),
+            figsize=(6.0, 2.0 * len(configurations)),
+        )
+        assets["views"] = "views.png"
+        assets["hero"] = "hero.png"
+        assets["configurations"] = [entry[0] for entry in configurations]
+    else:
+        render_assembly(
+            built.assembly,
+            output_png=directory / "views.png",
+            title=built.spec.name,
+            figsize=(12.0, 10.0),
+        )
+        assets["views"] = "views.png"
+
+        # A card wants one picture of the furniture, not a four-up drawing
+        # sheet: at card size the orthographic views are too small to read
+        # and only make the card tall enough to push everything else off the
+        # screen.
+        render_assembly(
+            built.assembly,
+            output_png=directory / "hero.png",
+            # Nameless: a card is already labelled with the project's name,
+            # and "Isometric" over the top of it is a caption for nobody.
+            views=(View("", hero_view.elev, hero_view.azim),),
+            figsize=(6.0, 5.0),
+        )
+        assets["hero"] = "hero.png"
 
     if built.hardwood is not None and built.hardwood.boards_needed:
         # The PDF first, because it is the one you carry to the saw; the PNGs
@@ -430,6 +524,24 @@ def _data_uri(path: Path) -> str:
 # HTML
 # ---------------------------------------------------------------------------
 
+#: The dark palette, written once and applied in the two ways a host can ask
+#: for it.
+#:
+#: A reader has three states and not two: an explicit choice stamps
+#: ``data-theme`` on the root element, and the usual "follow the system"
+#: setting stamps nothing at all.  So the media query is guarded — an explicit
+#: light choice has to beat a dark operating system — and the stamped dark case
+#: is spelled out separately, or a toggle to dark on a light machine would do
+#: nothing.  Every colour is a token; none is declared inside these blocks and
+#: nowhere else, which is the bug that renders one theme's text on the other
+#: theme's ground.
+_DARK_TOKENS = """
+  --bg: #1a1613; --card: #241f1a; --ink: #ede5db; --muted: #a2948a;
+  --rule: #3b332c; --accent: #d08a63;
+  --info: #8fb3d4; --warn: #e0b661; --error: #e88a78;
+  --info-bg: #1e2831; --warn-bg: #2e2617; --error-bg: #2f1d1a;
+"""
+
 _CSS = """
 :root {
   --bg: #fbf8f4; --card: #fff; --ink: #241c16; --muted: #6b5d52;
@@ -438,13 +550,9 @@ _CSS = """
   --info-bg: #eef3f8; --warn-bg: #fbf3e0; --error-bg: #fbeceb;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1a1613; --card: #241f1a; --ink: #ede5db; --muted: #a2948a;
-    --rule: #3b332c; --accent: #d08a63;
-    --info: #8fb3d4; --warn: #e0b661; --error: #e88a78;
-    --info-bg: #1e2831; --warn-bg: #2e2617; --error-bg: #2f1d1a;
-  }
+  :root:not([data-theme="light"]) {__DARK__}
 }
+:root[data-theme="dark"] {__DARK__}
 * { box-sizing: border-box; }
 body {
   margin: 0; padding: 0 1.25rem 4rem; background: var(--bg); color: var(--ink);
@@ -537,14 +645,40 @@ footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--rul
 """
 
 
-def _page(title: str, body: str) -> str:
-    """Wrap *body* in a complete, self-contained HTML document."""
+_CSS = _CSS.replace("__DARK__", _DARK_TOKENS)
+
+
+def _page(title: str, body: str, fragment: bool = False) -> str:
+    """Wrap *body* in a self-contained HTML document, or in nothing much.
+
+    Parameters
+    ----------
+    title : str
+        Page title.
+    body : str
+        The content.
+    fragment : bool, optional
+        Emit a *fragment* rather than a document: the title, the stylesheet and
+        the content, with no ``<html>``, ``<head>`` or ``<body>`` of its own.
+        For a host that supplies its own document shell and would otherwise
+        find itself with two — a published artifact, a CMS, a page template.
+
+    Returns
+    -------
+    str
+        The rendered HTML.
+    """
+    head = (
+        f"<title>{html.escape(title)}</title>\n"
+        f"<style>{_CSS}</style>\n"
+    )
+    if fragment:
+        return f'{head}<div class="wrap">\n{body}\n</div>\n'
     return (
         "<!doctype html>\n<html lang=\"en\">\n<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{html.escape(title)}</title>\n"
-        f"<style>{_CSS}</style>\n</head>\n<body>\n"
+        f"{head}</head>\n<body>\n"
         f'<div class="wrap">\n{body}\n</div>\n</body>\n</html>\n'
     )
 
@@ -578,7 +712,15 @@ def _severity_badges(built: ProjectBuild) -> str:
 def _card_stats(built: ProjectBuild, show_costs: bool) -> str:
     """Return the small pill statistics shown on a card."""
     stats = []
-    if built.board_feet:
+    if built.order is not None:
+        counts: dict[str, int] = {}
+        for _what, count, unit in built.order.lines:
+            counts[unit] = counts.get(unit, 0) + count
+        for unit, count in counts.items():
+            stats.append(f"{count} {_plural(unit, count)}")
+    elif built.lineal is not None and built.lineal_ft:
+        stats.append(f"{built.lineal_ft:.0f} lineal ft {built.spec.species}")
+    elif built.board_feet:
         stats.append(f"{built.board_feet:.0f} bd ft {built.spec.species}")
     if built.sheets_used:
         plural = "" if built.sheets_used == 1 else "s"
@@ -650,8 +792,9 @@ def _render_single_file(
     pages: list[tuple[ProjectBuild, dict[str, Any]]],
     show_costs: bool,
     stamp: str,
+    fragment: bool = False,
 ) -> str:
-    """Render every project into one self-contained document."""
+    """Render every project into one self-contained document, or fragment."""
     # Even in one document the cards earn their place: they are the contents
     # page, and each jumps to its section instead of to another file.
     cards = [
@@ -672,7 +815,7 @@ def _render_single_file(
         f"{''.join(sections)}"
         f"{_footer(stamp)}"
     )
-    return _page("Woodshop gallery", body)
+    return _page("Woodshop gallery", body, fragment=fragment)
 
 
 def _render_project_page(
@@ -720,17 +863,28 @@ def _render_project_body(
         out.append(f'<p class="muted">{html.escape(spec.notes)}</p>')
 
     views = assets["views"]
-    img = (
-        f'<img src="{views}" alt="{html.escape(spec.name)} — four views" '
-        f'loading="lazy">'
+    configurations = assets.get("configurations")
+    alt = (
+        f"{spec.name} — {len(configurations)} configurations"
+        if configurations
+        else f"{spec.name} — four views"
     )
+    img = f'<img src="{views}" alt="{html.escape(alt)}" loading="lazy">'
+    caption = VIEWS_CAPTION
+    if configurations:
+        caption = (
+            f"Drawn in {len(configurations)} configurations: "
+            + "; ".join(configurations)
+            + ". The checks, cut list and prices below are for the design "
+            "as briefed, not for these drawings."
+        )
     # Click the drawing to see it at full size — unless it is already inlined,
     # in which case there is no separate file to open.
     if not views.startswith("data:"):
         img = f'<a href="{views}">{img}</a>'
     out.append(
         f"<figure>{img}"
-        f"<figcaption>{html.escape(VIEWS_CAPTION)}</figcaption></figure>"
+        f"<figcaption>{html.escape(caption)}</figcaption></figure>"
     )
 
     out.append(_downloads(assets))
@@ -835,9 +989,46 @@ def _render_cut_table(parts: list[CutPart]) -> str:
     return f'<div class="scroll">{table}</div>'
 
 
+#: Units of sale that are already plural, or never take an s.
+_UNCOUNTABLE_UNITS: frozenset[str] = frozenset({"each", "ea", "lineal ft", "bd ft"})
+
+
+def _plural(unit: str, count: int) -> str:
+    """Pluralise a unit of sale, leaving the ones that do not take an s alone.
+
+    "9 eachs" is what happens when a supplier's own unit meets a naive
+    pluraliser.
+    """
+    if count == 1 or unit in _UNCOUNTABLE_UNITS:
+        return unit
+    return f"{unit}s"
+
+
 def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
-    """Render the buying summary: board feet by thickness, sheets by size."""
+    """Render the buying summary: board feet, sheets, or a list of pieces."""
     rows: list[str] = []
+    if built.order is not None:
+        for what, count, unit in built.order.lines:
+            rows.append(
+                f"<li>{count} {html.escape(_plural(unit, count))}: "
+                f"{html.escape(what)}</li>"
+            )
+        for label in getattr(built.order, "quoted", ()):
+            rows.append(
+                f"<li>{html.escape(label)} — quoted, not ordered</li>"
+            )
+        note = (
+            '<p class="muted">Bought by the piece. Nothing in this design is '
+            "cut, so the cut list above describes what arrives rather than "
+            "what to order.</p>"
+        )
+        if show_costs:
+            rows.append(
+                f"<li><strong>total: "
+                f"{html.escape(built.cost_summary.to_text())}</strong></li>"
+            )
+        return f'<ul>{"".join(rows)}</ul>{note}'
+
     if built.hardwood is not None:
         for group in built.hardwood.groups:
             cost = ""
@@ -853,6 +1044,33 @@ def _render_materials(built: ProjectBuild, show_costs: bool) -> str:
             rows.append(
                 f"<li>{html.escape(label)}: edge-glued from {n} staves of "
                 f"{html.escape(mm_to_fractional_inch(stave_w))}</li>"
+            )
+    if built.lineal is not None:
+        for group in built.lineal.groups:
+            cost = ""
+            if show_costs and group.price_line is not None:
+                cost = f" — {group.price_line.to_text()}"
+            rows.append(
+                f"<li>{html.escape(group.label)}: {group.lineal_ft:.0f} lineal "
+                f"ft ({group.measured_ft:.0f} ft of cut plus "
+                f"{group.allowance * 100:.0f}% offcuts)"
+                f"{html.escape(cost)}</li>"
+            )
+        # One material, one line: the same reason repeated once per part reads
+        # as three problems where there is one.
+        seen: set[str] = set()
+        for part, reason in built.lineal.unmatched:
+            if reason in seen:
+                continue
+            seen.add(reason)
+            rows.append(
+                f"<li>{html.escape(part.label)}: {html.escape(reason)}</li>"
+            )
+    if built.extras is not None:
+        for what, count, unit in built.extras.lines:
+            rows.append(
+                f"<li>{count} {html.escape(_plural(unit, count))}: "
+                f"{html.escape(what)}</li>"
             )
     sheet_lines = {
         line.label: line

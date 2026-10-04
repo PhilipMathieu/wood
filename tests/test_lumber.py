@@ -9,6 +9,7 @@ from woodshop.lumber import (
     actual_dimensions_mm,
     mm_to_fractional_inch,
     plywood_thickness_mm,
+    rough_dimensions_mm,
 )
 
 
@@ -28,6 +29,44 @@ class TestActualDimensions:
     def test_unknown_raises(self) -> None:
         with pytest.raises(KeyError):
             actual_dimensions_mm("3x5")
+
+
+class TestRoughDimensions:
+    """Tests for rough_dimensions_mm — the table dressed stock is not in."""
+
+    def test_a_rough_1x6_is_a_full_inch_by_six(self) -> None:
+        t, w = rough_dimensions_mm("1x6")
+        assert float(t.to("inch").magnitude) == pytest.approx(1.0)
+        assert float(w.to("inch").magnitude) == pytest.approx(6.0)
+
+    def test_it_disagrees_with_the_dressed_table_on_purpose(self) -> None:
+        rough_t, rough_w = rough_dimensions_mm("1x6")
+        dressed_t, dressed_w = actual_dimensions_mm("1x6")
+        assert rough_t.magnitude > dressed_t.magnitude
+        assert rough_w.magnitude - dressed_w.magnitude == pytest.approx(12.7)
+
+    def test_a_quarter_thickness_is_read_as_a_fraction(self) -> None:
+        t, w = rough_dimensions_mm("5/4x6")
+        assert float(t.to("inch").magnitude) == pytest.approx(1.25)
+        assert float(w.to("inch").magnitude) == pytest.approx(6.0)
+
+    def test_a_post_is_square(self) -> None:
+        t, w = rough_dimensions_mm("6x6")
+        assert t.magnitude == pytest.approx(w.magnitude)
+        assert float(w.to("inch").magnitude) == pytest.approx(6.0)
+
+    def test_it_needs_no_table_entry(self) -> None:
+        """Unlike the dressed table, which is a lookup and can miss."""
+        with pytest.raises(KeyError):
+            actual_dimensions_mm("3x5")
+        t, w = rough_dimensions_mm("3x5")
+        assert float(t.to("inch").magnitude) == pytest.approx(3.0)
+        assert float(w.to("inch").magnitude) == pytest.approx(5.0)
+
+    @pytest.mark.parametrize("bad", ["", "1x6x2", "sixbysix", "1x"])
+    def test_nonsense_raises(self, bad: str) -> None:
+        with pytest.raises(ValueError, match="nominal size"):
+            rough_dimensions_mm(bad)
 
 
 class TestPlywoodThickness:
