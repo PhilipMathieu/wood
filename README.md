@@ -401,6 +401,7 @@ which shows more than The Lumbery's storefront does:
 
 | `--design` | what it is | what you buy |
 | --- | --- | --- |
+| `horizontal` | horizontal spaced board: rough 1x6 Lumbery cedar courses with a 1/2" gap between 4x4 posts, no rails; courses butt on the post centres under a 1x4 batten, drawn with a plan detail of that joint | sticks by the foot, all priced |
 | `brewster` | Brewster: AVO's spaced board panel with a fascia and kickboard on its face | panels, posts, caps |
 | `concord` | Concord: pointed pickets, spaced — **vinyl only**; AVO sells no cedar Concord | panels, posts |
 | `four_rail` | the "Custom Cedar Fence" photo: square posts under flat caps, four 2x6 rails on edge, mesh behind | sticks by the foot, all priced, plus a roll of mesh |

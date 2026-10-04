@@ -22,9 +22,11 @@ from cedar_fence import (  # noqa: E402
     AVO_POST_TABLE,
     AVO_STYLES,
     BOLTS_PER_HINGE,
+    CONFIGURATION_VIEWS,
     DESIGNS,
     HARDWARE_TIERS,
     HINGES_PER_LEAF,
+    HORIZONTAL_JOINT_GAP_IN,
     IN,
     MESH_THICKNESS_MM,
     POST_AND_RAIL_LENGTHS_FT,
@@ -37,6 +39,7 @@ from cedar_fence import (  # noqa: E402
     StockChoice,
     catalogue,
     compare_designs,
+    configuration_views,
     discount_note,
     hardware_stock,
     post_stone_cuyd,
@@ -1058,18 +1061,19 @@ def test_the_parts_list_says_it_is_not_an_order(panels):
 # ---------------------------------------------------------------------------
 
 
-def test_the_designs_are_three_systems_four_from_avo_and_two_in_hemlock():
-    """One per Lumbery system, four asked for by name, two in hemlock.
+def test_the_designs_are_the_catalogue_the_photos_and_the_owners_asks():
+    """One per Lumbery system, four AVO designs, and three asked for later.
 
-    Three systems from The Lumbery's catalogue, four AVO designs asked for by
-    name, and two priced in cedar and hemlock.
+    Three systems from The Lumbery's catalogue, a stick-built horizontal
+    spaced board, four AVO designs asked for by name, and two priced in
+    cedar and hemlock.
 
     The styles below the designs still exist — they are how the catalogue is
     priced and how a panel is benchmarked against sticks — but a style is a
     row in a price guide and a design is something somebody can buy.
     """
     assert list(DESIGNS) == [
-        "privacy", "chestnut", "rails",
+        "privacy", "chestnut", "rails", "horizontal",
         "brewster", "concord", "four_rail", "four_rail_hemlock",
         "rails_hemlock", "good_neighbor",
     ]
@@ -1077,6 +1081,7 @@ def test_the_designs_are_three_systems_four_from_avo_and_two_in_hemlock():
         "cedar-fence-privacy",
         "cedar-fence-chestnut",
         "cedar-fence-rails",
+        "cedar-fence-horizontal",
         "cedar-fence-brewster",
         "cedar-fence-concord",
         "cedar-fence-four-rail",
@@ -1091,7 +1096,10 @@ def test_panels_are_panels_and_sticks_are_sticks():
     kinds = {key: type(factory()) for key, (_n, factory, _s) in DESIGNS.items()}
     for key in ("privacy", "chestnut", "brewster", "concord"):
         assert kinds[key] is PanelFence
-    for key in ("rails", "four_rail", "four_rail_hemlock", "rails_hemlock", "good_neighbor"):
+    for key in (
+        "rails", "horizontal", "four_rail", "four_rail_hemlock",
+        "rails_hemlock", "good_neighbor",
+    ):
         assert kinds[key] is CedarFence
 
 
@@ -1122,7 +1130,7 @@ def test_the_rail_design_hangs_mesh_and_the_panels_do_not():
     }
     for key in ("rails", "four_rail", "four_rail_hemlock", "rails_hemlock", "good_neighbor"):
         assert "mesh" in parts[key]
-    for key in ("privacy", "chestnut", "brewster", "concord"):
+    for key in ("privacy", "chestnut", "horizontal", "brewster", "concord"):
         assert "mesh" not in parts[key]
 
 
@@ -1614,3 +1622,65 @@ def test_a_square_post_and_rail_rail_is_a_sawn_board_not_a_log():
     rails = [p for p in extract(fence.build()) if p.label == "square_rail"]
     assert rails and all(p.nominal == "4x4" for p in rails)
     assert not [p for p in extract(fence.build()) if p.label == "log_rail"]
+
+
+def test_horizontal_courses_butt_on_line_posts_with_a_gap_under_a_batten():
+    fence = DESIGNS["horizontal"][1]()
+    built = fence.build()
+    parts = extract(built)
+    posts = fence.posts()
+    line = [p for p in posts if not p.is_gate_post]
+    battens = [p for p in parts if p.label == "joint_batten"]
+    # One batten per line and end post, none on a gate post.
+    assert sum(p.qty for p in battens) == len(line)
+    assert all(p.material == "white_cedar" and p.nominal == "1x4" for p in battens)
+
+    # Courses either side of an interior line post stop half the gap short of
+    # its centre line.
+    interior = next(
+        p for p in line if 0 < p.x < fence.overall_length - 1e-6
+    )
+    gap = HORIZONTAL_JOINT_GAP_IN * IN
+    from woodshop.render.model3d import _iter_leaf_parts
+
+    courses = [c for c in _iter_leaf_parts(built) if c.label == "course"]
+    ends = sorted(
+        x
+        for c in courses
+        for x in (c.bounding_box().min.X, c.bounding_box().max.X)
+        if abs(x - interior.x) < 10.0
+    )
+    assert ends[0] == pytest.approx(interior.x - gap / 2, abs=1e-3)
+    assert ends[-1] == pytest.approx(interior.x + gap / 2, abs=1e-3)
+
+
+def test_the_horizontal_joint_is_explained_in_numbers():
+    fence = DESIGNS["horizontal"][1]()
+    built = fence.build()
+    joinery = [
+        f for f in fence.check(built, extract(built)).findings
+        if f.code == "joinery"
+    ]
+    assert len(joinery) == 1
+    message = joinery[0].message
+    assert '1/8"' in message and "1-15/16\"" in message and "batten" in message
+    bare = CedarFence(style="horizontal")
+    assert "Nothing covers the joint" in bare._horizontal_joint_finding().message
+
+
+def test_the_horizontal_design_is_fully_priced_in_lumbery_cedar():
+    fence = DESIGNS["horizontal"][1]()
+    parts = extract(fence.build())
+    summary = fence.cost_summary(parts)
+    assert not summary.unpriced
+    species = {g.stock.species for g in fence.plan(parts).groups}
+    assert species == {"white_cedar"}
+
+
+def test_only_the_horizontal_design_gets_the_joint_detail_view():
+    assert configuration_views("horizontal") == CONFIGURATION_VIEWS + (
+        configuration_views("horizontal")[-1],
+    )
+    detail = configuration_views("horizontal")[-1]
+    assert detail.window_mm is not None and detail.offset_mm is not None
+    assert configuration_views("four_rail") == CONFIGURATION_VIEWS

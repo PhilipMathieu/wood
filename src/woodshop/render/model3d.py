@@ -74,6 +74,10 @@ class View:
         in mm across the image, centred on a focus point the caller gives
         (:func:`render_configurations`) or on the model's centre.  Default
         ``None`` draws the whole model.  Shaded views only.
+    offset_mm : tuple of float, optional
+        ``(x, y, z)`` added to the focus point for this view only, so one
+        row's focus can serve a close-up and a detail somewhere else on the
+        same post.  Default no offset.
     """
 
     name: str
@@ -81,6 +85,7 @@ class View:
     azim: float
     style: str = "auto"
     window_mm: tuple[float, float] | None = None
+    offset_mm: tuple[float, float, float] | None = None
 
 
 #: Isometric plus the three orthographic views, in the order they are drawn.
@@ -666,6 +671,13 @@ def _draw_view(
         _draw_hlr(ax, assembly, directions[index])
     else:
         window = view.window_mm if view is not None else None
+        if view is not None and view.offset_mm is not None:
+            base = (
+                np.array((center.X, center.Y, center.Z))
+                if focus is None
+                else np.asarray(focus, dtype=float)
+            )
+            focus = tuple(base + np.asarray(view.offset_mm, dtype=float))
         _draw_shaded(ax, geometry, directions[index], center, window, focus)
 
 

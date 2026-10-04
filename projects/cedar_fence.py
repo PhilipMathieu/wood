@@ -626,6 +626,11 @@ POST_AND_RAIL_RAILS: dict[str, StockChoice] = {
     "square_4": StockChoice("4x4", grade="STK", profile="rough sawn"),
 }
 
+#: The gap left between two horizontal courses butted on a post, inches: room
+#: for the end grain to swell in a wet spring without the boards pushing each
+#: other off the post.
+HORIZONTAL_JOINT_GAP_IN: float = 0.125
+
 #: Species a fence may use above ground but that will not last like cedar:
 #: USDA Wood Handbook rates eastern hemlock slightly or non-resistant to decay.
 NON_DURABLE_SPECIES: frozenset[str] = frozenset({"hemlock"})
@@ -1009,6 +1014,10 @@ class CedarFence:
         ``board_on_board`` style, default 1.
     horizontal_gap_in : float, optional
         Target gap between courses in the ``horizontal`` style, default 0.5.
+    joint_battens : bool, optional
+        In the ``horizontal`` style, screw a vertical cedar batten over every
+        post the courses cross — line and end posts, not gate posts — covering
+        the butt joints and clamping both board ends.  Default ``False``.
     board, rail, post, gate_post, gate_frame : StockChoice, optional
         Which inventory entry fills each role.  ``None`` takes the default for
         the style — rough sawn STK in 1x6, 2x4, 4x4 and 6x6 for the board
@@ -1066,6 +1075,7 @@ class CedarFence:
     picket_gap_in: float = 1.75
     overlap_in: float = 1.0
     horizontal_gap_in: float = 0.5
+    joint_battens: bool = False
     hinge_gap_in: float = 0.375
     leaf_gap_in: float = 0.75
     board: StockChoice | None = None
@@ -1637,6 +1647,12 @@ class CedarFence:
             top = post.length - post.embedment
             if self.style == "good_neighbor":
                 out.append(self._batten(post))
+            if (
+                self.style == "horizontal"
+                and self.joint_battens
+                and not post.is_gate_post
+            ):
+                out.append(self._joint_batten(post))
             if self.style in CAPPED_STYLES:
                 out.append(self._cap(post, top))
         return out
@@ -1668,6 +1684,37 @@ class CedarFence:
                     "board"
                 ),
                 **self._stock(choice),
+            )
+        )
+
+    def _joint_batten(self, post: PostPlan) -> object:
+        """Return the batten over the course joints at one post.
+
+        Horizontal courses butt on the post's centre line, so each board end
+        lands on half the post face, about 2".  The batten is the same width
+        as the post and stands over the joints on the show face, screwed
+        through the gaps between courses into the post: it hides the butt
+        joint, trims the end grain at the end of the run, and clamps every
+        board end a second time so a cupping board cannot pull its screws.
+        """
+        length = self.height - inches(self.ground_clearance_in)
+        return (
+            Pos(
+                post.x,
+                self.board_t + BATTEN_STOCK.thickness / 2,
+                inches(self.ground_clearance_in) + length / 2,
+            )
+            * UPRIGHT
+            * Board(
+                length_mm=length,
+                label="joint_batten",
+                notes=(
+                    "over the course joints on the post's show face; screw "
+                    "through each gap between courses into the post with a "
+                    "3\" stainless screw, so every board end is held by its "
+                    "own two screws and by the batten"
+                ),
+                **self._stock(BATTEN_STOCK),
             )
         )
 
@@ -2062,6 +2109,14 @@ class CedarFence:
             # where `edge_x` says what happens instead.
             x0 = self.edge_x(span.x0, is_left=True)
             x1 = self.edge_x(span.x1, is_left=False)
+            # Where two courses meet on a post's centre line, each stops half
+            # the joint gap short of it.
+            posts = self._post_map()
+            half_gap = inches(HORIZONTAL_JOINT_GAP_IN) / 2
+            if round(span.x0, 6) in posts and abs(x0 - span.x0) < 1e-6:
+                x0 += half_gap
+            if round(span.x1, 6) in posts and abs(x1 - span.x1) < 1e-6:
+                x1 -= half_gap
             length = x1 - x0
             for row in range(rows.count):
                 width = self._board_width(rows, row)
@@ -2073,8 +2128,11 @@ class CedarFence:
                         length_mm=length,
                         label="course",
                         notes=(
-                            "spans one bay, joints centred on the posts; "
-                            + self._board_note(rows, row)
+                            "spans one bay, butted on the post centres with "
+                            "a "
+                            + mm_to_fractional_inch(inches(HORIZONTAL_JOINT_GAP_IN))
+                            + " gap and two "
+                            "screws each end; " + self._board_note(rows, row)
                         ),
                         **self._stock(self.board, covers_mm=width),
                     )
@@ -2851,7 +2909,7 @@ class CedarFence:
                 if deflection < 0.1
                 else f"{deflection:.1f} mm"
             )
-            return [
+            return [self._horizontal_joint_finding()] + [
                 Finding(
                     Severity.INFO
                     if span <= self.recommended_max_bay
@@ -2985,6 +3043,32 @@ class CedarFence:
                 "let it tear out one wire at a time",
             ),
         ]
+
+    def _horizontal_joint_finding(self) -> Finding:
+        """Say how a horizontal course is joined at a post, in numbers."""
+        bearing = self.post_size / 2 - inches(HORIZONTAL_JOINT_GAP_IN) / 2
+        gap = mm_to_fractional_inch(inches(HORIZONTAL_JOINT_GAP_IN))
+        batten = (
+            f" A {BATTEN_STOCK.nominal} batten, as wide as the post, covers "
+            "each column of joints on the show face and is screwed into the "
+            "post through the gaps between courses; at the ends of the run it "
+            "trims the end grain, and at a gate post there is none, because "
+            "the courses stop at the post's face and the hinges need it."
+            if self.joint_battens
+            else " Nothing covers the joint: it shows as a "
+            f"{gap} line down every post."
+        )
+        return Finding(
+            Severity.INFO,
+            "joinery",
+            "each course runs post centre to post centre and butts the next "
+            f"one on the post's centre line with a {gap} gap, so each board "
+            f"end bears on {mm_to_fractional_inch(bearing)} "
+            f"of a {mm_to_fractional_inch(self.post_size)} post. Pre-drill and "
+            "fix every end with two 2-1/2\" stainless screws 3/4\" in from "
+            "the end — closer splits cedar — rather than one screw in the "
+            "middle of the board, which lets it cup." + batten,
+        )
 
     def _check_rail_decay(self) -> list[Finding]:
         """Warn when rails or gate framing are a species that rots.
@@ -5862,7 +5946,7 @@ def run_design(
         configurations(fence),
         output_png=outdir / f"cedar_fence_{key}_configurations.png",
         title=name,
-        views=CONFIGURATION_VIEWS,
+        views=configuration_views(key),
     )
     return report
 
@@ -6096,6 +6180,18 @@ def post_and_rail_fence() -> CedarFence:
     )
 
 
+def horizontal_spaced_fence() -> CedarFence:
+    """Return the horizontal spaced-board design, stick-built in Lumbery cedar.
+
+    Rough sawn 1x6 courses with a 1/2" gap, run post centre to post centre
+    with no rails, on 4x4 posts at no more than 6 ft — the boards are the
+    rails, and a longer bay cups.  Every course butts the next on a post's
+    centre line and is screwed there; a 1x4 batten over each post covers the
+    column of joints and clamps the ends.  See :meth:`CedarFence._joint_batten`.
+    """
+    return CedarFence(style="horizontal", joint_battens=True)
+
+
 def brewster_fence() -> PanelFence:
     """Return the Brewster panel design: spaced board, fascia and kickboard."""
     return PanelFence(style="brewster")
@@ -6201,6 +6297,14 @@ DESIGNS: dict[str, tuple[str, Any, str]] = {
         "8 ft bays — with black coated welded wire behind the rails and run "
         "to grade, which is what turns a horse fence into a dog fence.",
     ),
+    "horizontal": (
+        "Horizontal spaced board",
+        horizontal_spaced_fence,
+        "Rough sawn 1x6 Lumbery cedar run horizontally between 4x4 posts with a "
+        "1/2\" gap, no rails: the boards are the rails, so the bays stop at "
+        "6 ft. Courses butt on the post centres and a 1x4 batten over each "
+        "post covers the joints and clamps the board ends.",
+    ),
     "brewster": (
         "Brewster panels",
         brewster_fence,
@@ -6300,6 +6404,35 @@ CONFIGURATION_VIEWS: tuple[View, ...] = (
 )
 
 
+#: The extra view the horizontal design is drawn with: straight down on the
+#: top of the post the close-up is centred on, 12" x 8", which reads as a
+#: plan section through the joint — the post, the two top courses meeting on
+#: its centre line with the gap between them, and the batten over them.
+#: Every joint below is the same, so the top one stands for them all.
+JOINT_DETAIL_VIEW = View(
+    "Joint at the post, plan from above",
+    90.0,
+    -90.0,
+    window_mm=(305.0, 205.0),
+)
+
+
+def configuration_views(key: str) -> tuple[View, ...]:
+    """Return the views design *key* is drawn in, per configuration.
+
+    Every design gets :data:`CONFIGURATION_VIEWS`; the horizontal one adds
+    :data:`JOINT_DETAIL_VIEW`, because how its boards join at a post is the
+    one thing about it a drawing at fence scale cannot show.
+    """
+    if key == "horizontal":
+        fence = DESIGNS[key][1]()
+        top = (0.0, 0.0, fence.height / 2)
+        return CONFIGURATION_VIEWS + (
+            dataclasses.replace(JOINT_DETAIL_VIEW, offset_mm=top),
+        )
+    return CONFIGURATION_VIEWS
+
+
 def close_up_focus(
     fence: "CedarFence | PanelFence", assembly: Compound
 ) -> tuple[float, float, float]:
@@ -6354,6 +6487,14 @@ DESIGN_NOTES: dict[str, str] = {
         "sawn guide's nearest stock to what it shows. Stick-built, so every "
         "cedar line is priced off Lumbery's guide (2026-08-17) and the "
         "hardware and mesh at SKUs relayed 2026-08-18."
+    ),
+    "horizontal": (
+        "Stick-built from the Lumbery's sawn price guide (2026-08-17), so every "
+        "board, post and batten is priced. The joint at a post is the design's "
+        "one real detail: each course stops 1/16\" short of the post's centre "
+        "line, bears on the other 1-15/16\" of a 4\" post with two screws, "
+        "and the batten over it is screwed into the post through the gaps. "
+        "The close-up in each row is centred on such a post."
     ),
     "four_rail_hemlock": (
         "Priced for the owner's question: the four-rail fence in cedar and "
@@ -6412,7 +6553,7 @@ def _design_spec(key: str) -> ProjectSpec:
         ),
         tags=["outdoor", "fence", "vinyl" if fence.species == "vinyl_pvc" else "cedar"],
         configurations=lambda: configurations(fence),
-        configuration_views=CONFIGURATION_VIEWS,
+        configuration_views=configuration_views(key),
     )
 
 

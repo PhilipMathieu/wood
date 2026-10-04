@@ -2318,3 +2318,42 @@ pattern is the reason to buy it: small dogs and rabbits.
 Budget hardware takes $290 off the four-rail totals and $344 off post and
 rail.
 
+## Addendum: horizontal spaced board, and how it meets a post — 2026-10-04
+
+The owner asked for a horizontal spaced-board option in Lumbery cedar, "and
+make sure it's clear how the joints work at the posts". The `horizontal`
+style already existed — 1x6 courses, 1/2" apart, no rails, bays held to 6 ft
+because a board that is its own rail cups before it sags — but it was never
+a gallery design, and its joint was a claim in a note ("joints centred on the
+posts") rather than something drawn.
+
+The joint, as built now:
+
+- **Courses butt on the post centre line with a 1/8" gap**
+  (`HORIZONTAL_JOINT_GAP_IN`), each stopping 1/16" short of it — room for the
+  end grain to swell in a wet spring. Previously the boards met with no gap
+  at all, which in the drawing was indistinguishable from one board.
+- **Each end bears on 1-15/16" of a 4" rough post** and takes two 2-1/2"
+  stainless screws 3/4" in from the end. Two, not one in the middle, because
+  the screw pair is what resists cupping; 3/4" in because closer splits cedar.
+- **A 1x4 rough batten (`joint_battens=True`) stands over every line and end
+  post** on the show face, the post's own width, screwed into the post through
+  the gaps between courses. It hides the column of butt joints, trims the end
+  grain at the run's ends, and clamps every board end a second time. Gate
+  posts get none: the courses stop at their face and the hinges need it.
+- A `joinery` INFO finding states all of this in numbers, and says the joint
+  shows as a 1/8" line down every post when there is no batten.
+
+Drawing it was the harder half. At fence scale a 1/8" gap is a hairline and
+the batten covers it anyway, and an oblique close-up of the post top read as
+a jumble of same-coloured blocks. What works is a plan: straight down on the
+top of the focus post, 12" x 8" (`JOINT_DETAIL_VIEW`), which reads as a
+section through the joint — post, the two courses meeting over its centre
+line with the gap between them, batten in front. `View` gained `offset_mm`
+so that detail can aim at the post top while the row's focus stays at
+mid-height for the close-up. Only this design gets the fourth column
+(`configuration_views`); the others have no joint a plan would explain.
+
+Priced entirely off the sawn guide: $2,563 with heavy-duty hardware and a
+yard of stone, of which the 1x6 is $994 and the battens $40.
+
