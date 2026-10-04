@@ -2235,3 +2235,35 @@ leaving buried posts hanging out under the edge of the ground plane — which
 the opaque raster ground could not hide from a camera 22° up. The front
 elevations still draw from the shaded raster, so a post's depth is read from
 the cut list and the frost check rather than the picture.
+
+### Mesh you can see through, and a close-up at a post
+
+Review on the PR: the mesh drew as an opaque black board, hiding the rails
+and posts behind it and saying nothing about being mesh. Modelling every wire
+is still the wrong answer (hundreds of solids a bay, and the cut list wants
+one sheet off a roll), so the sheet stays a sheet and the *renderer* draws it
+as what it stands for.
+
+`raster.Screen` is a grid of wires on a flat part; `model3d.SCREEN_MATERIALS`
+says which materials get one (`steel_mesh_black`: vertical wires every 2",
+horizontal every 4", 2.5 mm wire). Screen triangles are drawn after every
+opaque one, blended over the image by how much of each pixel the wires cover,
+and never written to the depth buffer, so what is behind shows through.
+
+The coverage is an exact box filter rather than a point sample: along each
+wire family the covered length of a pixel is the difference of the periodic
+step function's integral, `floor(x/p)·w + min(x mod p, w)`, taken across
+the pixel's footprint. The footprint comes from the grid coordinate's
+gradient across the triangle (constant, since the projection is
+orthographic). Point-sampling a 2" mesh at 40 ft, eight working pixels a
+pitch, is a moiré generator; the box filter averages to the right grey.
+The one display cheat is that a wire is never drawn thinner than one working
+pixel (or wider than half its pitch). At 40 ft a 2.5 mm wire is a tenth of a
+pixel, and true-to-scale it vanishes; the user asked to *see* the grid.
+
+The configuration sheets gain a third column, `View(..., window_mm=...)`: a
+1.6 m x 2 m window centred on one post (`close_up_focus` — the cantilever's
+post, the gate's hinge post, or the first line post), drawn with
+`rasterize(bounds=...)`. A close-up is always shaded: HLR has no window.
+`render_configurations` takes an optional third item per row, the focus.
+

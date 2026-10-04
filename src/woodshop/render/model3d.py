@@ -35,7 +35,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgb
 
 from woodshop.render.hlr import hlr_polylines
-from woodshop.render.raster import Camera, rasterize
+from woodshop.render.raster import Camera, Screen, rasterize
 from woodshop.render.trim import trim_interpenetrations
 
 __all__ = [
@@ -44,6 +44,7 @@ __all__ = [
     "MATERIAL_COLORS",
     "GROUND_COLOR",
     "GROUND_ALPHA",
+    "SCREEN_MATERIALS",
     "render_assembly",
     "render_configurations",
     "wants_ground",
@@ -68,12 +69,18 @@ class View:
         orthographic views — and ``"shaded"`` otherwise, so an isometric
         or any other oblique angle renders with material colour without the
         caller having to say so.
+    window_mm : tuple of float, optional
+        ``(width, height)`` of a close-up: draw only this much of the model,
+        in mm across the image, centred on a focus point the caller gives
+        (:func:`render_configurations`) or on the model's centre.  Default
+        ``None`` draws the whole model.  Shaded views only.
     """
 
     name: str
     elev: float
     azim: float
     style: str = "auto"
+    window_mm: tuple[float, float] | None = None
 
 
 #: Isometric plus the three orthographic views, in the order they are drawn.
@@ -110,6 +117,19 @@ MATERIAL_COLORS: dict[str, str] = {
 }
 
 _FALLBACK_COLOR = "#9e9e9e"
+
+#: Materials drawn as a see-through grid of wires instead of a solid, keyed
+#: by material: ``(horizontal pitch, vertical pitch, wire)`` in mm.
+#:
+#: Welded mesh is modelled as a thin sheet (a wire per solid would be
+#: hundreds of solids a bay), and drawn as a sheet it is an opaque black
+#: board that hides the rails and posts behind it.  The shaded views draw
+#: the sheet as the wire grid it stands for.  2" x 4" mesh is vertical wires
+#: every 2" and horizontal wires every 4"; 14 ga is 2.0 mm of steel, about
+#: 2.5 mm with its PVC coat.
+SCREEN_MATERIALS: dict[str, tuple[float, float, float]] = {
+    "steel_mesh_black": (50.8, 101.6, 2.5),
+}
 
 #: Colour of the ground plane: a muted moss-grey that reads as ground without
 #: competing with the cedar in front of it.
@@ -203,6 +223,8 @@ def _is_axis_aligned(direction: tuple[float, float, float]) -> bool:
 def _resolve_style(view: View, direction: tuple[float, float, float]) -> str:
     """Return ``"hlr"`` or ``"shaded"`` for *view*, expanding ``"auto"``."""
     if view.style == "auto":
+        if view.window_mm is not None:
+            return "shaded"
         return "hlr" if _is_axis_aligned(direction) else "shaded"
     return view.style
 
@@ -295,6 +317,67 @@ def _tessellate(
     return tri_array, color_array, edges, edge_colors
 
 
+def _screen_for(part: Any, spec: tuple[float, float, float]) -> Screen:
+    """Return the wire grid a flat *part* stands for.
+
+    The sheet's plane is the two axes its bounding box is widest along.
+    Where one of them is vertical, the wires spaced along it get the
+    vertical pitch; the grid starts at the sheet's corner, as a roll cut to
+    length does.
+    """
+    pitch_h, pitch_v, wire = spec
+    bb = part.bounding_box()
+    extents = (bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
+    thin = int(np.argmin(extents))
+    in_plane = [axis for axis in range(3) if axis != thin]
+    vertical = 2 if 2 in in_plane else in_plane[1]
+    horizontal = in_plane[0] if in_plane[0] != vertical else in_plane[1]
+    unit = np.eye(3)
+    return Screen(
+        origin=(bb.min.X, bb.min.Y, bb.min.Z),
+        axis_a=unit[horizontal],
+        pitch_a=pitch_h,
+        axis_b=unit[vertical],
+        pitch_b=pitch_v,
+        wire=wire,
+    )
+
+
+def _tessellate_scene(parts: list[Any], tolerance: float) -> tuple:
+    """Tessellate *parts* as :func:`_tessellate` does, with mesh as screens.
+
+    Returns
+    -------
+    tuple
+        ``(triangles, colors, edges, edge_colors, screen_ids, screens)``:
+        :func:`_tessellate`'s four, then one :func:`~woodshop.render.raster.\
+rasterize` screen index per triangle (``-1`` for an opaque face) and the
+        screens those indices name — one per part in :data:`SCREEN_MATERIALS`.
+    """
+    solid = [part for part in parts if part.material not in SCREEN_MATERIALS]
+    mesh = [part for part in parts if part.material in SCREEN_MATERIALS]
+    triangles, colors, edges, edge_colors = _tessellate(solid, tolerance)
+    tri_chunks, color_chunks = [triangles], [colors]
+    id_chunks = [np.full(len(triangles), -1, dtype=int)]
+    screens: list[Screen] = []
+    for part in mesh:
+        m_tris, m_cols, m_edges, m_edge_cols = _tessellate([part], tolerance)
+        id_chunks.append(np.full(len(m_tris), len(screens), dtype=int))
+        screens.append(_screen_for(part, SCREEN_MATERIALS[part.material]))
+        tri_chunks.append(m_tris)
+        color_chunks.append(m_cols)
+        edges += m_edges
+        edge_colors += m_edge_cols
+    return (
+        np.concatenate(tri_chunks),
+        np.concatenate(color_chunks),
+        edges,
+        edge_colors,
+        np.concatenate(id_chunks),
+        screens,
+    )
+
+
 def _draw_hlr(ax: plt.Axes, assembly: Any, direction: tuple[float, float, float]) -> None:
     """Draw one orthographic view of *assembly* as an OCCT hidden-line drawing."""
     up_hint, _, _ = _camera_basis(direction)
@@ -374,33 +457,47 @@ def _clip_below_grade(parts: list[Any], bb: Any, tolerance: float) -> list[Any]:
     return out
 
 
-def _with_ground(
-    geometry: tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]],
-    bb: Any,
-) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]]:
-    """Return *geometry* with the ground's two triangles added, and no edges."""
-    triangles, colors, edges, edge_colors = geometry
+def _with_ground(geometry: tuple, bb: Any) -> tuple:
+    """Return :func:`_tessellate_scene` *geometry* with the ground added.
+
+    The ground is two opaque triangles and no edges.
+    """
+    triangles, colors, edges, edge_colors, screen_ids, screens = geometry
     g_tris, g_cols = _ground_triangles(bb)
     return (
         np.concatenate([triangles, g_tris]),
         np.concatenate([colors, g_cols]),
         edges,
         edge_colors,
+        np.concatenate([screen_ids, np.full(len(g_tris), -1, dtype=int)]),
+        screens,
     )
 
 
 def _draw_shaded(
     ax: plt.Axes,
-    geometry: tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]],
+    geometry: tuple,
     direction: tuple[float, float, float],
     center: Any,
+    window: tuple[float, float] | None = None,
+    focus: tuple[float, float, float] | None = None,
 ) -> None:
-    """Draw one shaded, z-buffered raster view of pre-tessellated *geometry*."""
-    triangles, colors, edges, edge_colors = geometry
+    """Draw one shaded, z-buffered raster view of pre-tessellated *geometry*.
+
+    With *window* — ``(width, height)`` in mm — draw only that much of the
+    scene, centred on *focus* (default *center*).
+    """
+    triangles, colors, edges, edge_colors, screen_ids, screens = geometry
     _, right, up = _camera_basis(direction)
-    camera = Camera(
-        center=(center.X, center.Y, center.Z), right=right, up=up, forward=direction
-    )
+    origin = np.array((center.X, center.Y, center.Z))
+    camera = Camera(center=origin, right=right, up=up, forward=direction)
+    bounds = None
+    if window is not None:
+        target = origin if focus is None else np.asarray(focus, dtype=float)
+        u = float((target - origin) @ np.asarray(right))
+        v = float((target - origin) @ np.asarray(up))
+        width, height = window
+        bounds = (u - width / 2, u + width / 2, v - height / 2, v + height / 2)
     image, _ = rasterize(
         triangles,
         colors,
@@ -409,6 +506,9 @@ def _draw_shaded(
         edge_colors=edge_colors,
         size=_RASTER_LONG_SIDE,
         supersample=_RASTER_SUPERSAMPLE,
+        screen_ids=screen_ids,
+        screens=screens,
+        bounds=bounds,
     )
     ax.imshow(image)
 
@@ -488,7 +588,7 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
 
     for index, view in enumerate(views):
         ax = fig.add_subplot(rows, cols, index + 1)
-        _draw_view(ax, assembly, index, prepared)
+        _draw_view(ax, assembly, index, prepared, view)
         ax.set_title(view.name, fontsize=10)
         ax.set_axis_off()
 
@@ -538,25 +638,34 @@ def _prepare(
             # not seen in the yard; the hidden-line views still draw every
             # post to its foot, which is where its depth is read.
             shaded_parts = _clip_below_grade(shaded_parts, bb, tolerance)
-            geometry = _with_ground(_tessellate(shaded_parts, tolerance), bb)
+            geometry = _with_ground(_tessellate_scene(shaded_parts, tolerance), bb)
         else:
-            geometry = _tessellate(shaded_parts, tolerance)
+            geometry = _tessellate_scene(shaded_parts, tolerance)
     return directions, styles, geometry, center
 
 
 def _draw_view(
-    ax: plt.Axes, assembly: Any, index: int, prepared: tuple[list[Any], list[str], Any, Any]
+    ax: plt.Axes,
+    assembly: Any,
+    index: int,
+    prepared: tuple[list[Any], list[str], Any, Any],
+    view: View | None = None,
+    focus: tuple[float, float, float] | None = None,
 ) -> None:
-    """Draw view number *index* of a :func:`_prepare` result onto *ax*."""
+    """Draw view number *index* of a :func:`_prepare` result onto *ax*.
+
+    A *view* with a ``window_mm`` is drawn as a close-up on *focus*.
+    """
     directions, styles, geometry, center = prepared
     if styles[index] == "hlr":
         _draw_hlr(ax, assembly, directions[index])
     else:
-        _draw_shaded(ax, geometry, directions[index], center)
+        window = view.window_mm if view is not None else None
+        _draw_shaded(ax, geometry, directions[index], center, window, focus)
 
 
 def render_configurations(
-    configurations: list[tuple[str, Any]],
+    configurations: list[tuple],
     output_png: str | Path | None = None,
     output_pdf: str | Path | None = None,
     views: tuple[View, ...] = (STANDARD_VIEWS[0], STANDARD_VIEWS[1]),
@@ -574,8 +683,10 @@ def render_configurations(
 
     Parameters
     ----------
-    configurations : list of (str, build123d.Compound)
-        Caption and assembly for each row, top to bottom.
+    configurations : list of tuple
+        ``(caption, assembly)`` or ``(caption, assembly, focus)`` for each
+        row, top to bottom.  *focus* is the world point, mm, a close-up view
+        (one with ``window_mm``) is centred on; default the model's centre.
     output_png, output_pdf : str or Path, optional
         Where to save.
     views : tuple of View, optional
@@ -607,14 +718,15 @@ def render_configurations(
     fig = plt.figure(figsize=figsize or (6.0 * cols, 3.2 * rows))
     if title:
         fig.suptitle(title, fontsize=14)
-    for row, (caption, assembly) in enumerate(configurations):
+    for row, (caption, assembly, *rest) in enumerate(configurations):
+        focus = rest[0] if rest else None
         parts = list(_iter_leaf_parts(assembly))
         if not parts:
             raise ValueError(f"configuration {caption!r} has no parts to draw")
         prepared = _prepare(assembly, parts, views, tolerance, ground)
         for col, view in enumerate(views):
             ax = fig.add_subplot(rows, cols, row * cols + col + 1)
-            _draw_view(ax, assembly, col, prepared)
+            _draw_view(ax, assembly, col, prepared, view, focus)
             label = caption if not view.name else f"{caption} — {view.name.lower()}"
             ax.set_title(label, fontsize=10)
             ax.set_axis_off()

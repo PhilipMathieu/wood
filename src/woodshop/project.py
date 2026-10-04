@@ -79,7 +79,8 @@ class ProjectSpec:
         Free text shown alongside the project.
     configurations : callable, optional
         Zero-argument callable returning ``[(caption, assembly), ...]``: the
-        same design built to several layouts.  When given, the gallery draws
+        same design built to several layouts.  An entry may carry a third
+        item, the world point a close-up view is centred on.  When given, the gallery draws
         these — one row each — instead of the single model from *build*,
         whose cut list and checks still describe the page.
     configuration_views : tuple of View, optional
@@ -102,7 +103,7 @@ class ProjectSpec:
     inventory: Any = None
     notes: str = ""
     tags: list[str] = field(default_factory=list)
-    configurations: Callable[[], list[tuple[str, Any]]] | None = None
+    configurations: Callable[[], list[tuple]] | None = None
     configuration_views: tuple[Any, ...] | None = None
 
 

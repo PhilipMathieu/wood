@@ -625,6 +625,61 @@ def test_configurations_draw_one_row_each(tmp_path):
         render_configurations([])
 
 
+def test_render_configurations_draws_a_close_up_on_each_rows_focus(tmp_path):
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import (
+        View,
+        _direction,
+        _resolve_style,
+        render_configurations,
+    )
+
+    post = Pos(0, 0, 600) * Board(
+        length_mm=1200, nominal="4x4", material="white_cedar", label="post",
+        rotation=(0, 90, 0),
+    )
+    close = View("Close-up", 0.0, -90.0, window_mm=(300.0, 200.0))
+    # Even square on an axis, a close-up is shaded: HLR has no window.
+    assert _resolve_style(close, _direction(close.elev, close.azim)) == "shaded"
+
+    fig = render_configurations(
+        [("post", post, (0.0, 0.0, 1100.0))], views=(close,), close=False,
+    )
+    try:
+        (image,) = fig.axes[0].get_images()
+        height, width = image.get_array().shape[:2]
+        assert abs(width / height - 1.5) < 0.02
+    finally:
+        plt.close(fig)
+
+
+def test_mesh_is_drawn_as_a_screen_not_a_solid():
+    from build123d import Pos
+
+    from woodshop.parts import Board
+    from woodshop.render.model3d import SCREEN_MATERIALS, _tessellate_scene
+
+    mesh = Pos(0, 0, 600) * Board(
+        length_mm=1800, width_mm=1200, thickness_mm=3.175,
+        material="steel_mesh_black", label="mesh", rotation=(90, 0, 0),
+    )
+    rail = Pos(0, 0, 1000) * Board(
+        length_mm=1800, nominal="2x4", material="white_cedar", label="rail",
+    )
+    triangles, _colors, _edges, _edge_colors, ids, screens = _tessellate_scene(
+        [mesh, rail], tolerance=0.5
+    )
+    assert len(screens) == 1 and len(ids) == len(triangles)
+    assert (ids == 0).any() and (ids == -1).any()
+    (screen,) = screens
+    pitch_h, pitch_v, wire = SCREEN_MATERIALS["steel_mesh_black"]
+    # Vertical wires every 2" along the run, horizontal every 4" up it.
+    assert screen.pitch_b == pitch_v and screen.axis_b[2] == 1.0
+    assert screen.pitch_a == pitch_h and screen.wire == wire
+
+
 def test_the_shaded_view_clips_what_is_below_grade():
     from build123d import Pos
 

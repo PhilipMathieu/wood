@@ -408,7 +408,8 @@ which shows more than The Lumbery's storefront does:
 
 The gallery draws every design three ways — a 6 ft bay cantilevered 2 ft past
 each end post to tie into existing structure, 10 ft with a 4 ft gate in the
-middle, and 40 ft straight. `--design` writes the same sheet to
+middle, and 40 ft straight — each as an isometric, a front elevation and a
+close-up at one post, where the rails, mesh and boards meet. `--design` writes the same sheet to
 `build/cedar_fence_<design>_configurations.png`, and any layout can be built in
 code with `layout=`, e.g.
 `CedarFence(style="four_rail", layout=(("fence", 3), ("gate", 4), ("fence", 3)), gate_leaves=1)`.

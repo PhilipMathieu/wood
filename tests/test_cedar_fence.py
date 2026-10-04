@@ -1558,4 +1558,4 @@ def test_every_gallery_entry_carries_three_configurations():
         assert spec.configurations is not None
         assert spec.configuration_views is not None
     drawn = configurations(PanelFence(style="concord"))
-    assert [caption for caption, _ in drawn] == [c for c, _l, _k in CONFIGURATIONS]
+    assert [caption for caption, _a, _f in drawn] == [c for c, _l, _k in CONFIGURATIONS]

@@ -12,6 +12,12 @@ directional shading (one flat colour per triangle — this module does no
 shading of its own) and world-space edge polylines for the seam overlay, and
 gets back an RGB image plus the affine that maps a world point into that
 image's pixels.
+
+A part can also be drawn as a :class:`Screen` — a see-through grid of wires,
+for welded mesh — instead of an opaque solid.  Screens are drawn after every
+opaque triangle, blended over what is already there by how much of each
+pixel their wires cover, and never written to the depth buffer, so whatever
+stands behind the mesh shows through it as it does in the yard.
 """
 
 from __future__ import annotations
@@ -21,7 +27,7 @@ from typing import Sequence
 
 import numpy as np
 
-__all__ = ["Camera", "Projection", "rasterize"]
+__all__ = ["Camera", "Projection", "Screen", "rasterize"]
 
 #: Fraction of the scene diagonal a triangle must be nearer by to win a
 #: coplanar tie.  Without it, two exactly flush faces — a half-lap's whole
@@ -119,6 +125,83 @@ class Projection:
         return (col, row)
 
 
+@dataclass(frozen=True)
+class Screen:
+    """A rectangular grid of wires drawn over a flat part instead of its faces.
+
+    Wires run along both in-plane axes: one family at every *pitch_a* along
+    *axis_a* (so each wire lies parallel to *axis_b*) and one at every
+    *pitch_b* along *axis_b*, the first of each on *origin*.
+
+    Parameters
+    ----------
+    origin : array_like
+        A world point a wire of each family passes through — typically the
+        sheet's corner.
+    axis_a, axis_b : array_like
+        Unit vectors in the sheet's plane.
+    pitch_a, pitch_b : float
+        Wire spacing along each axis, world units (mm).
+    wire : float
+        Wire diameter, world units.  Drawn no thinner than one working
+        pixel, so a grid seen from far off still reads as a grid instead of
+        thinning to nothing; see :func:`_screen_coverage`.
+    """
+
+    origin: np.ndarray
+    axis_a: np.ndarray
+    pitch_a: float
+    axis_b: np.ndarray
+    pitch_b: float
+    wire: float
+
+    def __post_init__(self) -> None:
+        """Coerce the vectors to float ndarrays, so tuples work as input."""
+        for name in ("origin", "axis_a", "axis_b"):
+            object.__setattr__(self, name, np.asarray(getattr(self, name), dtype=float))
+
+
+def _wire_cover(s: np.ndarray, footprint: np.ndarray, pitch: float, wire: float) -> np.ndarray:
+    """Return the fraction of a pixel covered by one family of wires.
+
+    The pixel spans ``[s - footprint/2, s + footprint/2]`` along the axis
+    the wires are spaced on, and wires of width *wire* sit centred on every
+    multiple of *pitch*.  The answer is exact for that box filter: the
+    covered length is a difference of the periodic step function's integral,
+    which is what keeps a fine grid from shimmering into moiré when it is
+    many wires to the pixel.
+    """
+    def covered(x: np.ndarray) -> np.ndarray:
+        x = x + wire / 2
+        return np.floor(x / pitch) * wire + np.minimum(np.mod(x, pitch), wire)
+
+    safe = np.maximum(footprint, 1e-9)
+    return np.clip((covered(s + safe / 2) - covered(s - safe / 2)) / safe, 0.0, 1.0)
+
+
+def _screen_coverage(
+    s_a: np.ndarray,
+    s_b: np.ndarray,
+    foot_a: float,
+    foot_b: float,
+    screen: Screen,
+) -> np.ndarray:
+    """Return how much of each pixel *screen*'s wires cover, in ``[0, 1]``.
+
+    *s_a* and *s_b* are each pixel centre's distance from the screen's
+    origin along its two axes, and *foot_a*, *foot_b* how far those
+    distances change across one pixel.  Each wire is drawn at least one
+    pixel's footprint wide — a 2.5 mm wire is a tenth of a pixel in a
+    drawing of 40 ft of fence — but never more than half its pitch, so a
+    distant mesh darkens toward a haze rather than closing up solid.
+    """
+    wire_a = min(max(screen.wire, foot_a), screen.pitch_a / 2)
+    wire_b = min(max(screen.wire, foot_b), screen.pitch_b / 2)
+    cover_a = _wire_cover(s_a, np.full_like(s_a, foot_a), screen.pitch_a, wire_a)
+    cover_b = _wire_cover(s_b, np.full_like(s_b, foot_b), screen.pitch_b, wire_b)
+    return 1.0 - (1.0 - cover_a) * (1.0 - cover_b)
+
+
 def _round_up_to_multiple(value: float, multiple: int) -> int:
     """Return the smallest multiple of *multiple* at least *value*."""
     return max(multiple, int(np.ceil(value / multiple)) * multiple)
@@ -179,6 +262,70 @@ def _rasterize_triangles(
         if write.any():
             window_z[write] = depth[write]
             window_img[write] = colors[i]
+
+
+def _rasterize_screens(
+    triangles: np.ndarray,
+    tri_px: np.ndarray,
+    tri_py: np.ndarray,
+    tri_depth: np.ndarray,
+    colors: np.ndarray,
+    screen_ids: np.ndarray,
+    screens: Sequence[Screen],
+    zbuf: np.ndarray,
+    img: np.ndarray,
+    tie_eps: float,
+) -> None:
+    """Blend each screen triangle over *img* where it is in front of *zbuf*.
+
+    Never writes *zbuf*: a screen hides nothing behind it, it only tints it.
+    Drawn far to near, so two layers of mesh blend in the order light would
+    pass through them.
+    """
+    height, width = zbuf.shape
+    for i in np.argsort(tri_depth.mean(axis=1)):
+        screen = screens[screen_ids[i]]
+        xs, ys, zs = tri_px[i], tri_py[i], tri_depth[i]
+        x0 = max(int(np.floor(xs.min())), 0)
+        x1 = min(int(np.ceil(xs.max())), width - 1)
+        y0 = max(int(np.floor(ys.min())), 0)
+        y1 = min(int(np.ceil(ys.max())), height - 1)
+        if x0 > x1 or y0 > y1:
+            continue
+        denom = (ys[1] - ys[2]) * (xs[0] - xs[2]) + (xs[2] - xs[1]) * (ys[0] - ys[2])
+        if denom == 0:
+            continue
+
+        # The grid coordinate of each vertex along the screen's two axes.
+        # It is linear across the triangle, so its change per pixel is one
+        # constant gradient — which is the pixel footprint the box filter
+        # in _wire_cover needs.
+        rel = triangles[i] - screen.origin
+        grid_a, grid_b = rel @ screen.axis_a, rel @ screen.axis_b
+        dw_dx = np.array([ys[1] - ys[2], ys[2] - ys[0], 0.0]) / denom
+        dw_dy = np.array([xs[2] - xs[1], xs[0] - xs[2], 0.0]) / denom
+        dw_dx[2], dw_dy[2] = -dw_dx[:2].sum(), -dw_dy[:2].sum()
+        foot_a = abs(grid_a @ dw_dx) + abs(grid_a @ dw_dy)
+        foot_b = abs(grid_b @ dw_dx) + abs(grid_b @ dw_dy)
+
+        px, py = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+        w0 = ((ys[1] - ys[2]) * (px - xs[2]) + (xs[2] - xs[1]) * (py - ys[2])) / denom
+        w1 = ((ys[2] - ys[0]) * (px - xs[2]) + (xs[0] - xs[2]) * (py - ys[2])) / denom
+        w2 = 1.0 - w0 - w1
+        inside = (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
+        if not inside.any():
+            continue
+        depth = w0 * zs[0] + w1 * zs[1] + w2 * zs[2]
+        window_z = zbuf[y0 : y1 + 1, x0 : x1 + 1]
+        draw = inside & (depth > window_z + tie_eps)
+        if not draw.any():
+            continue
+
+        s_a = w0[draw] * grid_a[0] + w1[draw] * grid_a[1] + w2[draw] * grid_a[2]
+        s_b = w0[draw] * grid_b[0] + w1[draw] * grid_b[1] + w2[draw] * grid_b[2]
+        alpha = _screen_coverage(s_a, s_b, foot_a, foot_b, screen)[:, None]
+        window_img = img[y0 : y1 + 1, x0 : x1 + 1]
+        window_img[draw] = window_img[draw] * (1.0 - alpha) + colors[i] * alpha
 
 
 def _rasterize_edges(
@@ -242,6 +389,9 @@ def rasterize(
     size: int = 1000,
     supersample: int = 2,
     background: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    screen_ids: np.ndarray | None = None,
+    screens: Sequence[Screen] = (),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> tuple[np.ndarray, Projection]:
     """Render shaded *triangles* with a software z-buffer.
 
@@ -268,6 +418,17 @@ def rasterize(
         returning — the antialiasing budget.
     background : tuple of float, optional
         RGB fill for pixels no triangle covers, default white.
+    screen_ids : numpy.ndarray, optional
+        ``(n,)`` integers, one per triangle: an index into *screens* to draw
+        that triangle as a see-through grid of wires, or ``-1`` to draw it
+        as an ordinary opaque face.  Default every triangle opaque.
+    screens : sequence of Screen, optional
+        The wire grids *screen_ids* refers to.
+    bounds : tuple of float, optional
+        ``(u_min, u_max, v_min, v_max)``: the window to draw, in world units
+        along *camera*'s ``right`` and ``up`` axes from its ``center`` — a
+        close-up of part of the scene.  Default fits the whole scene, with a
+        small margin.
 
     Returns
     -------
@@ -282,12 +443,16 @@ def rasterize(
     edges = list(edges)
     edge_colors = list(edge_colors)
 
+    if screen_ids is None:
+        screen_ids = np.full(len(triangles), -1, dtype=int)
+    screen_ids = np.asarray(screen_ids, dtype=int)
+
     if triangles.size:
         normals = np.cross(
             triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
         )
         keep = normals @ camera.forward > 0
-        triangles, colors = triangles[keep], colors[keep]
+        triangles, colors, screen_ids = triangles[keep], colors[keep], screen_ids[keep]
 
     diagonal = _scene_diagonal(triangles, edges)
     tie_eps = _TIE_FRACTION * diagonal
@@ -306,13 +471,18 @@ def rasterize(
     u_all = np.concatenate(u_chunks) if u_chunks else np.array([0.0, 1.0])
     v_all = np.concatenate(v_chunks) if v_chunks else np.array([0.0, 1.0])
 
-    u_min, u_max = float(u_all.min()), float(u_all.max())
-    v_min, v_max = float(v_all.min()), float(v_all.max())
-    u_span = max(u_max - u_min, 1e-9)
-    v_span = max(v_max - v_min, 1e-9)
-    margin = 0.04 * max(u_span, v_span)
-    u_min, v_min = u_min - margin, v_min - margin
-    u_span, v_span = u_span + 2 * margin, v_span + 2 * margin
+    if bounds is None:
+        u_min, u_max = float(u_all.min()), float(u_all.max())
+        v_min, v_max = float(v_all.min()), float(v_all.max())
+        u_span = max(u_max - u_min, 1e-9)
+        v_span = max(v_max - v_min, 1e-9)
+        margin = 0.04 * max(u_span, v_span)
+        u_min, v_min = u_min - margin, v_min - margin
+        u_span, v_span = u_span + 2 * margin, v_span + 2 * margin
+    else:
+        u_min, u_max, v_min, v_max = (float(b) for b in bounds)
+        u_span = max(u_max - u_min, 1e-9)
+        v_span = max(v_max - v_min, 1e-9)
 
     work_long = size * supersample
     if u_span >= v_span:
@@ -330,7 +500,17 @@ def rasterize(
     if triangles.size:
         tri_px = (tri_u - u_min) * scale
         tri_py = work_h - (tri_v - v_min) * scale
-        _rasterize_triangles(tri_px, tri_py, tri_depth, colors, zbuf, img, tie_eps)
+        opaque = screen_ids < 0
+        _rasterize_triangles(
+            tri_px[opaque], tri_py[opaque], tri_depth[opaque], colors[opaque],
+            zbuf, img, tie_eps,
+        )
+        if not opaque.all():
+            mesh = ~opaque
+            _rasterize_screens(
+                triangles[mesh], tri_px[mesh], tri_py[mesh], tri_depth[mesh],
+                colors[mesh], screen_ids[mesh], screens, zbuf, img, tie_eps,
+            )
 
     if edges:
         _rasterize_edges(

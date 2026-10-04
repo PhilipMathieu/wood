@@ -6148,21 +6148,50 @@ def configured(
     return dataclasses.replace(fence, layout=layout, **overrides)
 
 
-#: The two views each configuration is drawn in, from the side the fence is
-#: built to be seen from — the boards' face, the rails in front of the mesh.
-#: The standard views look from the other side, which on a fence is the back.
-CONFIGURATION_VIEWS: tuple[View, View] = (
+#: The views each configuration is drawn in, from the side the fence is built
+#: to be seen from — the boards' face, the rails in front of the mesh.  The
+#: standard views look from the other side, which on a fence is the back.
+#:
+#: The third is a close-up at one post (see :func:`close_up_focus`), 1.6 m
+#: across: at 40 ft a drawing is a third of a millimetre of fence to the
+#: pixel and every joint is a smudge, while this is where the rails, mesh,
+#: boards and post actually meet.
+CONFIGURATION_VIEWS: tuple[View, ...] = (
     View("Isometric", 22.0, 55.0),
     View("Front", 2.0, 90.0),
+    View("Close-up at a post", 14.0, 38.0, window_mm=(1600.0, 2000.0)),
 )
 
 
-def configurations(fence: "CedarFence | PanelFence") -> list[tuple[str, Compound]]:
-    """Return ``(caption, assembly)`` for *fence* in each of :data:`CONFIGURATIONS`."""
-    return [
-        (caption, configured(fence, layout, **overrides).build())
-        for caption, layout, overrides in CONFIGURATIONS
-    ]
+def close_up_focus(
+    fence: "CedarFence | PanelFence", assembly: Compound
+) -> tuple[float, float, float]:
+    """Return the point a configuration's close-up is centred on, mm.
+
+    The post the eye goes to first: where a cantilever meets its post if
+    there is one, since that joint is the reason for the layout; otherwise
+    the first post with fence or gate on both sides — the gate's hinge post
+    beside a gate, a line post on a straight run — rather than an end post,
+    which shows half as much.  Centred at half the fence's height, so the
+    window holds the post from grade to cap.
+    """
+    spans = fence.spans()
+    posts = post_positions(spans)
+    interior = len(posts) > 2 and spans[0].kind != "cantilever"
+    x = posts[1] if interior else posts[0]
+    return (x, assembly.bounding_box().center().Y, fence.height / 2)
+
+
+def configurations(
+    fence: "CedarFence | PanelFence",
+) -> list[tuple[str, Compound, tuple[float, float, float]]]:
+    """Return ``(caption, assembly, close-up focus)`` per :data:`CONFIGURATIONS`."""
+    out = []
+    for caption, layout, overrides in CONFIGURATIONS:
+        built = configured(fence, layout, **overrides)
+        assembly = built.build()
+        out.append((caption, assembly, close_up_focus(built, assembly)))
+    return out
 
 
 #: Gallery notes for the designs read from AVO's own catalogue rather than

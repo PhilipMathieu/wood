@@ -415,8 +415,9 @@ def _write_assets(
 
     hero_view = STANDARD_VIEWS[0]
     if built.spec.configurations is not None:
-        # The same design at several layouts: one row each, an isometric and
-        # a front elevation, so each is drawn at a scale that suits it.
+        # The same design at several layouts: one row each, in the spec's
+        # views (an isometric and a front elevation by default), so each is
+        # drawn at a scale that suits it.
         configurations = built.spec.configurations()
         views = built.spec.configuration_views or (hero_view, STANDARD_VIEWS[1])
         render_configurations(
@@ -433,7 +434,7 @@ def _write_assets(
         )
         assets["views"] = "views.png"
         assets["hero"] = "hero.png"
-        assets["configurations"] = [caption for caption, _ in configurations]
+        assets["configurations"] = [entry[0] for entry in configurations]
     else:
         render_assembly(
             built.assembly,
