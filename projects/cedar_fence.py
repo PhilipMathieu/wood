@@ -626,6 +626,13 @@ POST_AND_RAIL_RAILS: dict[str, StockChoice] = {
     "square_4": StockChoice("4x4", grade="STK", profile="rough sawn"),
 }
 
+#: Styles whose rails can be face-screwed to the posts (``face_rails``).
+FACE_RAIL_STYLES: tuple[str, ...] = ("four_rail", "log_and_mesh")
+
+#: Stick length assumed for a face rail whose stock is quoted by the foot,
+#: feet: the yard's usual longest, and long enough for two 6 ft bays.
+FACE_RAIL_DEFAULT_FT: float = 12.0
+
 #: The gap left between two horizontal courses butted on a post, inches: room
 #: for the end grain to swell in a wet spring without the boards pushing each
 #: other off the post.
@@ -1014,6 +1021,13 @@ class CedarFence:
         ``board_on_board`` style, default 1.
     horizontal_gap_in : float, optional
         Target gap between courses in the ``horizontal`` style, default 0.5.
+    face_rails : bool, optional
+        In the ``four_rail`` and ``log_and_mesh`` styles, screw the rails to
+        the posts' show faces instead of letting them in between the posts,
+        with the mesh run continuously across the post faces and clamped
+        between the rails and the posts.  Rails run in stock lengths past
+        the line posts and butt on a post centre, staggered course to course.
+        Default ``False``.
     joint_battens : bool, optional
         In the ``horizontal`` style, screw a vertical cedar batten over every
         post the courses cross — line and end posts, not gate posts — covering
@@ -1076,6 +1090,7 @@ class CedarFence:
     overlap_in: float = 1.0
     horizontal_gap_in: float = 0.5
     joint_battens: bool = False
+    face_rails: bool = False
     hinge_gap_in: float = 0.375
     leaf_gap_in: float = 0.75
     board: StockChoice | None = None
@@ -1730,6 +1745,8 @@ class CedarFence:
             MESH_THICKNESS_MM
             + (GATE_BATTEN_STOCK if post.is_gate_post else BATTEN_STOCK).thickness
             if self.style == "good_neighbor"
+            else MESH_THICKNESS_MM + self.rail_t
+            if self.face_rails and not post.is_gate_post
             else 0.0
         )
         side = choice.width
@@ -1780,6 +1797,8 @@ class CedarFence:
     def _panel_group(self, group: list[Span]) -> list[object]:
         """Return the rails and infill filling a run of panels."""
         out: list[object] = []
+        if self.face_rails and self.style in FACE_RAIL_STYLES:
+            return self._face_rails(group)
         if self.style == "log_and_mesh":
             return self._log_and_mesh(group)
         if self.style == "four_rail":
@@ -2012,6 +2031,145 @@ class CedarFence:
                     "what shows from the front; drawn as a sheet",
                 )
             )
+        return out
+
+    def rail_stock_length(self) -> float:
+        """Return the longest stick the rail stock comes in, mm.
+
+        The rail's own inventory entry where it lists lengths — rough hemlock
+        is sold in 12 ft and nothing else — and :data:`FACE_RAIL_DEFAULT_FT`
+        where stock is quoted by the foot and the length is the yard's.
+        """
+        choice = self.rail
+        try:
+            entry = self.inventory.dimensional_for(
+                choice.species or self.species,
+                choice.nominal,
+                choice.grade,
+                choice.profile,
+            )
+        except (KeyError, LookupError, ValueError):
+            entry = None
+        feet = max(entry.lengths_ft) if entry is not None and entry.lengths_ft else (
+            FACE_RAIL_DEFAULT_FT
+        )
+        return feet * FT
+
+    def face_rail_extent(self, group: list[Span]) -> tuple[float, float]:
+        """Return where face rails start and stop across one stretch, mm.
+
+        As :meth:`edge_x`, except at the two ends of the run: there a face
+        rail stops on the end post's centre line, the way it would butt the
+        next rail if the fence went on, rather than running out to the
+        post's far face.  That is what lets a run that is a whole number of
+        sticks long take whole sticks — 48 ft of 6 ft bays is exactly four
+        12 ft rails a course — where running to the outside face would want
+        every end stick 2" longer than the stock.
+        """
+        posts = self._post_map()
+
+        def end(x: float, is_left: bool) -> float:
+            post = posts.get(round(x, 6))
+            if post is not None and not post.is_gate_post:
+                return x
+            return self.edge_x(x, is_left)
+
+        return end(group[0].x0, True), end(group[-1].x1, False)
+
+    def face_rail_pieces(self, group: list[Span], course: int) -> list[tuple[float, float]]:
+        """Return where each rail piece of one course starts and stops, mm.
+
+        A face rail runs past the line posts until the stick runs out, then
+        butts the next one on a post centre line with a
+        :data:`HORIZONTAL_JOINT_GAP_IN` gap.  Each piece is as long as the
+        stock allows; every second course starts with a piece one bay
+        shorter, so no post carries the joint of two neighbouring courses.
+        A stretch that fits in one stick is one piece, whatever the course.
+
+        Parameters
+        ----------
+        group : list[Span]
+            A run of consecutive panels, as from :meth:`panel_groups`.
+        course : int
+            Which course, counted from the bottom; odd courses are staggered.
+
+        Raises
+        ------
+        ValueError
+            If a bay is longer than the rail stock, so no joint can land on
+            a post.
+        """
+        x0, x1 = self.face_rail_extent(group)
+        limit = self.rail_stock_length() + 1e-6
+        if x1 - x0 <= limit:
+            return [(x0, x1)]
+        joints = [s.x1 for s in group[:-1] if round(s.x1, 6) in self._post_map()]
+        half_gap = inches(HORIZONTAL_JOINT_GAP_IN) / 2
+        pieces: list[tuple[float, float]] = []
+        start = x0
+        reach = limit / 2 if course % 2 else limit
+        while x1 - start > limit:
+            usable = [j for j in joints if start < j - half_gap and j - start <= reach]
+            if not usable:
+                usable = [j for j in joints if start < j - half_gap and j - start <= limit]
+            if not usable:
+                raise ValueError(
+                    f"a {self.rail.nominal} rail of "
+                    f"{mm_to_fractional_inch(self.rail_stock_length())} cannot "
+                    "reach the next post — shorten the bays"
+                )
+            joint = max(usable)
+            pieces.append((start, joint - half_gap))
+            start = joint + half_gap
+            reach = limit
+        pieces.append((start, x1))
+        return pieces
+
+    def _face_rails(self, group: list[Span]) -> list[object]:
+        """Return face-screwed rails, and the mesh they clamp, for one stretch.
+
+        The mesh comes off the roll in one length per stretch and is run
+        across the show faces of the posts; the rails are screwed over it
+        into each post they cross.  So the mesh is held along every rail as
+        well as at every post, and a cantilever is the rail carrying on past
+        its last post rather than a separate frame hung off it.
+        """
+        x0, x1 = self.face_rail_extent(group)
+        out: list[object] = [
+            self._mesh_sheet(
+                (x0 + x1) / 2,
+                MESH_THICKNESS_MM / 2,
+                x1 - x0,
+                "mesh",
+                f"{mm_to_fractional_inch(self.mesh_height)} off a "
+                f"{self.mesh_roll_height_in:g}\" roll in one length per "
+                "stretch, run across the post faces and clamped there by the "
+                "rails screwed over it; drawn as a sheet",
+            )
+        ]
+        heights = (
+            self._board_rail_heights()
+            if self.style == "four_rail"
+            else self._log_rail_heights()
+        )
+        rail_y = MESH_THICKNESS_MM + self.rail_t / 2
+        for course, (z, where) in enumerate(heights):
+            for a, b in self.face_rail_pieces(group, course):
+                out.append(
+                    Pos((a + b) / 2, rail_y, z)
+                    * ALONG_RUN
+                    * Board(
+                        length_mm=b - a,
+                        label="rail",
+                        notes=(
+                            f"{where} rail, screwed over the mesh to the face "
+                            "of every post it crosses — two 3-1/2\" stainless "
+                            "screws a post; where two rails meet they butt on "
+                            "the post centre with a 1/8\" gap"
+                        ),
+                        **self._stock(self.rail),
+                    )
+                )
         return out
 
     def _board_rail_heights(self) -> list[tuple[float, str]]:
@@ -2598,6 +2756,24 @@ class CedarFence:
             ]
             if short:
                 widths = ", ".join(mm_to_fractional_inch(s.length) for s in short)
+                if self.face_rails and self.style in FACE_RAIL_STYLES:
+                    stick = self.rail_stock_length() / FT
+                    findings.append(
+                        Finding(
+                            Severity.INFO,
+                            "layout",
+                            f"posts at {self.bay_ft:g} ft, so a {stick:g} ft "
+                            f"rail spans {stick / self.bay_ft:g} bays: "
+                            f"{len(panels) - len(short)} full bays and "
+                            f"{len(short)} short one"
+                            f"{'s' if len(short) != 1 else ''} ({widths}). A "
+                            "short bay only moves the next rail joint along — "
+                            "but a run that is a whole number of sticks long "
+                            "is one with no offcuts",
+                        )
+                    )
+                    short = []
+            if short:
                 findings.append(
                     Finding(
                         Severity.INFO,
@@ -2885,9 +3061,17 @@ class CedarFence:
         rail_e_mpa = ELASTIC_MODULUS_MPA[self.rail.species or self.species]
 
         if self.style == "log_and_mesh":
-            return self._check_log_rails(rail_e_mpa, span) + self._check_rail_decay()
+            return (
+                self._check_log_rails(rail_e_mpa, span)
+                + self._check_face_rails()
+                + self._check_rail_decay()
+            )
         if self.style == "four_rail":
-            return self._check_board_rails(rail_e_mpa, span) + self._check_rail_decay()
+            return (
+                self._check_board_rails(rail_e_mpa, span)
+                + self._check_face_rails()
+                + self._check_rail_decay()
+            )
         if self.style == "good_neighbor":
             return self._check_unrailed_mesh(span)
 
@@ -2998,15 +3182,20 @@ class CedarFence:
                     else "; shorten the bay or add a rail"
                 ),
             ),
-            Finding(
-                Severity.INFO,
-                "joinery",
-                "the rails stop at each post, so each bay is its own frame: "
-                "let the rail ends 1/2\" into a dado in the post and screw "
-                "through, and the post carries the rail on a shoulder instead "
-                "of on two toe-screws in end grain",
-            ),
-        ]
+        ] + (
+            []
+            if self.face_rails
+            else [
+                Finding(
+                    Severity.INFO,
+                    "joinery",
+                    "the rails stop at each post, so each bay is its own "
+                    "frame: let the rail ends 1/2\" into a dado in the post "
+                    "and screw through, and the post carries the rail on a "
+                    "shoulder instead of on two toe-screws in end grain",
+                )
+            ]
+        )
 
     def _check_unrailed_mesh(self, span: float) -> list[Finding]:
         """Check mesh that spans a bay with nothing behind it but tension.
@@ -3069,6 +3258,35 @@ class CedarFence:
             "the end — closer splits cedar — rather than one screw in the "
             "middle of the board, which lets it cup." + batten,
         )
+
+    def _check_face_rails(self) -> list[Finding]:
+        """Say how a face-screwed rail is held, and what pushes it off."""
+        if not (self.face_rails and self.style in FACE_RAIL_STYLES):
+            return []
+        stick = f"{self.rail_stock_length() / FT:g} ft"
+        return [
+            Finding(
+                Severity.INFO,
+                "joinery",
+                f"the rails are screwed to the face of every post they cross, "
+                f"over the mesh, in {stick} sticks that run past the line posts "
+                f"and butt on a post centre with a "
+                f"{mm_to_fractional_inch(inches(HORIZONTAL_JOINT_GAP_IN))} gap, "
+                "staggered so neighbouring courses do not joint on the same "
+                "post. Two 3-1/2\" stainless screws per rail per post, the "
+                "ends pre-drilled and 3/4\" in. The mesh is clamped between "
+                "rail and post along every rail, not stapled to it",
+            ),
+            Finding(
+                Severity.INFO,
+                "fasteners",
+                "a dog pushing from the post side presses the mesh into the "
+                "back of the rails and the rails off the posts, so the load "
+                "on each screw is withdrawal, not shear — which is the reason "
+                "for two per post and for screws rather than nails, and why "
+                "the fence's side the mesh shows on is the yard side",
+            ),
+        ]
 
     def _check_rail_decay(self) -> list[Finding]:
         """Warn when rails or gate framing are a species that rots.
@@ -3134,7 +3352,7 @@ class CedarFence:
             load_kg=lean_kg / max(self.log_rails, 1),
         )
         limit = span / 240.0
-        return [
+        findings = [
             Finding(
                 Severity.INFO if deflection <= limit else Severity.WARN,
                 "deflection",
@@ -3160,6 +3378,8 @@ class CedarFence:
                 "any use against a post already in the ground",
             ),
         ]
+        # A face rail is screwed, not tenoned; _check_face_rails says how.
+        return findings[:1] if self.face_rails else findings
 
     def _check_posts(self) -> list[Finding]:
         """Check what goes in the ground, which is what the fence dies of."""
@@ -5943,7 +6163,7 @@ def run_design(
     else:
         report = run(fence.style, outdir, hardware=hardware, fence=fence)
     render_configurations(
-        configurations(fence),
+        configurations(fence, design_configurations(key)),
         output_png=outdir / f"cedar_fence_{key}_configurations.png",
         title=name,
         views=configuration_views(key),
@@ -6222,6 +6442,10 @@ def _hemlock(nominal: str) -> StockChoice:
     return StockChoice(nominal, grade="", profile="rough sawn", species="hemlock")
 
 
+#: Post spacing of the hemlock designs, feet: half the 12 ft stick the
+#: hemlock comes in, so a rail spans two bays and every joint lands on a post.
+HEMLOCK_BAY_FT: float = 6.0
+
 #: The lighter, closer 2" x 3" garden fencing the owner priced at Lowe's.
 GARDEN_MESH_MATERIAL: str = "steel_mesh_black_2x3"
 
@@ -6233,8 +6457,12 @@ def four_rail_hemlock_fence() -> CedarFence:
     rough hemlock for everything that spans, which is most of the wood and
     most of the money.  The garden store sells no 2x6 hemlock, so the rails
     are 2x4 on edge: a narrower rail than the photograph, and the cheaper of
-    the two sizes on either side of it (2x8 is the other).  Hung with the
-    2" x 3" garden fencing.
+    the two sizes on either side of it (2x8 is the other).
+
+    Built the way the horizontal board fence is: posts at 6 ft, the
+    2" x 3" garden fencing run across their faces, and the rails screwed over
+    it in 12 ft sticks that pass the line posts and butt on every other one
+    (``face_rails``).
     """
     return CedarFence(
         style="four_rail",
@@ -6242,17 +6470,23 @@ def four_rail_hemlock_fence() -> CedarFence:
         rail=_hemlock("2x4"),
         gate_frame=_hemlock("2x4"),
         mesh_material=GARDEN_MESH_MATERIAL,
+        face_rails=True,
+        bay_ft=HEMLOCK_BAY_FT,
+        max_bay_ft=HEMLOCK_BAY_FT,
+        max_horizontal_bay_ft=HEMLOCK_BAY_FT,
     )
 
 
 def post_and_rail_hemlock_fence() -> CedarFence:
     """Return post and rail in square stock: cedar posts, hemlock rails.
 
-    AVO's square post and rail — 4" rails tenoned into mortised posts — rather
-    than the round one, because round cedar has no published price and
-    square cedar and hemlock both do.  Cedar 4x4 line posts and 6x6 gate
-    posts in the ground, rough 4x4 hemlock rails between them, hemlock 2x4
-    gate frames, and the 2" x 3" garden fencing.
+    Square rather than round, because round cedar has no published price
+    and square cedar and hemlock both do.  Cedar 4x4 line posts and 6x6 gate
+    posts at 6 ft, the 2" x 3" garden fencing across their faces, and rough
+    4x4 hemlock rails screwed over it in 12 ft sticks (``face_rails``) —
+    not tenoned into mortises, which is what lets a rail run on past a post
+    and a cantilever be the same stick as the bay beside it.  Hemlock 2x4
+    gate frames.
     """
     return dataclasses.replace(
         post_and_rail_fence(),
@@ -6261,6 +6495,10 @@ def post_and_rail_hemlock_fence() -> CedarFence:
         rail=_hemlock("4x4"),
         gate_frame=_hemlock("2x4"),
         mesh_material=GARDEN_MESH_MATERIAL,
+        face_rails=True,
+        bay_ft=HEMLOCK_BAY_FT,
+        max_bay_ft=HEMLOCK_BAY_FT,
+        max_horizontal_bay_ft=HEMLOCK_BAY_FT,
     )
 
 
@@ -6380,6 +6618,24 @@ CONFIGURATIONS: tuple[tuple[str, tuple[tuple[str, float], ...], dict[str, Any]],
 )
 
 
+#: The hemlock designs' configurations: the same three, with the straight run
+#: at 48 ft rather than 40, which is eight 6 ft bays and four 12 ft rails a
+#: course — a run that divides into whole sticks, where 40 ft leaves a 4 ft
+#: bay and an 8 ft offcut on every course.
+HEMLOCK_CONFIGURATIONS: tuple[tuple[str, tuple[tuple[str, float], ...], dict[str, Any]], ...] = (
+    CONFIGURATIONS[:2] + (("48 ft straight", (("fence", 48.0),), {}),)
+)
+
+
+def design_configurations(
+    key: str,
+) -> tuple[tuple[str, tuple[tuple[str, float], ...], dict[str, Any]], ...]:
+    """Return the layouts design *key* is drawn in."""
+    if key in ("four_rail_hemlock", "rails_hemlock"):
+        return HEMLOCK_CONFIGURATIONS
+    return CONFIGURATIONS
+
+
 def configured(
     fence: "CedarFence | PanelFence",
     layout: tuple[tuple[str, float], ...],
@@ -6454,10 +6710,17 @@ def close_up_focus(
 
 def configurations(
     fence: "CedarFence | PanelFence",
+    layouts: tuple[tuple[str, tuple[tuple[str, float], ...], dict[str, Any]], ...] = (
+        CONFIGURATIONS
+    ),
 ) -> list[tuple[str, Compound, tuple[float, float, float]]]:
-    """Return ``(caption, assembly, close-up focus)`` per :data:`CONFIGURATIONS`."""
+    """Return ``(caption, assembly, close-up focus)`` per entry of *layouts*.
+
+    *layouts* defaults to :data:`CONFIGURATIONS`; see
+    :func:`design_configurations` for the designs drawn otherwise.
+    """
     out = []
-    for caption, layout, overrides in CONFIGURATIONS:
+    for caption, layout, overrides in layouts:
         built = configured(fence, layout, **overrides)
         assembly = built.build()
         out.append((caption, assembly, close_up_focus(built, assembly)))
@@ -6552,7 +6815,7 @@ def _design_spec(key: str) -> ProjectSpec:
             "price and is named as missing rather than left out quietly."
         ),
         tags=["outdoor", "fence", "vinyl" if fence.species == "vinyl_pvc" else "cedar"],
-        configurations=lambda: configurations(fence),
+        configurations=lambda: configurations(fence, design_configurations(key)),
         configuration_views=configuration_views(key),
     )
 

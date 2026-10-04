@@ -2357,3 +2357,46 @@ mid-height for the close-up. Only this design gets the fourth column
 Priced entirely off the sawn guide: $2,563 with heavy-duty hardware and a
 yard of stone, of which the 1x6 is $994 and the battens $40.
 
+## Addendum: hemlock rails on the post faces — 2026-10-04
+
+The owner asked for both hemlock designs to be built like the horizontal
+board fence: posts at 6 ft, the rails on the posts' faces with the wire
+between the hemlock and the posts, so the cantilevered bay is one continuous
+rail, and the straight run 48 ft instead of 40 for even division.
+
+`face_rails=True` (styles in `FACE_RAIL_STYLES`: `four_rail`,
+`log_and_mesh`) does that:
+
+- **The mesh** is one length per stretch, across the post faces at
+  `y = 0 … 1/8"`, instead of a sheet per bay stapled behind the rails.
+- **The rails** sit over it, screwed to every post they cross: two 3-1/2"
+  stainless screws a post. They run past line posts in sticks as long as the
+  rail stock comes (`rail_stock_length`: 12 ft for the garden-store hemlock,
+  from its `lengths_ft`) and butt on a post centre with the same 1/8" gap
+  as the horizontal courses.
+- **Joints stagger**: every odd course starts with a one-bay piece, so no
+  post carries the joints of two neighbouring courses
+  (`face_rail_pieces`). A stretch that fits in one stick has no joint at
+  all — the 2 + 6 + 2 ft cantilever row is one 10 ft rail per course.
+- **At the ends of a run** the rails stop on the end post's centre line
+  (`face_rail_extent`), not its far face. Running to the far face would make
+  every end stick 12'-2", which is a 14 ft stick and an offcut; stopping at
+  the centre is what makes 48 ft exactly four 12 ft rails a course.
+- **No tenons or dadoes**: the tenon/mortise and dado findings give way to a
+  face-rail joinery finding, plus a fastener note — a dog pushing from the
+  post side presses the mesh into the back of the rails and the rails off the
+  posts, so the screws are in withdrawal, which is why there are two a post
+  and why they are screws.
+- **Caps** on the four-rail posts deepen to cover mesh and rail too, as the
+  good-neighbour caps cover mesh and batten.
+
+The configurations for these two designs are `HEMLOCK_CONFIGURATIONS`: the
+same cantilever and gate rows, and 48 ft straight (eight bays, nine posts).
+The other designs keep 40 ft.
+
+On the 38 ft brief the 6 ft spacing costs two more posts (11 against 9),
+and each half of the run ends in a 12" bay before its gate section, which
+the layout finding names. The totals rise accordingly, with heavy-duty
+hardware: `four_rail_hemlock` $1,758 → $1,857, `rails_hemlock` $1,902 →
+$1,998.
+

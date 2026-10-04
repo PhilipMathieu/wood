@@ -1618,7 +1618,10 @@ def test_hemlock_rails_are_warned_about_decay_and_cedar_rails_are_not():
 
 
 def test_a_square_post_and_rail_rail_is_a_sawn_board_not_a_log():
-    fence = DESIGNS["rails_hemlock"][1]()
+    import dataclasses
+
+    # Tenoned rather than face-screwed, which is where a square rail differs.
+    fence = dataclasses.replace(DESIGNS["rails_hemlock"][1](), face_rails=False)
     rails = [p for p in extract(fence.build()) if p.label == "square_rail"]
     assert rails and all(p.nominal == "4x4" for p in rails)
     assert not [p for p in extract(fence.build()) if p.label == "log_rail"]
@@ -1684,3 +1687,81 @@ def test_only_the_horizontal_design_gets_the_joint_detail_view():
     detail = configuration_views("horizontal")[-1]
     assert detail.window_mm is not None and detail.offset_mm is not None
     assert configuration_views("four_rail") == CONFIGURATION_VIEWS
+
+
+def _face_rail_layout(key, layout, **overrides):
+    from cedar_fence import configured
+
+    fence = configured(DESIGNS[key][1](), layout, **overrides)
+    return fence, [
+        [fence.face_rail_pieces(group, course) for course in range(2)]
+        for group in fence.panel_groups()
+    ]
+
+
+@pytest.mark.parametrize("key", ["four_rail_hemlock", "rails_hemlock"])
+def test_hemlock_designs_are_face_railed_on_six_foot_bays(key):
+    fence = DESIGNS[key][1]()
+    assert fence.face_rails and fence.bay_ft == 6.0
+    assert fence.rail_stock_length() == pytest.approx(12 * 12 * IN)
+    panels = [s for s in fence.spans() if s.kind == "panel"]
+    assert max(s.length for s in panels) == pytest.approx(6 * 12 * IN)
+
+
+@pytest.mark.parametrize("key", ["four_rail_hemlock", "rails_hemlock"])
+def test_a_cantilevered_bay_is_one_continuous_rail(key):
+    fence, groups = _face_rail_layout(
+        key, (("cantilever", 2.0), ("fence", 6.0), ("cantilever", 2.0))
+    )
+    (courses,) = groups
+    for pieces in courses:
+        assert pieces == [(0.0, pytest.approx(10 * 12 * IN))]
+
+
+@pytest.mark.parametrize("key", ["four_rail_hemlock", "rails_hemlock"])
+def test_forty_eight_feet_is_four_whole_sticks_a_course_staggered(key):
+    fence, groups = _face_rail_layout(key, (("fence", 48.0),))
+    (courses,) = groups
+    gap = HORIZONTAL_JOINT_GAP_IN * IN
+    stick = 12 * 12 * IN
+    even, odd = courses
+    assert len(even) == 4
+    # Whole sticks, less the joint gap where a neighbour butts them.
+    assert all(stick - gap - 1e-6 <= b - a <= stick for a, b in even)
+    def joints(pieces):
+        return {round((b + a2) / 2, 3) for (_a, b), (a2, _b) in zip(pieces, pieces[1:])}
+
+    # Every joint lands on a post, and no post carries a joint in both courses.
+    posts = {round(p.x, 3) for p in fence.posts()}
+    assert joints(even) <= posts and joints(odd) <= posts
+    assert not joints(even) & joints(odd)
+    assert all(b - a <= stick + 1e-6 for a, b in even + odd)
+
+
+def test_face_rails_clamp_one_length_of_mesh_against_the_posts():
+    from woodshop.render.model3d import _iter_leaf_parts
+
+    fence, _ = _face_rail_layout("four_rail_hemlock", (("fence", 48.0),))
+    built = fence.build()
+    leaves = list(_iter_leaf_parts(built))
+    mesh = [p for p in leaves if p.label == "mesh"]
+    rails = [p for p in leaves if p.label == "rail"]
+    posts = [p for p in leaves if p.label in ("line_post", "gate_post")]
+    assert len(mesh) == 1
+    m = mesh[0].bounding_box()
+    assert m.max.X - m.min.X == pytest.approx(48 * 12 * IN)
+    # Post face, then mesh, then rail, toward the show side.
+    post_face = max(p.bounding_box().max.Y for p in posts)
+    assert m.min.Y == pytest.approx(post_face, abs=1e-3)
+    assert all(r.bounding_box().min.Y == pytest.approx(m.max.Y, abs=1e-3) for r in rails)
+
+
+def test_face_rails_replace_the_tenon_and_dado_joinery_notes():
+    for key in ("four_rail_hemlock", "rails_hemlock"):
+        fence = DESIGNS[key][1]()
+        built = fence.build()
+        joinery = [
+            f.message for f in fence.check(built, extract(built)).findings
+            if f.code == "joinery"
+        ]
+        assert len(joinery) == 1 and "face of every post" in joinery[0]
