@@ -128,14 +128,20 @@ def test_the_foot_leg_is_narrower_at_the_floor_than_at_the_rail(queen):
     assert at_floor == pytest.approx(queen.leg_depth_foot_in * IN, rel=0.02)
 
 
-def test_the_foot_legs_stop_under_the_rails(queen):
-    """They carry the rails rather than standing beside them."""
+def test_the_foot_legs_form_the_corners(queen):
+    """Regression: the first measuring pass stopped the legs under the rails.
+
+    The 360 shows the legs running up past the rail — the rails butt into
+    them — with a rounded runner tip standing proud of the rail top.
+    """
     from woodshop.render.model3d import _iter_leaf_parts
 
     tops = {
         p.label: p.bounding_box().max.Z for p in _iter_leaf_parts(queen.build())
     }
-    assert tops["foot_leg"] == pytest.approx(queen.rail_bottom_z, abs=0.1)
+    assert tops["foot_leg"] == pytest.approx(
+        queen.rail_top_z + queen.leg_tip_above_rail_in * IN, abs=0.1
+    )
     assert tops["side_rail"] == pytest.approx(queen.rail_top_z, abs=0.1)
 
 
@@ -175,10 +181,10 @@ def test_headboard_gap_is_nine_and_three_quarter_inches(queen):
     assert gap == pytest.approx(9.75 * IN)
 
 
-def test_the_measured_stile_depth_leaves_exactly_a_queen_mattress(queen):
-    """A good sign the 6" stile depth is right: 87 - 6 - 1 = 80."""
-    assert queen.deck_length == pytest.approx(80 * IN)
-    assert queen.deck_length == pytest.approx(SIZES["queen"].mattress_l_in * IN)
+def test_the_measured_stile_depth_leaves_room_for_a_queen_mattress(queen):
+    """87 - 5-3/4 - 1 = 80-1/4: an 80" mattress with a whisker of clearance."""
+    assert queen.deck_length == pytest.approx(80.25 * IN)
+    assert queen.deck_length >= SIZES["queen"].mattress_l_in * IN
 
 
 def test_sixteen_slats_fit_the_deck(queen):
@@ -205,6 +211,8 @@ def test_expected_parts_and_counts(queen_parts):
     assert queen_parts["head_stile"].qty == 2
     assert queen_parts["foot_leg"].qty == 2
     assert queen_parts["side_rail"].qty == 2
+    assert queen_parts["foot_rail"].qty == 1
+    assert queen_parts["head_rail"].qty == 1
     assert queen_parts["slat_ledger"].qty == 2
     assert queen_parts["slat"].qty == 16
     assert queen_parts["slat_spacer"].qty == 30  # 15 gaps, both sides
@@ -224,8 +232,13 @@ def test_faithful_bed_passes_every_check(queen):
     assert report.ok, report.to_text()
 
 
-def test_the_stiles_need_ten_quarter_stock(queen):
-    """A 2" finished stile does not come out of 8/4, which surfaces to 1-3/4"."""
+def test_the_stiles_come_out_of_eight_quarter_stock(queen):
+    """A 1-3/4" finished stile is exactly what 8/4 surfaces to.
+
+    Regression: the first measuring pass called the stiles 2" — an artifact
+    of scaling the Cal King render against the queen envelope — and 2" needs
+    10/4.  The corrected 1-3/4" saves a whole thickness class.
+    """
     from woodshop.cutlist.hardwood import nest_hardwood
 
     plan = nest_hardwood(extract(queen.build()), queen.inventory, "cherry")
@@ -235,7 +248,7 @@ def test_the_stiles_need_ten_quarter_stock(queen):
         for p in g.parts
         if p.label.startswith("head_stile")
     }
-    assert quarters == {"10/4"}
+    assert quarters == {"8/4"}
 
 
 # ---------------------------------------------------------------------------

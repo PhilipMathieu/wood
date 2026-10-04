@@ -1,0 +1,842 @@
+"""Deck stair gate — a railing section that lost two of its posts.
+
+A gate for the stairs off the deck, so the dog can be let out without an
+escort.  The deck railing it has to disappear into: 4x4 posts, horizontal
+2x4 rails, vertical 1x1 slats with a 45° bevel at either end, and a dressed
+cedar 1x6 laid flat as a cap.  The gate is that railing section rebuilt as a
+swinging frame, after the Young House Love "DeckGate" pattern: a 2x4
+perimeter frame, the slat field screwed to its deck-side face at the same
+pitch as the railing, and the cap on top.
+
+Source
+------
+https://www.younghouselove.com/deckgate/ — the pattern, not the dimensions.
+Their gate is 2x3s and 2x2 balusters; this one is 2x4s and 1x1 slats because
+that is what the railing it matches is made of.
+
+The bracing question
+--------------------
+A gate sags by racking: the frame parallelograms and the latch corner
+drops.  Whether it needs a diagonal (wood brace or cable turnbuckle) is not
+a matter of taste — it is the corner joints' moment capacity against the
+racking moment, and both sides of that comparison are computable, so
+:func:`check_racking` computes them.  The short version:
+
+* The racking moment is the gate's own weight acting at its centre of
+  gravity, plus the dog — modelled as a chosen mass landing paws on the
+  latch corner with a dynamic factor, because that corner is exactly where
+  a dog greets a gate.
+* Each rail-to-stile corner resists as a force couple across the rail's
+  3-1/2" depth.  A **glued half-lap** puts ~12 in² of long-grain glue face
+  at every corner and resists that couple through the glue line; even at a
+  wet-service allowable of 200 psi its capacity is an order of magnitude
+  past the demand at stair-opening widths.  **Pocket screws into end
+  grain** resist it through two screw shanks, and cyclic wet-dry loading
+  is exactly what backs screws out of end grain.
+
+So the model defaults to ``corner_joinery="half_lap"`` and ``brace="none"``,
+and the check *shows* the margin rather than asserting it.  Build it with
+pocket screws instead and the same check tells you to add the cable.
+
+Measured dimensions
+-------------------
+Taped 2026-08-29: the opening is 36-1/2" clear between the posts, the top
+of the top rail is 41-1/2" above the decking, and the underside of the
+bottom rail is 3-3/4" above it.  The gate takes those as its parameters —
+the frame spans the railing's own rail lines, the cap rides on top, and
+the gate hangs with its bottom 3-3/4" up, matching the railing's gap
+(which passes nothing bigger than the railing already does).
+
+Run it
+------
+::
+
+    uv run python projects/deck_gate.py
+    uv run python projects/deck_gate.py --opening-width 38.5 --rail-top 36
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from build123d import Compound, Polyline, Pos, Rotation, extrude, make_face
+
+from woodshop.checks import (
+    CheckReport,
+    Finding,
+    Severity,
+    check_envelope,
+    check_material_suitability,
+    check_price_provenance,
+    estimate_mass_kg,
+)
+from woodshop.cutlist.extract import CutPart, extract
+from woodshop.inventory import Inventory
+from woodshop.parts import Board, retag
+from woodshop.project import ProjectSpec
+from woodshop.render import export_assembly, render_assembly, render_cut_list
+
+IN = 25.4
+G_M_S2 = 9.81
+
+#: Rotations that stand a part up in the gate's frame: X across the opening,
+#: Z up, Y through the gate's thickness.  A Board is born length-along-X,
+#: width-along-Y, thickness-along-Z.
+_ON_EDGE = Rotation(90, 0, 0)  # length X, width up, thickness through
+_UPRIGHT = Rotation(0, 0, -90) * Rotation(0, -90, 0)  # length up, width across
+
+
+def inches(value: float) -> float:
+    """Convert inches to mm.
+
+    Parameters
+    ----------
+    value : float
+        Length in inches.
+
+    Returns
+    -------
+    float
+        Length in mm.
+    """
+    return value * IN
+
+
+@dataclass
+class DeckStairGate:
+    """A parametric gate matching a slatted 2x4-and-cedar deck railing.
+
+    Parameters
+    ----------
+    opening_width_in : float, optional
+        Clear width between the 4x4 posts, default the measured 36-1/2".
+    rail_top_height_in : float, optional
+        Top of the railing's top 2x4 above the decking, default the
+        measured 41-1/2".  The gate's top rail lands on the same line.
+    bottom_gap_in : float, optional
+        Underside of the railing's bottom 2x4 above the decking, default
+        the measured 3-3/4".  The gate hangs with its bottom on that line.
+    hinge_clearance_in, latch_clearance_in : float, optional
+        Gaps left at the posts, default 1/4" hinge side and 5/8" latch
+        side.  The latch side is bigger because seasonal movement and a
+        settling post both close it.
+    max_slat_gap_in : float, optional
+        Largest clear gap allowed between slats, default 3-1/2".
+        Whatever the value, the IRC 4"-sphere rule is enforced by
+        :func:`check_slat_gap`.
+    railing_pitch_in : float, optional
+        The railing's measured slat spacing, default 5" on centre —
+        which is a 4-1/4" clear gap, wider than today's 4"-sphere rule.
+        Recorded so the gate can be compared against it, or copy it.
+    match_railing_pitch : bool, optional
+        Default ``False``: the gate runs its slats at the tightest count
+        over ``max_slat_gap_in``, slightly denser than the railing.
+        ``True`` lays the slats out on the railing's own pitch instead —
+        a closer visual match that :func:`check_slat_gap` will fail,
+        because a new gate is new construction even when the railing it
+        matches predates the rule.
+    frame_species : str, optional
+        Frame species, default ``"syp_pt"`` — #1 ground-contact
+        pressure-treated southern yellow pine.  The frame hides behind
+        the slat field and under the cap, so it is the one place the
+        cheap, strong, rot-proof stock costs nothing visually.  PT has
+        consequences the checks spell out: it is bought saturated (the
+        mass estimate uses the wet density), PVA glue will not bond it,
+        and its treatment corrodes plain fasteners.
+    slat_species : str, optional
+        Slat species, default ``"syp_pt"`` — the deck's own balusters are
+        PT, so the gate's match them; only the cap is cedar, like the
+        railing's.
+    corner_joinery : str, optional
+        ``"half_lap"`` (glued and screwed, the default) or
+        ``"pocket_screw"``.  Decides the corner capacity used by
+        :func:`check_racking`.
+    brace : str, optional
+        ``"none"`` (default) or ``"cable"`` — a diagonal turnbuckle from
+        the top hinge corner to the bottom latch corner, hardware rather
+        than lumber, so it changes the checks and the notes but not the
+        cut list.
+    dog_mass_lb : float, optional
+        The dog the racking check designs for, default 60 lb.
+    slat_length_in : float, optional
+        Slat length, default 36" — bought as 1x1x36 cedar balusters, so
+        the only slat cuts are the two 45° end bevels.
+    cap_hinge_setback_in : float, optional
+        How far the cap stops short of the hinge end, default 2-1/2".
+        The gate and railing caps share a height, so the gate cap's
+        deck-side overhang would sweep into the railing cap as the gate
+        opens; holding it back keeps every cap point's swing radius
+        clear.  :func:`check_swing_clearance` does the geometry.
+    hinge_pin_offset_in : float, optional
+        How far the hinge pin stands off the gate's deck-side face,
+        default a conservative 1/4" — surface-mount spring hinges give
+        more, and more is safer here.
+    inventory : Inventory, optional
+        Stock inventory.  Loaded from ``stock.yaml`` if not given.
+
+    Raises
+    ------
+    ValueError
+        If *corner_joinery* or *brace* is unknown, or the opening is too
+        narrow to hold a frame at all.
+    """
+
+    opening_width_in: float = 36.5
+    rail_top_height_in: float = 41.5
+    bottom_gap_in: float = 3.75
+    hinge_clearance_in: float = 0.25
+    latch_clearance_in: float = 0.625
+    max_slat_gap_in: float = 3.5
+    railing_pitch_in: float = 5.0
+    match_railing_pitch: bool = False
+    frame_species: str = "syp_pt"
+    slat_species: str = "syp_pt"
+    corner_joinery: str = "half_lap"
+    brace: str = "none"
+    dog_mass_lb: float = 60.0
+    slat_length_in: float = 36.0
+    cap_hinge_setback_in: float = 2.5
+    hinge_pin_offset_in: float = 0.25
+
+    inventory: Inventory = field(default_factory=Inventory.load)
+
+    #: Nominal sizes fixed by the railing being matched.
+    frame_nominal: str = "2x4"
+    cap_nominal: str = "1x6"
+    #: A dressed "1x1" slat: 3/4" x 3/4", like the railing's.
+    slat_side_in: float = 0.75
+
+    def __post_init__(self) -> None:
+        """Validate the choices that change structure, not just size."""
+        if self.corner_joinery not in ("half_lap", "pocket_screw"):
+            raise ValueError(
+                f"corner_joinery must be 'half_lap' or 'pocket_screw', "
+                f"got {self.corner_joinery!r}"
+            )
+        if self.brace not in ("none", "cable"):
+            raise ValueError(f"brace must be 'none' or 'cable', got {self.brace!r}")
+        if self.slat_span <= 0:
+            raise ValueError(
+                f"opening {self.opening_width_in:g}\" leaves no room between "
+                f"the stiles"
+            )
+        # A slat must land on both rails and stay inside the frame.
+        min_len = self.frame_height - 2 * self.frame_depth + inches(2.0)
+        if not min_len <= self.slat_length <= self.frame_height:
+            raise ValueError(
+                f'a {self.slat_length_in:g}" slat cannot overlap both rails '
+                f"of a {self.frame_height / IN:g}\" frame and stay inside it"
+            )
+
+    # ------------------------------------------------------------------
+    # Derived geometry
+    # ------------------------------------------------------------------
+
+    @property
+    def gate_width(self) -> float:
+        """Gate width in mm: the opening less the two hinge-and-latch gaps."""
+        return inches(
+            self.opening_width_in - self.hinge_clearance_in - self.latch_clearance_in
+        )
+
+    @property
+    def cap_thickness(self) -> float:
+        """Dressed thickness of the 1x6 cap, mm."""
+        return inches(0.75)
+
+    @property
+    def frame_height(self) -> float:
+        """Height of the 2x4 frame, mm.
+
+        Bottom of the bottom rail to top of the top rail, on the railing's
+        own lines: the frame spans from the measured bottom gap up to the
+        measured rail top.
+        """
+        return inches(self.rail_top_height_in - self.bottom_gap_in)
+
+    @property
+    def gate_height(self) -> float:
+        """Overall gate height, cap included, mm."""
+        return self.frame_height + self.cap_thickness
+
+    @property
+    def frame_depth(self) -> float:
+        """Depth of a 2x4 on edge, mm: 3-1/2"."""
+        return inches(3.5)
+
+    @property
+    def frame_thickness(self) -> float:
+        """Thickness of the frame, mm: a 2x4's 1-1/2"."""
+        return inches(1.5)
+
+    @property
+    def slat_side(self) -> float:
+        """Side of a dressed 1x1 slat, mm."""
+        return inches(self.slat_side_in)
+
+    @property
+    def slat_span(self) -> float:
+        """Clear width between the stiles, mm — what the slats must fill."""
+        return self.gate_width - 2 * self.frame_depth
+
+    @property
+    def slat_length(self) -> float:
+        """Length of a slat, mm — the bought baluster, long face."""
+        return inches(self.slat_length_in)
+
+    @property
+    def n_slats(self) -> int:
+        """Slat count.
+
+        Matching the railing, the count that puts slat centres nearest its
+        measured pitch; otherwise the fewest slats that keep every gap at
+        or under the max.
+        """
+        if self.match_railing_pitch:
+            pitch = inches(self.railing_pitch_in)
+            return max(1, round((self.slat_span + self.slat_side) / pitch) - 1)
+        gap = inches(self.max_slat_gap_in)
+        return max(1, math.ceil((self.slat_span - gap) / (self.slat_side + gap)))
+
+    @property
+    def slat_gap(self) -> float:
+        """Actual clear gap between slats (and stile to first slat), mm."""
+        n = self.n_slats
+        return (self.slat_span - n * self.slat_side) / (n + 1)
+
+    # ------------------------------------------------------------------
+    # Assembly
+    # ------------------------------------------------------------------
+
+    def build(self) -> Compound:
+        """Build the gate as a positioned build123d assembly.
+
+        The gate is centred on X, its hinge stile at -X; z = 0 is the
+        bottom of the frame and +Y is the deck side, where the slats are.
+
+        Returns
+        -------
+        build123d.Compound
+            Frame, slats, and cap, positioned.
+        """
+        children: list[object] = []
+
+        stile_x = self.gate_width / 2 - self.frame_depth / 2
+        for side, x in (("hinge", -stile_x), ("latch", stile_x)):
+            children.append(
+                Pos(x, 0.0, self.frame_height / 2)
+                * _UPRIGHT
+                * self._stile(side)
+            )
+
+        rail_len = self.gate_width - 2 * self.frame_depth
+        for name, z in (
+            ("bottom", self.frame_depth / 2),
+            ("top", self.frame_height - self.frame_depth / 2),
+        ):
+            children.append(Pos(0.0, 0.0, z) * _ON_EDGE * self._rail(name, rail_len))
+
+        slat_y = self.frame_thickness / 2 + self.slat_side / 2
+        pitch = self.slat_side + self.slat_gap
+        first_x = -self.slat_span / 2 + self.slat_gap + self.slat_side / 2
+        for i in range(self.n_slats):
+            children.append(
+                Pos(first_x + i * pitch, slat_y, self.frame_height / 2)
+                * _UPRIGHT
+                * self._slat()
+            )
+
+        # The cap stops short of the hinge end so its swing clears the
+        # railing cap; flush at the latch end.
+        setback = inches(self.cap_hinge_setback_in)
+        children.append(
+            Pos(setback / 2, 0.0, self.frame_height + self.cap_thickness / 2)
+            * self._cap()
+        )
+
+        return Compound(children=children, label="deck_stair_gate")
+
+    @property
+    def _frame_is_pt(self) -> bool:
+        """Whether the frame is pressure-treated stock."""
+        return "pt" in self.frame_species.split("_")
+
+    def _stile(self, side: str) -> Board:
+        """Return one vertical frame member."""
+        glue = (
+            "polyurethane adhesive — wet PT will not take PVA"
+            if self._frame_is_pt
+            else "Titebond III"
+        )
+        joint = (
+            f"half-lapped, glued ({glue}) and screwed"
+            if self.corner_joinery == "half_lap"
+            else "pocket-screwed to the rails"
+        )
+        return Board(
+            length_mm=self.frame_height,
+            nominal=self.frame_nominal,
+            material=self.frame_species,
+            label=f"{side}_stile",
+            notes=f"{joint}; {side} side of the gate",
+        )
+
+    def _rail(self, name: str, length_mm: float) -> Board:
+        """Return one horizontal frame member."""
+        return Board(
+            length_mm=length_mm,
+            nominal=self.frame_nominal,
+            material=self.frame_species,
+            label=f"{name}_rail",
+            notes="on edge between the stiles",
+        )
+
+    def _slat(self):
+        """Return one slat, both ends beveled 45° like the railing's.
+
+        The bevels run through the slat's *thickness* — the end grain
+        faces the rail it lies on — and are parallel, so every slat is
+        one saw setup and goes on either way up.  A bevel takes no extra
+        stock: the part is the bought 1x1 baluster on the cut list, long
+        face, with the corners sawn off the solid.  A boolean returns
+        anonymous geometry, hence :func:`woodshop.parts.retag`.
+        """
+        length, side = self.slat_length, self.slat_side
+        stick = Board(
+            length_mm=length,
+            thickness_mm=side,
+            width_mm=side,
+            material=self.slat_species,
+            label="slat",
+        )
+        # Corner wedges off opposite corners, cut through the thickness
+        # (the local X-Z plane), leaving the two 45° bevels parallel.
+        wedges = []
+        for sx, sz in ((-1.0, -1.0), (1.0, 1.0)):
+            tri = make_face(
+                Polyline(
+                    (sx * length / 2, sz * side / 2),
+                    (sx * (length / 2 - side), sz * side / 2),
+                    (sx * length / 2, -sz * side / 2),
+                    close=True,
+                )
+            )
+            wedges.append(Rotation(90, 0, 0) * extrude(tri, amount=side, both=True))
+        return retag(
+            stick - wedges[0] - wedges[1],
+            like=stick,
+            notes=(
+                "a bought 1x1x36 baluster; screwed to the deck-side face of "
+                "both rails, one screw per crossing; ends beveled 45° "
+                "through the thickness, parallel, long face out"
+            ),
+        )
+
+    def _cap(self) -> Board:
+        """Return the cedar cap, laid flat over the frame."""
+        return Board(
+            length_mm=self.gate_width - inches(self.cap_hinge_setback_in),
+            nominal=self.cap_nominal,
+            material="white_cedar",
+            label="cap",
+            notes=(
+                f"matches the railing cap; stops "
+                f'{self.cap_hinge_setback_in:g}" short of the hinge end so '
+                f"its swing clears the railing cap — see the swing finding"
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Checks
+    # ------------------------------------------------------------------
+
+    def check(self, assembly: Compound, parts: list[CutPart]) -> CheckReport:
+        """Run every design check against a built gate.
+
+        Parameters
+        ----------
+        assembly : build123d.Compound
+            The result of :meth:`build`.
+        parts : list[CutPart]
+            The result of extracting a cut list from *assembly*.
+
+        Returns
+        -------
+        CheckReport
+            All findings, in reporting order.
+        """
+        bb = assembly.bounding_box()
+        report = CheckReport()
+        report.extend(
+            check_envelope(
+                actual_l_mm=bb.size.X,
+                actual_w_mm=bb.size.Y,
+                actual_h_mm=bb.size.Z,
+                published_l_mm=self.gate_width,
+                # The cap, not the frame, is the deepest thing on the gate.
+                published_w_mm=inches(5.5),
+                published_h_mm=self.gate_height,
+            )
+        )
+        report.extend(check_material_suitability(parts, self.inventory))
+        if self._frame_is_pt:
+            report.findings.append(
+                Finding(
+                    Severity.INFO,
+                    "material",
+                    "PT frame: hot-dip galvanized or stainless hinges, latch "
+                    "and screws only — the treatment corrodes plain steel; "
+                    "brush cut ends and lap faces with end-cut preservative; "
+                    "glue with polyurethane, not PVA, while the stock is wet",
+                )
+            )
+        report.findings.append(
+            Finding(
+                Severity.INFO,
+                "mounting",
+                f'hang the frame bottom {self.bottom_gap_in:g}" above the '
+                f"decking — the railing's own bottom-rail line; the cap tops "
+                f'out at {self.rail_top_height_in + 0.75:g}" like the '
+                f"railing's",
+            )
+        )
+        report.extend(self.check_slat_gap())
+        report.extend(self.check_swing_clearance())
+        report.extend(self.check_racking(parts))
+        report.extend(self.check_hinge_load(parts))
+        return report
+
+    def check_slat_gap(self) -> list[Finding]:
+        """Hold the slat field to the guard rule the railing already meets.
+
+        IRC R312.1.3: no opening in a guard may pass a 4" sphere.  A gate in
+        a guard is part of the guard, and a dog-containment gate has its own
+        reason to care.
+
+        Returns
+        -------
+        list[Finding]
+            An ``INFO`` stating the pitch, or an ``ERROR`` if a gap passes
+            the sphere.
+        """
+        gap_in = self.slat_gap / IN
+        railing_gap_in = self.railing_pitch_in - self.slat_side_in
+        if self.slat_gap >= inches(4.0):
+            return [
+                Finding(
+                    Severity.ERROR,
+                    "guard",
+                    f'slat gaps are {gap_in:.2f}" — a 4" sphere passes; the '
+                    f"railing's {railing_gap_in:g}\" gaps predate the rule, "
+                    f"but a new gate does not",
+                )
+            ]
+        return [
+            Finding(
+                Severity.INFO,
+                "guard",
+                f'{self.n_slats} slats at {gap_in:.2f}" gaps across a '
+                f'{self.slat_span / IN:.1f}" field — deliberately tighter '
+                f'than the railing\'s {self.railing_pitch_in:g}" pitch '
+                f"({railing_gap_in:g}\" gaps), which would fail the 4\" "
+                f"sphere on new work",
+            )
+        ]
+
+    def check_swing_clearance(self) -> list[Finding]:
+        """Prove the cap swings past the railing cap instead of into it.
+
+        The gate cap and the railing cap share a height, and rotating any
+        cap point ``(x, y)`` about the hinge pin (x along the gate from the
+        pin, y from the pin toward the deck) lands it at ``x = -y`` when
+        the gate stands fully open — the cap's deck-side overhang swings
+        *past the hinge post*, into the band the railing cap occupies.  A
+        point escapes only if its swing radius carries it beyond the
+        railing cap's deck-side edge before it crosses the post.  So the
+        rule is a radius: every cap point must sit farther from the pin
+        than the pin-to-railing-cap-deck-edge distance, and holding the
+        cap back from the hinge end by at least that distance satisfies it
+        for the whole cap, at any opening angle, with one straight
+        crosscut.
+
+        The latch end needs no such treatment: its stair-side corner bulges
+        toward the latch post mid-swing by only
+        ``sqrt(w² + r²) - w`` — a fifth of an inch against the 5/8" latch
+        clearance.
+
+        Returns
+        -------
+        list[Finding]
+            ``INFO`` when the setback covers the radius, ``WARN`` with the
+            required number when it does not.
+        """
+        pin_y = self.frame_thickness / 2 + inches(self.hinge_pin_offset_in)
+        cap_half = inches(5.5) / 2
+        required = cap_half - pin_y
+        setback = inches(self.cap_hinge_setback_in)
+
+        latch_reach = (
+            math.hypot(self.gate_width, cap_half + pin_y) - self.gate_width
+        )
+        if setback < required:
+            return [
+                Finding(
+                    Severity.WARN,
+                    "swing",
+                    f'the cap reaches within {setback / IN:.2f}" of the hinge '
+                    f'pin but its deck-side overhang needs {required / IN:.2f}" '
+                    f"of swing radius to clear the railing cap — hold it back "
+                    f"at least that far from the hinge end",
+                )
+            ]
+        return [
+            Finding(
+                Severity.INFO,
+                "swing",
+                f'cap held {self.cap_hinge_setback_in:g}" off the hinge end '
+                f'(needs {required / IN:.2f}") so its swing clears the '
+                f'railing cap; the latch corner bulges {latch_reach / IN:.2f}" '
+                f'mid-swing against the {self.latch_clearance_in:g}" latch '
+                f"gap.  Check the railing caps are flush with the post faces "
+                f"at the opening — trim them if they overhang into it",
+            )
+        ]
+
+    def check_racking(self, parts: list[CutPart]) -> list[Finding]:
+        """Decide whether this gate needs a diagonal, with numbers.
+
+        The racking moment about the hinge stile is the gate's weight at
+        its centre of gravity plus the design dog landing on the latch
+        corner with a dynamic factor of 1.5.  Each of the four rail-stile
+        corners resists half the moment (two rails share it) as a force
+        couple across the rail's depth.
+
+        Corner capacity, stated conservatively so the margin means
+        something:
+
+        * ``half_lap`` — the couple loads a 3-1/2" x 3-1/2" long-grain glue
+          face in shear.  At a wet-service allowable of 1.4 MPa (~200 psi,
+          a tenth of dry Titebond III shear figures) the face carries
+          ~11 kN; call the usable couple force 4.4 kN after eccentricity.
+        * ``pocket_screw`` — two #8 screws in end grain at ~450 N
+          (~100 lb) allowable lateral load each, before wet-dry cycling
+          works on them.
+
+        A cable brace changes the load path entirely — the latch corner
+        hangs off the top hinge corner in tension — so with one fitted the
+        corners are no longer the governing part and the check reports the
+        cable instead.
+
+        Parameters
+        ----------
+        parts : list[CutPart]
+            The cut list, for the gate's own mass.
+
+        Returns
+        -------
+        list[Finding]
+            ``INFO`` with the demand and margin; ``WARN`` when the chosen
+            corners cannot carry the dog.
+        """
+        mass_kg = estimate_mass_kg(parts)
+        # Static: the gate's weight at mid-width, about the hinge line.
+        static_nm = mass_kg * G_M_S2 * (self.gate_width / 2) / 1000.0
+        # Dynamic: the dog, paws on the latch corner, 1.5x for the landing.
+        dog_n = 1.5 * (self.dog_mass_lb * 0.4536) * G_M_S2
+        dog_nm = dog_n * self.gate_width / 1000.0
+        demand_nm = static_nm + dog_nm
+
+        # Two rails share the moment; each corner turns its half into a
+        # couple across the rail depth.
+        couple_n = (demand_nm / 2) / (self.frame_depth / 1000.0)
+        capacity_n = {"half_lap": 4400.0, "pocket_screw": 900.0}[self.corner_joinery]
+        margin = capacity_n / couple_n
+
+        if self.brace == "cable":
+            return [
+                Finding(
+                    Severity.INFO,
+                    "racking",
+                    f"cable brace carries the latch corner in tension — "
+                    f"~{demand_nm / (self.frame_height / 1000.0):.0f} N in the "
+                    f"cable at full racking moment; corners are no longer "
+                    f"governing",
+                )
+            ]
+
+        summary = (
+            f"racking demand {demand_nm:.0f} N·m "
+            f"({static_nm:.0f} gate + {dog_nm:.0f} dog at {self.dog_mass_lb:g} lb) "
+            f"→ {couple_n:.0f} N per corner couple against "
+            f"{capacity_n:.0f} N for {self.corner_joinery} corners "
+            f"({margin:.1f}x margin)"
+        )
+        if margin < 1.5:
+            return [
+                Finding(
+                    Severity.WARN,
+                    "racking",
+                    f"{summary} — add a cable turnbuckle brace (brace='cable') "
+                    f"or glue half-laps (corner_joinery='half_lap')",
+                )
+            ]
+        return [
+            Finding(
+                Severity.INFO,
+                "racking",
+                f"{summary} — no diagonal needed; the slat field, screwed at "
+                f"{2 * self.n_slats} rail crossings, is redundancy on top",
+            )
+        ]
+
+    def check_hinge_load(self, parts: list[CutPart]) -> list[Finding]:
+        """Report what the top hinge asks of its screws.
+
+        The gate's weight at mid-width pries the top hinge away from the
+        post; the pull is the weight scaled by the ratio of that lever to
+        the hinge spacing.  It is never the governing number on a gate this
+        size — which is worth a line, because oversizing hinges is how
+        gates end up heavier than they need to be.
+
+        Parameters
+        ----------
+        parts : list[CutPart]
+            The cut list, for the gate's own mass.
+
+        Returns
+        -------
+        list[Finding]
+            One ``INFO``.
+        """
+        mass_kg = estimate_mass_kg(parts)
+        # Hinges at the rail centre lines — as far apart as the frame allows.
+        spacing = self.frame_height - self.frame_depth
+        pull_n = mass_kg * G_M_S2 * (self.gate_width / 2) / spacing
+        return [
+            Finding(
+                Severity.INFO,
+                "hinges",
+                f"gate is ~{mass_kg:.1f} kg ({mass_kg * 2.205:.0f} lb); top "
+                f"hinge pulls ~{pull_n:.0f} N ({pull_n / 4.448:.0f} lb) — two "
+                f'self-closing hinges on 2-1/2" structural screws into the '
+                f"4x4 are plenty",
+            )
+        ]
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def run(gate: DeckStairGate, outdir: Path) -> CheckReport:
+    """Build one gate, write its cut list and views, print the report.
+
+    Parameters
+    ----------
+    gate : DeckStairGate
+        The gate to build.
+    outdir : Path
+        Directory for the generated CSV, Markdown, PNG, and CAD files.
+
+    Returns
+    -------
+    CheckReport
+        The design-check findings.
+    """
+    outdir.mkdir(parents=True, exist_ok=True)
+    assembly = gate.build()
+    parts = extract(assembly)
+
+    stem = "deck_gate"
+    print(f"\n{'=' * 78}\n  Deck stair gate\n{'=' * 78}")
+
+    df = render_cut_list(
+        parts,
+        output_csv=outdir / f"{stem}_cutlist.csv",
+        output_md=outdir / f"{stem}_cutlist.md",
+    )
+    print(df.to_string(index=False))
+
+    report = gate.check(assembly, parts)
+    print(f"\n-- design checks {'-' * 61}")
+    print(report.to_text())
+
+    print(f"\n-- prices {'-' * 68}")
+    print(
+        CheckReport().extend(check_price_provenance(gate.inventory, parts)).to_text()
+    )
+
+    render_assembly(
+        assembly,
+        output_png=outdir / f"{stem}.png",
+        title="Deck stair gate",
+    )
+    export_assembly(
+        assembly,
+        output_step=outdir / f"{stem}.step",
+        output_stl=outdir / f"{stem}.stl",
+    )
+
+    print(f"\nWrote cut list, views and CAD export to {outdir}/")
+    return report
+
+
+def _spec() -> ProjectSpec:
+    """Return the gallery entry for the gate."""
+    gate = DeckStairGate()
+    return ProjectSpec(
+        slug="deck-stair-gate",
+        name="Deck stair gate",
+        summary=(
+            "A gate for the deck stairs matching the railing: PT 2x4 frame "
+            "and beveled PT 1x1 slats under a cedar 1x6 cap.  Half-lapped "
+            "corners instead of a diagonal brace, and a check that proves "
+            "the margin."
+        ),
+        species="white_cedar",
+        source_url="https://www.younghouselove.com/deckgate/",
+        build=gate.build,
+        check=gate.check,
+        inventory=gate.inventory,
+        notes=(
+            'Measured 2026-08-29: opening 36-1/2" between the posts, rail '
+            'top 41-1/2" and bottom-rail underside 3-3/4" above the decking; '
+            "the gate hangs on the railing's own lines."
+        ),
+        tags=["outdoor", "gate"],
+    )
+
+
+#: Projects this module contributes to the gallery.
+PROJECTS: list[ProjectSpec] = [_spec()]
+
+
+def main() -> None:
+    """Parse arguments and build the gate."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--opening-width", type=float, default=36.5)
+    parser.add_argument("--rail-top", type=float, default=41.5)
+    parser.add_argument("--bottom-gap", type=float, default=3.75)
+    parser.add_argument(
+        "--corner-joinery", choices=["half_lap", "pocket_screw"], default="half_lap"
+    )
+    parser.add_argument("--brace", choices=["none", "cable"], default="none")
+    parser.add_argument("--outdir", type=Path, default=Path("build"))
+    args = parser.parse_args()
+
+    gate = DeckStairGate(
+        opening_width_in=args.opening_width,
+        rail_top_height_in=args.rail_top,
+        bottom_gap_in=args.bottom_gap,
+        corner_joinery=args.corner_joinery,
+        brace=args.brace,
+    )
+    run(gate, args.outdir)
+
+
+if __name__ == "__main__":
+    main()

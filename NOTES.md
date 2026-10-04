@@ -1557,9 +1557,626 @@ another way. `PanelOrder` had the same hole for panels and posts with no entry.
 away the factory's settings — the `rails` design's 8 ft bays and three rails
 included. `run()` now takes the configured fence.
 
-### Not done
+### Merging main
 
-This branch is behind `main` by the renderer rewrite, and merging it conflicts
-in six files (the renderer, `checks.py`, the docs). The previews here are from
-the old painter's renderer, which visibly mis-sorts mesh behind rails on
-`four_rail`; the merge is its own piece of work.
+The fence work had grown up on the old painter's renderer, and `main` replaced
+it with a z-buffered raster and hidden-line orthographic views. The fence's one
+contribution to rendering — a ground plane, so a post four feet down is not a
+stick hanging in space — was ported onto the raster: the ground is two opaque
+triangles at grade, blended toward white, so the shaded view hides what is
+below ground the way the yard does, and the hidden-line views still draw every
+post to its foot. The `GROUND_GRID` subdivision went with the painter's
+algorithm it existed to placate.
+
+## Addendum: the media console, where the plywood decides the dimensions
+
+The first piece in this repo that is not a reproduction. The brief is prose:
+80" x 24" x 13" in cherry plywood, five record bays 15" wide and 13-1/2" tall,
+a shallower 8" row above for CDs, a clear top for the turntable, solid cherry
+front edges, dados, clear finish. Everything below came out of trying to make
+all of those numbers true at once, which they are not.
+
+### The brief is over-specified by 3/8" and an eighth of an inch
+
+Add it up. Five 15" bays and six 3/4" panels is 79-1/2", not 80". The two
+openings and three 3/4" panels come to 23-3/4" of the 24". The brief is
+internally inconsistent at exactly the scale that nobody notices on paper and
+everybody notices at the saw.
+
+Then the plywood moves both numbers again, in the *same* direction. `3/4"`
+cherry plywood measures 45/64", so six verticals take 4-7/32" instead of 4-1/2"
+and three horizontals take 2-3/32" instead of 2-1/4". The design's whole job is
+deciding where that slack goes:
+
+- **Across the width**: into the bays. They come out 15-5/32" clear, an eighth
+  over the brief. The alternative is a case 79-1/32" wide, and the envelope is
+  the number a room cares about.
+- **Up the height**: into the floor. The openings are held at 13-1/2" and 8"
+  exactly, and the 25/64" left over becomes a **toe reveal** — the bay bottoms
+  are housed that far off the floor and the case stands on its six panel ends.
+
+The second one is the better decision of the two. A 3/8" reveal is too small to
+read as a plinth, so it does not pretend to be one; what it does is keep a
+plywood bottom off a floor that is never flat, and give the piece a shadow line
+where it meets it. `check_envelope` confirms all three published dimensions to
+the sixteenth, which they only are because the openings were held and the bays
+were not.
+
+### The five bays are not a structural number — **and the check says so**
+
+`check_shelf_deflection` is new: the same simply-supported beam under a UDL
+that `check_slat_deflection` already used, factored out into
+`_udl_deflection_mm` and asked a different question.
+
+The difference is not cosmetic. A slat's load is *fixed* — 250 kg of mattress
+and people, however many slats there are — so its deflection goes as 1/n and
+the remedy is more slats. A shelf's load **comes with its length**: twice the
+shelf holds twice the records. So sag goes as the fourth power of the span, and
+the remedy is a divider. Two functions, because the two remedies are different
+sentences.
+
+What it found is the useful part. A full bay bottom — 75 records, 19 kg over a
+15-5/32" span — sags **0.1 mm**, span/2686. Undivided, the same bottom at the
+same load per foot sags **100 mm**, and the check reports that three bays would
+be enough to meet span/360.
+
+So the five bays are not holding the plywood up. They are there because a run
+of records much over 15" leans, slumps and bends the sleeves at the ends of it,
+which is a fact about records and not about stiffness — and the report now says
+both, in order, instead of leaving a reader to assume the dividers are
+structural.
+
+Shelves are held to span/360, not the span/240 the bed deck gets. Sag this side
+of collapse is an appearance problem, and appearance is stricter than
+serviceability.
+
+### `check_clearance` was telling a bookcase about its mattress
+
+Reusing it for the finger's room above a record sleeve turned up a hard-coded
+`"tight, mattress may bind"` in a general-purpose check. The band is general;
+what being outside it *costs* is not, and only the caller knows. `tight_note`
+and `loose_note` are now parameters, and the bed passes its own mattress
+wording. One call site made it look like a style choice; the second made it a
+bug.
+
+### The renderer was clipping the console and saying nothing
+
+The front elevation lost its right-hand end. mplot3d honours the *ratio* of
+`set_box_aspect` and not the size, so a long, low plot box runs past the axes
+and is silently cropped — a failure mode with no error, no warning, and a
+plausible-looking picture. `_fit_zoom` zooms out in proportion to how far the
+longest span exceeds its share of the diagonal: 1.0 for anything roughly cubic,
+so the bed and the nightstand render exactly as before, and 0.85 for an 80" x
+13" x 24" console.
+
+This is the second time the views have caught something no dimension check
+could. It is worth repeating that the renderer earns its keep as a *check*, not
+as decoration — and that a renderer which crops instead of failing is worse
+than one that draws nothing.
+
+### Dados, cut rather than described
+
+Every other project in the repo models parts that meet; this one models parts
+that are *housed*, and `woodshop.joinery.Dado` had been sitting unused since it
+was written. The verticals are housed 1/4" into the underside of the top (a
+rabbet at each end, a dado at each divider) and the shelves 1/4" into the
+verticals — twenty-six housings in all, four in every divider and two in each
+end panel — and every one of them is a real boolean followed by `retag`.
+
+The cut is what makes `test_the_housings_are_really_cut_away` possible: the
+intersection of a divider and the shelf running into it has zero volume. Model
+the joint as a note and the shelf ends sit inside solid plywood, which no
+dimension check would ever notice and every dry fit would.
+
+### What the cut list says, and one thing it overstates
+
+Two sheets of 4x8 cherry plywood at 52% yield, and a single 4/4 cherry board
+for the edging. The yield number is honest and unflattering: the parts total
+about 1.05 sheets of area, so the second sheet is mostly offcut — enough for a
+shorter second case, or for a back if the piece ever wants one.
+
+The overstatement is the edging. It is 31 lineal feet of 1/4"-wide strip milled
+to the plywood's 45/64", and `nest_hardwood` buys 4/4 stock for it and bills the
+full board thickness. Resawn, one 4/4 board yields two or three times what the
+plan assumes. The nester has no idea a part can be *cut out of the thickness*
+of a board rather than off its width, and that is the next real gap in it.
+
+## Addendum: the console became a kit, and then a second console
+
+The dado version above lasted about an hour. Asked to make it modular *like the
+original*, I went and found out what the original actually is — and it is not a
+case at all.
+
+### What the Grid System turned out to be
+
+`luccahouse.com` is blocked from this machine, so nothing here is measured off
+it and no photograph was read; what follows is from search results, and it is
+recorded that way in the module docstring too. **(Superseded — the domain was
+opened up later the same day and the photographs contradicted this section on
+one point. See "the pictures were right and the model was wrong, again", at the
+end.)** Lucca House's **Grid System** is
+prefinished maple plywood panels **notched to slide together**: no tools, no
+glue, no hardware, assembled or taken apart in under a minute, named by the
+grid they make (`5x1`, `4x2`, `5x4`), with three part sizes producing six
+products and resizing done by swapping the long parts.
+
+That is a different animal from a glued case, and copying the *look* of it
+without the joinery would have been the wrong answer to the question.
+
+### One decision does all the work
+
+Every crossing is a half-lap: the shelf notched half its depth from the **back**
+edge, the upright half its depth from the **front**, sliding together front to
+back until each fills the other. Four consequences fall straight out of it, and
+none of them had to be designed separately:
+
+- **The parts collapse to three.** Six uprights, two shelves, a top. The
+  bottom shelf and the CD shelf are the same part; so are all six uprights,
+  end panels included, because a slot open at an edge is symmetrical and
+  therefore not handed. The dado version had ten shelves in two labels, four
+  dividers and two sides.
+- **The front edging reverses.** Where a shelf crosses an upright, the front of
+  the case *is* the shelf — there is no upright material there to glue a strip
+  to. So the horizontals' edging runs unbroken and the uprights' is in one
+  piece per row, which is the opposite of the glued version and was not a
+  styling choice.
+- **A 25/64" problem appeared at the floor.** Below the bottom shelf each
+  upright shows a foot of toe reveal, too little to edge and too much to leave
+  bare. The fix is the base rail: the bottom shelf's edging deepened to 1-1/32"
+  so it covers the shelf and the feet together, stopping a sixteenth short of
+  the floor so the uprights still carry the piece and can still be shimmed.
+- **The slot tolerance stops being cosmetic.** A dado 1/32" wide of the panel
+  is a glue line. A *slot* 1/32" wide of it, in a case with no glue anywhere,
+  is a wobble — so `check_thickness_substitution`'s warning is now joined by a
+  `kit` warning that says to cut one test slot in an offcut first.
+
+`test_at_a_crossing_each_part_has_only_its_own_half` is the whole design in one
+assertion: probe the front half of the depth at a crossing and the upright has
+no material there; probe the back half and the shelf has none. They interlock
+and never intersect, which a bounding-box test cannot tell you.
+
+### The painted build, which is not the same piece in cheaper clothes
+
+Then: a plain painted plywood build with a solid wood top. That is a variant in
+the repo's usual sense — same grid, same openings, same envelope — but almost
+every derived number moves, and *that is the point of deriving them*:
+
+| | cherry | painted |
+| --- | --- | --- |
+| sheet | cherry ply, **45/64"** | paint-grade birch, **23/32"** |
+| bays | 15-5/32" | **14-15/16"** |
+| toe reveal | 25/64" | 5/16" |
+| front edges | solid cherry, 15 strips | none — filled and painted |
+| top | a member of the grid | solid cherry, 3/4", overhanging 1/2" each end |
+| pieces | 9 panels + 15 strips | 8 panels + 1 board |
+
+Two things worth writing down:
+
+**The overhang pays for the thicker sheet.** A solid top that projects past the
+ends takes its overhang out of the *case*, not out of the room: the console is
+80" wide either way, the grid under it is 79", and the bays land at 14-15/16" —
+within a sixteenth of the 15" the brief asked for and closer than the cherry
+build gets. Birch ply being thicker than cherry ply would have pushed them the
+other way; the overhang more than cancels it.
+
+**A plywood case does not move and a solid top always does.** Hence
+`check_wood_movement`, which is new: tangential shrinkage from the Wood
+Handbook, a six-point seasonal moisture swing, and the answer for this piece is
+**3/16" across 13" of cherry**. That is not a rounding error, and it decides a
+joint: the top's housings run front to back, the same way it moves, so nothing
+restrains it and the slab simply lies on the grid under its own weight. Screws
+up through the shelves would be the one mistake that splits it — pass
+`allowance_mm=0.0` and the check says so in as many words.
+
+The check earns its keep beyond this piece. Every other check in the module
+asks whether a design *can be built*; this one asks whether it will still be
+built the same way in February.
+
+### And one thing the renderer nearly hid
+
+The 80" console was being cropped in the front and plan elevations — mplot3d
+honours the *ratio* of `set_box_aspect` and not the size, so a long, low plot
+box runs off the axes and is cropped with no error and no warning. `_fit_zoom`
+scales the drawing back by how far the longest span exceeds its share of the
+diagonal: 1.0 for anything roughly cubic, so the bed and the nightstand are
+untouched, and 0.85 for this. A renderer that crops silently is worse than one
+that fails, because the picture still looks plausible — and the picture is what
+this repo uses to catch the mistakes no dimension check can.
+
+## Addendum: the pictures were right and the model was wrong, again
+
+The console was designed from prose, because `luccahouse.com` was blocked by
+the egress proxy. Then `cdn.shopify.com` and the site itself were allowlisted,
+the manufacturer's own images could be read, and they contradicted the model.
+
+This is the second time in this repo. The bed was built from a listing's prose
+and rebuilt from the 360 viewer; the console was built from search snippets and
+corrected from tearsheets. **Prose describes what a thing is for. Pictures
+describe what it is.** Worth writing on the wall.
+
+### Correction 1: the slot direction was backwards
+
+The model had the shelves notched from the back and the uprights from the
+front, so the horizontals ran unbroken across the front of the case. Every
+consequence of that — the edging arrangement, the base rail — followed from it,
+and it is wrong.
+
+The evidence is a photograph of a single crossing with red edge banding
+(`4x2_color_swatch_red.jpg` on their CDN). At the crossing the **vertical**
+band runs through unbroken and the **horizontal** band butts into it on both
+sides. The member visible at the front owns the front half-depth. So:
+
+- uprights are slotted from the **back**, and keep their front half;
+- shelves are slotted from the **front**.
+
+Flipping it took two lines and deleted a part. With the uprights unbroken at
+the front, each one's edging is a single strip from the floor to the underside
+of the top — which covers the 25/64" of foot that the base rail was invented to
+hide. The rail, its `base_rail_float_in` parameter and its test are gone, and
+the front now reads as six verticals with shelf edges between them.
+
+The lesson is not "check the reference" — it is that a design decision with
+four consequences hanging off it deserves a source, and "it looked better to me
+that way" was doing the work of one.
+
+### Correction 2: the radius was more than twice too big
+
+The first radius was 2", picked by eye. Their tearsheets are dimensioned
+orthographic drawings, and they self-calibrate: the parts in the 4x2 sheet
+measure exactly 11-1/2" x 23-1/2" and 11-1/2" x 47-1/2", which gives 17.1 px/in
+directly off the image. Thresholding the panel colour and measuring where each
+panel's top row starts against its leftmost column gives the radius without
+any curve fitting:
+
+```
+4x2 tearsheet   long parts  197 x 803 px, r = 13-14 px   ->  0.76-0.82"
+4x2 tearsheet   short parts 403 x 197 px, r = 14-18 px   ->  0.82-1.05"
+1x1 tearsheet   parts       279 x 279 px, r = 19-26 px   ->  0.78-1.07"
+```
+
+Call it **0.8", and 0.07 of the panel's width** — which is the number that
+travels, because their panels are 11-1/2" wide and this console's are 12-3/4".
+`REFERENCE_RADIUS_RATIO` holds the ratio and `reference_corner_radius`
+multiplies it out: **7/8"** here. Rendered beside the old 2", the difference is
+not subtle — 2" reads as a rounded box, 7/8" as a square panel with the corners
+taken off, which is what the photographs show.
+
+### What was deliberately not adopted
+
+Their stock is **1/2"** plywood at **11-1/2"** deep, and their members overrun
+every crossing — the horizontals run past the end uprights and the uprights
+stand proud above and below. That is a shelf that wants to look like a grid.
+This is a console that has to hold 200 lb of records at browsing height inside
+a published 80" x 24" x 13", so it keeps 3/4"-class stock, a closed envelope,
+and a top that caps the uprights rather than letting them through.
+
+Both facts are recorded in the module docstring under *Where the joinery came
+from*, along with which two things are measured and which are borrowed. The
+distinction is the whole point: this piece is not a reproduction, and the file
+should never be able to be mistaken for one.
+
+### Correction 3: everything overruns, and that is the whole look
+
+The two corrections above were about *where* material sits at a joint. This one
+is about whether the joint is a joint at all.
+
+In the reference, **every member runs past its outermost crossing** — the
+horizontals past the end uprights, the uprights above the top shelf and below
+the bottom one, which is also what they stand on. So every joint is a
+full-width lap with stock on both sides of it, and nothing terminates at a
+joint. The console had the end uprights flush with the ends, which turns the
+four crossings there into corner notches and the top's outer housings into
+rabbets. That is why it kept reading as a box with a grid drawn on it.
+
+The parts drawings give the number without any perspective to argue with,
+because the slots are dimensioned by their own positions:
+
+```
+23-1/2" parts (4 slots)   0.44"*  4.03"          19.44"  23.06"*
+47-1/2" parts (6 slots)   0.38"*  4.03"  15.00"  31.87"  42.85"  46.44"*
+                          * = the corner radius, not a slot
+```
+
+So the outer slots sit **4.03" from one end and 4.06"/4.4" from the other** —
+a constant ~4" overrun on an 11-1/2" panel, **0.35 of the panel's width**, the
+same in both directions. `REFERENCE_OVERHANG_RATIO` holds it and
+`end_overhang` multiplies it out: **4-7/16"** on this console's 12-3/4" panels.
+
+**It is bought out of the bays, and the report says so.** The envelope is
+published at 80", so 8-7/8" of overrun takes 1-25/32" off every opening: bays
+of **13-3/8"** instead of 15-5/32", which leaves 1" beside a 12-3/8" sleeve
+rather than 2-3/4". `end_overhang_in=0` takes the old bays back along with the
+corner notches, and both numbers are printed either way.
+
+Two consequences worth stating rather than discovering later:
+
+- **An ear is a ledge, not a bay.** There is no upright beyond it, so records
+  in the outer 4-7/16" have nothing to lean against. It is somewhere to put a
+  record down while the other side plays, and the check says so as a `WARN`
+  rather than leaving it to be found out.
+- **The uprights cannot overrun.** The reference stands them ~4" proud top and
+  bottom; a 24" envelope with 13-1/2" and 8" openings has 25/64" left over
+  once three panels have had theirs. The toe reveal is what survives of that
+  idea. Matching it would mean a 33" console or shorter rows, and the brief
+  says 24".
+
+That last one is the honest limit of borrowing a system for a piece it was not
+drawn for. The horizontal half of the language fits inside the brief; the
+vertical half does not, and pretending otherwise would mean quietly changing
+what the piece is for.
+
+### Shipped: both proportions on by default, and the ears got a job
+
+`corner_radius_in` and `end_overhang_in` both now default to `None`, meaning
+*the maker's proportion* — 7/8" of radius and 4-7/16" of overrun on these
+12-3/4" panels. Passing `0` to either goes back to square corners or flush
+ends. Holding them as ratios rather than inches is what makes that work: the
+painted build's panels are 13" wide, so it takes 0.91" and 4-9/16" without
+anybody restating the numbers.
+
+The ears turned out to be the point rather than the price. They are the only
+surfaces on the piece at a height you look *at* rather than down on, and they
+are for a plant or something small — so the report now weighs them as ledges:
+5 kg on the very tip of one deflects it 0.02 mm, ear/4539, which says the limit
+is what will sit still on a 4-7/16" shelf and not the plywood under it. Two
+warnings keep their company, because a ledge that is good for a plant is bad
+for two other things:
+
+- **Not a bay.** Nothing stands beyond an ear, so records put there walk off
+  the end.
+- **Water.** A pot of damp soil on end grain and edge veneer is the one place
+  on this piece where a ring is likely — saucer and cork mat, and on the
+  painted build's plywood edge a ring is swelling, not a stain.
+
+That is the sort of thing a check is for: the design got a new use, and the
+consequences of that use are now printed next to it rather than remembered.
+
+## Addendum: the bed was the wrong bed
+
+The Mysa's shapes still looked off next to the product photos, so the 360
+frames got a second, more careful pass — all 32 of them this time, measured
+programmatically (silhouette masks, contour tables every quarter inch) rather
+than by eye, with a vision pass over the key frames to settle what the numbers
+could not.
+
+### The render is the California King
+
+The first pass scaled the elevations against the queen's published
+87" x 64" x 40". Two findings say that was the wrong envelope:
+
+- The CDN's own error message, on a failed frame fetch, names the underlying
+  product **`MYSABEDCK`** — the Cal King.
+- The side elevation's silhouette aspect ratio is 91/40 **to four
+  figures** (2.2754 measured, 2.2750 published for the Cal King's
+  91" x 79" x 40"; the queen predicts 2.175). Recalibrated at L = 91", the
+  frame's vertical and horizontal scales agree to 0.02%; at L = 87" they
+  disagreed by 4.5%.
+
+Every cross-bed dimension in the first pass was therefore ~19% small at the
+source and every lengthwise one ~4.5% small, error that landed unevenly in
+whichever member was being read. That is where the 2" stile came from: it was
+never 2".
+
+### What the second pass changed
+
+| | first pass | second pass |
+|---|---|---|
+| Stile thickness | 2" (needs 10/4) | 1-3/4" (8/4, exactly) |
+| Stile front edge | peak 6" at 16", long taper to 3-1/4" | quarter-sine to 5-3/4", **held to the panel's bottom edge**, then raked with the panel to a ~2" bullnose |
+| Foot leg | stops under the rail, 1-3/4" thick | **forms the corner** — rails butt into it, rounded runner tip ~3/4" proud of the rail top; 1-1/2" thick |
+| Rails | 5-1/2" deep | 4-1/2" deep |
+| Head rail | none | spans post-to-post at rail height, under the gap |
+| Panel rake | 10° | 11°, and the stile's hidden front edge is the same line |
+| Panel reveal | 3/4" | 1-1/2" |
+
+The interpenetration count survives the rebuild: still exactly one legitimate
+overlap, the panel housed in the stiles. The rails no longer overlap anything
+— they butt.
+
+### What a projection is allowed to say
+
+The lesson of the pass is about trust boundaries. Within one frame, at the
+**near plane**, a silhouette is honest: the side view's bounding box is set by
+members at the near side, so lengths and depths read there are true once the
+envelope is right — that is what the 0.02% isotropy check certifies. Across
+planes it is not: the far half of the bed projects shifted, scaled, and
+half-swallowed by nearer members, and no single pinhole model reconciled all
+three dead-on frames (Cylindo evidently reframes per shot). Two early
+"discoveries" — a full-width scroll headboard, under-bed stringers — were
+artifacts of reading far-plane pixels against near-plane scale, and died when
+the oblique frames were put in front of eyes rather than thresholds.
+
+So the method that stands: classify all 32 frames by silhouette aspect
+(mirror-symmetry pins the dead-on views), calibrate each frame at its near
+plane, take only near-plane measurements from any frame, and let a visual pass
+arbitrate topology. The queen model keeps its published envelope and derives
+lengths from it; what it takes from the Cal King render is the *sections and
+shapes*, which a maker holds constant across sizes.
+
+### The 2" stile, exhumed
+
+One number deserves its own funeral. The first pass measured the stile at 2"
+and the note said 10/4 stock, which was believable and expensive. At the Cal
+King scale the stile is 1-3/4" — which is not just cheaper, it is *exactly
+what 8/4 surfaces to*, the kind of number a furniture maker actually picks.
+The corrected bed uses one fewer thickness class of cherry, and the test that
+pinned "stiles need 10/4" now pins the opposite.
+
+## Addendum: the deck gate, or the case against a diagonal
+
+First outdoor piece, and the first that is not furniture: a gate for the
+deck stairs so the dog can be let out unescorted. The deck's railing is 4x4
+posts, 2x4 rails, vertical 1x1 slats with parallel 45° miters, and a dressed
+cedar 1x6 laid flat as a cap; the gate (`projects/deck_gate.py`) is that
+railing section rebuilt as a swinging frame, after Young House Love's
+"DeckGate" pattern. Built first on a placeholder 36" x 36" opening; the
+tape measure arrived a day later — 36-1/2" between the posts, rail top
+41-1/2" and bottom-rail underside 3-3/4" above the decking — and the
+parameters were reshaped to match how the deck was actually measured
+(opening width, rail-top height, bottom gap) rather than an abstract
+gate height, so the gate hangs on the railing's own lines and the
+placeholder never appears again.
+
+### The bracing question got a check instead of an opinion
+
+Whether a gate needs a diagonal is the racking moment against the corner
+joints' capacity, and both are computable, so `check_racking` computes them
+rather than the working log asserting them. The demand is almost entirely
+the dog: a cedar gate this size weighs ~11 lb and contributes ~21 N·m about
+the hinge line, while a 60 lb dog landing paws on the latch corner at a 1.5
+dynamic factor contributes ~357 N·m. Each rail-stile corner turns its share
+into a ~2.1 kN force couple across the rail's 3-1/2" depth. A glued
+half-lap — ~12 in² of long-grain glue face, held to a wet-service 200 psi —
+carries that with a 2.1x margin, so the default gate has no diagonal and
+says why. Rebuild it with `corner_joinery="pocket_screw"` and the same
+check flips to WARN at 0.4x and names the remedies (`brace="cable"`, or the
+half-laps). The check that would have been an argument is now a regression
+test in both directions.
+
+### What the toolkit learned
+
+* **`DENSITY_KG_M3` had no `white_cedar`** and fell back to 600 kg/m³ —
+  nearly double the Wood Handbook's ~320 for northern white cedar, which
+  would have doubled the gate's self-weight in the racking numbers. A test
+  now trips if the species falls out of the table.
+* **The gallery assumed every species is bought rough.** `build_project`
+  called `nest_hardwood` on any solid part, and cedar bought as dimensional
+  2x4s from Lumbery's price list (already in `stock.yaml` from the fence
+  estimate) has nothing to nest. Softwood projects now skip the hardwood
+  plan instead of crashing the gallery.
+* **A mitered slat is not a `ShapedBoard`.** Modelled as a profile, the
+  cut list invented an oversized blank and the suitability check warned
+  about short grain on what is a straight stick. The slat is a `Board` with
+  the corner triangles sawn off the solid and `retag` keeping its identity
+  — the miter takes no stock, and the cut list now says a plain 1x1, long
+  point to long point.
+* **`MATERIAL_COLORS` gained cedar**, because the first render was gray and
+  a gray gate reads as aluminum.
+
+Still deliberately unmodelled: hinges, latch, and the cable turnbuckle
+(`brace="cable"` changes the checks and the notes, not the cut list), and
+the half-laps themselves are notes on the stiles rather than subtracted
+geometry — the joint that matters here is an area and an allowable, not a
+solid.
+
+The railing's own pitch turned out to be the sharpest finding: 5" centres,
+which is 4-1/4" clear between 1x1s — wider than the 4"-sphere rule. The
+railing predates the rule; a new gate does not, so the gate defaults to six
+slats at 3.45" and says so, and `match_railing_pitch=True` copies the
+railing's five-slat rhythm with the guard check refusing to look away
+(pinned as an ERROR by a test in both directions).
+
+A second visit to the tape measure and the toolbox reshaped three details.
+The slat ends are *bevels through the thickness* (end grain facing the rail
+they lie on), not miters across the face — the wedge cut moved planes and
+every "miter" in the code was renamed to say what the saw actually does.
+The slats themselves became bought 1x1x36 balusters, because the only saw
+on site today is a circular saw and a rip fence is not: the model validates
+that the bought length lands on both rails, and the only slat cuts left are
+the two bevels. And the swing got its own check: the gate cap and railing
+cap share a height, and rotating any cap point about the hinge pin lands it
+at x = −y at full open — the deck-side overhang sweeps *past the hinge
+post* into the railing cap's band unless its swing radius outruns the
+railing cap's deck edge. Holding the cap 2-1/2" off the hinge end (needs
+1-3/4") satisfies the radius for every point with one straight crosscut;
+the latch corner's mid-swing bulge is 0.20" against the 5/8" latch gap,
+which is why that gap was the bigger one all along.
+
+The lumber run settled the species question the practical way: the deck's
+own balusters turn out to be PT, so the gate went hybrid-then-some — #1
+ground-contact SYP for the frame *and* the slats (the treatment grade is
+overkill above ground, but #1 is the straightest PT on the shelf and a
+gate frame cares), with only the cap in cedar, like the railing. The
+toolkit's part: `syp_pt` joined the density table at its as-bought 750
+kg/m³ — wet ground-contact stock, drying toward 570, and running heavy is
+the safe direction for racking — plus a colour, per-part species on the
+model, and a PT finding in the report (HDG or stainless everything,
+end-cut preservative on cuts and lap faces, polyurethane glue while the
+stock is wet). The gate is ~24 lb wet and the half-lap margin holds at
+1.9x: still no diagonal.
+
+## Addendum: the renderer got a depth buffer (issue #10)
+
+`render_assembly` used to put every part's tessellation into one
+`Poly3DCollection` and let mplot3d's `zsort="average"` order the triangles.
+mplot3d has no depth buffer — it sorts whole triangles by their average
+depth — so anywhere two surfaces were coincident or interleaved, the picture
+was wrong in a way the model was not: the bed's plan view drew the centre
+rail *over* the slats it sits beneath, and the console's half-laps —
+precisely coincident faces, the pathological case for triangle-averaging —
+read as floating slivers instead of interlocking joints. The gallery has
+carried an apology for this since the console was built (`PLAN_VIEW_CAVEAT`),
+and `test_centre_rail_sits_below_the_slats` existed only to keep the picture
+from being mistaken for a modelling mistake.
+
+### Two renderers, not one, and zero new dependencies
+
+The fix splits by view. The three orthographic views (Front, Side, Plan) are
+now OCCT hidden-line drawings: `hlr.py` projects the *whole* assembly, not
+each part separately, through `build123d`'s `project_to_viewport` —
+`HLRBRep_Algo` working from the exact B-rep — so inter-part occlusion is
+resolved by the same CAD kernel that built the geometry, not approximated by
+sorting. Per-part projection was never on the table: it loses inter-part
+occlusion, which is the entire bug. The cost is that a hidden-line drawing
+carries no per-part colour, so the three orthographic views became monochrome
+technical line art — which reads, if anything, more like the "dimensioned
+drawing" a woodworker actually wants from a front/side/plan sheet.
+
+Colour survives in the isometric, which is a shaded render from a pure-numpy
+software z-buffer (`raster.py`) instead: tessellate once as before, light
+each triangle with the existing directional shade, then rasterize with an
+honest per-*pixel* depth test rather than a per-*triangle* sort. The pyvista
+option issue #10 floated is dead on arrival here anyway — the locked wheel is
+`cadquery-ocp-novtk`, so VTK is affirmatively absent, and a ~100 MB dependency
+plus a fallback path would have bought nothing a numpy array doesn't already
+do. numpy and OCCT (through build123d) were already in the dependency graph;
+nothing new got added.
+
+### The coplanar-tie policy
+
+A half-lap's two mating faces sit at *exactly* the same depth, which is a
+worse case for a z-buffer than the painter's algorithm actually hit — a
+sample-by-sample floating-point coin flip would speckle the joint with both
+parts' colours, pixel by pixel. The fix is a deliberate epsilon:
+`TIE_EPS = 1e-6 x scene_diagonal`, and a pixel is only overwritten when the
+new triangle is nearer by *more* than that — so on an exact tie, whichever
+part was tessellated first (a stable order, since `_iter_leaf_parts` always
+walks the assembly the same way) wins uniformly across the whole shared face.
+No speckle, and no ambiguity about which part "shows" there — the joint's
+seam is supplied separately, by drawing each part's own edges over the
+finished raster wherever they are not more than `EDGE_BIAS` behind the
+surface (`min(1 mm, 1e-3 x scene_diagonal)` — far below any real stock
+thickness, so a rail edge genuinely under a slat stays hidden while a flush
+half-lap seam still draws). That edge overlay is what makes the console's
+hero image read as five interlocking dado joints instead of one solid box:
+without it, the flat-shaded faces alone give no indication that a seam is
+there at all.
+
+### Why `_fit_zoom` died
+
+It was a symptom of the same underlying problem as the depth-sorting bug: an
+mplot3d 3-D axes has no notion of "zoom to fit an arbitrary box," only a plot
+box whose *aspect ratio* honours the data and whose *absolute size* is fixed,
+so a long, low assembly (the 80" console) ran off the axes and was silently
+clipped. `_fit_zoom` patched that by shrinking the box in proportion to how
+far the longest span exceeded its share of the diagonal. Both new renderers
+draw onto plain 2-D axes — a `LineCollection` for HLR, `imshow` for the
+raster — and 2-D axes autoscale to whatever data they are given, correctly,
+with no fixed plot-box size to overrun. The whole class of bug the zoom hack
+was built to paper over no longer has anywhere to occur, so the workaround
+went with it rather than being ported. `test_a_long_low_assembly_is_zoomed_out_to_fit`
+was replaced with `test_a_long_low_assembly_is_not_clipped`, which renders a
+console-proportioned board and checks the image border stays background —
+the user-visible guarantee, instead of the internals of a fix that no longer
+exists.
+
+### What this did not touch
+
+`tolerance` (tessellation, still 0.5 mm by default) now only affects the
+shaded isometric — the hidden-line views come from the exact B-rep and have
+no faceting to tune. HLR's per-edge sampling for curved geometry (a round top,
+a turned leg) needed a second look: the first pass sampled every edge at 16
+points, which was plenty for a straight board edge but made the nightstand's
+circular top render as a visible 16-gon — bumped to 64, which reads as a
+circle again at gallery sizes without meaningfully changing render time (a
+few tenths of a second per view, even on the console's few thousand edges).
