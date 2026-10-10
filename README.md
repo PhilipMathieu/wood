@@ -45,6 +45,9 @@ projects/
                       studs; braced 2x4 side frames are the bracket, and 16-
                       and 17-gallon totes hang by their rims between them.
                       Wall-hung and floor-standing builds
+  corner_tote_tower.py four 17-gallon totes hung by their rims in a basement
+                      stud corner — runners on the side-wall studs, one leg on
+                      a PT foot, a back stile on blocking
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery

@@ -2408,3 +2408,61 @@ Baltic birch sacrificial sheet.
 Saves one sheet, about $65–85. Cheaper sanded pine or CDX plywood would save
 more, but it is not in stock.yaml or the stiffness and density tables, so it
 was left for when there is a real price to put next to it.
+
+## Addendum: a bought bench and a corner tower, not a built bench
+
+The user priced a bought steel-frame bench against building this one and
+went that way: roughly the same money, a fraction of the work. The
+16-gallon totes stack under it three high. What a bought bench can't do is
+hold the taller 17-gallon totes anywhere they can be reached, so those get
+their own column: `projects/corner_tote_tower.py`, four high, in the corner
+where both walls are exposed studs at 16" on centre from the corner.
+`basement_bench.py` stays as it is, as the worked version of the built
+alternative.
+
+### What the corner buys
+
+The tower reuses the bench's rim-hanging: the same `Bin` data, the same 1x4
+runner reaching 3/4" past its face for 3/8" of lip bearing, and the same
+tote-profile sweep. The corner replaces most of a freestanding column:
+
+* **Wall side: no frame at all.** The runners screw straight to the
+  side-wall studs. With a corner stud and one at 16", a 27-3/8" runner lands
+  on two studs and overhangs the front one by 10-5/8". The worst case is a
+  tote pulled out until half its weight hangs at the tip, P = 9 kg, on an
+  overhanging beam: `P a² (L + a) / 3EI` comes to 0.15 mm against an
+  overhang/180 limit of 1.5 mm. The front stud's screws carry 34 lb and the
+  back stud's 14 lb, upward. The user didn't want plywood over the wall, and
+  the numbers don't need it.
+* **Open side: one leg.** The back stile lands 18-3/4" from the side-wall
+  face, between back-wall studs 16 and 32. A cleat across those stud faces
+  would sit right where the back of a tote ends up, so the stile hangs on
+  two 14-1/2" blocks fitted *between* the studs, flush with their faces, and
+  stops short of the floor. Only the front leg reaches the slab, on a
+  3-1/2" square offcut of ground-contact PT (`syp_pt`). The pad sits flush
+  with the leg's outside face, and its extra width runs under the bay, below
+  the bottom tote's 2" of floor clearance.
+* **No back, no plywood.** The two walls stop it racking and tipping. Four
+  1x6 slats on a 1x4 ledger and the top rail make a shelf and tie the leg's
+  head back to the side wall.
+
+20-1/4" wide, 27-3/8" deep, 58-1/4" tall. Two 2x4s, three 1x4s and one 1x6,
+all 8', plus the PT offcut.
+
+### A bug worth writing down
+
+The envelope check first built `Compound(children=room)` over the
+assembly's leaves to get one bounding box. build123d's children are anytree
+nodes, so that *re-parented* the leaves out of the assembly. Every check
+after it saw a two-part tower. `render/model3d.py` already warns about the
+same thing in `project_to_viewport`. The fix takes the min and max over the
+leaves' own bounding boxes. Never wrap a live assembly's leaves in a new
+`Compound`.
+
+### Drawing the wall without cutting it
+
+The renderer and the cut list both take every leaf that carries
+`material` + `stock_length_mm`, so existing studs can't be context-only
+geometry. `build(show_wall=True)` adds them, as plain boxes tagged
+`existing wall` and drawn grey. The CLI renders that version and extracts
+the cut list from `build()`. The gallery uses `build()`, without the wall.
