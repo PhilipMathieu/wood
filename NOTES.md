@@ -1545,3 +1545,63 @@ points, which was plenty for a straight board edge but made the nightstand's
 circular top render as a visible 16-gon — bumped to 64, which reads as a
 circle again at gallery sizes without meaningfully changing render time (a
 few tenths of a second per view, even on the console's few thousand edges).
+
+## Addendum: the fence quote, and the decision to build it in cedar
+
+Horizon Fence quoted the dog fence on 2026-11-06 (#7182866): 4' tall, three
+rails, welded wire, "54' + 1 panel" with one gate, posts set 3' deep in one
+60 lb bag of concrete each. **$5,923.89** lump sum, no breakdown, no product
+warranty, 5-year workmanship warranty, 33% deposit non-refundable once
+materials are ordered. The cover page says it expires 12/6; the terms say 14
+days (11/20).
+
+**Decision: build it ourselves, in northern white cedar.**
+
+### The estimate
+
+Assumes ~62 LF (54' + one 8' panel), a 4' gate, bays no longer than 8', so
+10 posts. Posts are 10' long so they reach the ~48" frost line — deeper than
+the quote's 3', which is the quote's real weak point. Cedar prices are the
+Lumbery entries in `stock.yaml` (2026-08-17); the rest are rough big-box
+figures, not confirmed.
+
+| Item | Cost |
+|---|---|
+| 8 line posts, 4x4x10 rough cedar (80 LF @ $4.40) | $352 |
+| 2 gate posts, 6x6x10 rough cedar (20 LF @ $9.45) | $189 |
+| 27 rails + gate frame, 2x4x8 rough cedar (216 LF @ $2.55) | $551 |
+| Welded wire, 4'x100' 14 ga 2"x4" | ~$119 |
+| Concrete, ~2 x 60 lb bags/post | ~$120 |
+| Gravel under posts | ~$30 |
+| Stainless / hot-dip galvanized screws and staples | ~$100 |
+| Gate hardware kit | ~$60 |
+| Maine sales tax 5.5% | ~$84 |
+| **Materials** | **~$1,605** |
+| Tools: digger + digging bar bought (~$80), haul (~$50–80), towable hydraulic auger only if the test hole is bad (~$75–135) | ~$150–300 |
+| Ledge contingency | ~$100–200 |
+| **Total** | **~$1,850–2,100** |
+
+Savings against the quote: roughly **$3,800–4,100**, for about two days of
+two people's work.
+
+### Cedar-specific things to get right
+
+* **Fasteners.** Cedar's extractives corrode plain and electro-galvanized
+  steel and stain black around the heads. Stainless or hot-dip galvanized
+  only — hence the higher fastener line.
+* **Rough sawn is near full dimension.** A rough 2x4 is about 2" x 4", not
+  1.5" x 3.5", so `lumber.NOMINAL_TO_ACTUAL` does not describe these parts.
+  This is the first project that will hit that gap if it gets a cut list.
+* **Lengths.** Lumbery's price list gives no lengths. Confirm 10' 4x4 and
+  6x6 and 8' 2x4 are stocked before counting on this layout.
+* **Rot at the collar.** Gravel under the post so the end grain drains, and
+  crown the concrete above grade so water sheds away from the post rather
+  than pooling against it.
+
+### Open items
+
+* Confirm with Horizon or by tape what "54' + 1 panel" totals.
+* Dig Safe (811) before digging; Horizon's contract disclaims utilities too.
+* No permit needed in South Portland for residential fences under 6'.
+* Season: it is November. Concrete wants unfrozen ground and roughly 40°F+
+  while it cures — build in the next couple of weeks or wait for spring.
