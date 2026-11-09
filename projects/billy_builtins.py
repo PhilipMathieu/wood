@@ -216,6 +216,17 @@ class BillyBuiltIns:
         Width of the left section's stiles above the BILLY, default 1-1/2".
         Narrower than the stiles below so they frame the heat pump rather
         than masking its ends.
+    match_window_stiles : bool, optional
+        Default ``True``: the left section's window-side stile matches the
+        right's, so the two stiles flanking the bay are a pair, and the left
+        section's 4-1/2" of extra width all goes to its wall stile.  It also
+        happens to centre the left case under the heat pump.  ``False``
+        centres each BILLY in its own section.
+    align_shelves : bool, optional
+        Default ``True``: the right BILLY's adjustable shelves are set on the
+        left case's shelf lines, so the horizontals read straight across the
+        bay, and its top line lands on the left case top.  ``False`` spaces
+        them evenly.
     min_nailer_in : float, optional
         Narrowest gap worth a nailer, default 3/4" — narrower and the BILLY
         side should go straight to the wall with shims.
@@ -257,6 +268,8 @@ class BillyBuiltIns:
     upper_stile_in: float = 1.5
     rail_in: float = 1.5
     min_nailer_in: float = 0.75
+    match_window_stiles: bool = True
+    align_shelves: bool = True
     side_panel_max_in: float = 95.0
     shelf_load_kg: float = 15.0
 
@@ -279,7 +292,7 @@ class BillyBuiltIns:
     def __post_init__(self) -> None:
         """Refuse an alcove a BILLY will not go into."""
         for side, width in (("left", self.left_width_in), ("right", self.right_width_in)):
-            if self.window_gap(width) < 0:
+            if min(self.window_gap(side), self.wall_gap(side)) < 0:
                 raise ValueError(
                     f'{side} section is {width:g}" — narrower than a BILLY\'s '
                     f'{self.billy_width_mm / IN:.2f}" plus its side panel'
@@ -325,25 +338,51 @@ class BillyBuiltIns:
         return float(Panel(10.0, 10.0, material="plywood_birch", label="probe",
                            nominal_thickness=self.side_panel_nominal).thickness_mm)
 
-    def wall_gap(self, width_in: float) -> float:
-        """Nailer gap between the wall and the BILLY, mm.
+    def width_of(self, side: str) -> float:
+        """Width of the ``"left"`` or ``"right"`` section, mm."""
+        return inches(self.left_width_in if side == "left" else self.right_width_in)
 
-        The BILLY stays centred in the section, so both stiles come out the
-        same width; the side panel is taken out of the window-side gap.
+    def _centred_window_gap(self, side: str) -> float:
+        """Window-side nailer gap with the BILLY centred in *side*, mm.
+
+        Centred, the side panel comes out of the window-side gap and the
+        two stiles of the section come out the same width.
         """
-        return (inches(width_in) - self.billy_width_mm) / 2
+        return (self.width_of(side) - self.billy_width_mm) / 2 - self.side_panel_mm
 
-    def window_gap(self, width_in: float) -> float:
-        """Nailer gap between the BILLY and the side panel, mm."""
-        return self.wall_gap(width_in) - self.side_panel_mm
+    def window_gap(self, side: str) -> float:
+        """Nailer gap between the BILLY and the side panel, mm.
 
-    def stile_width(self, width_in: float) -> float:
-        """Lower stile width, mm.
-
-        Wall side: the wall gap plus the BILLY side it laps.  Window side:
-        side panel, window gap, BILLY side — the same number.
+        The right section is centred.  With :attr:`match_window_stiles` the
+        left takes the right's window gap, so the two stiles either side of
+        the bay match, and its extra width all goes to the wall side.
         """
-        return self.wall_gap(width_in) + self.billy_panel_mm
+        if side == "left" and self.match_window_stiles:
+            return self._centred_window_gap("right")
+        return self._centred_window_gap(side)
+
+    def wall_gap(self, side: str) -> float:
+        """Nailer gap between the wall and the BILLY, mm: whatever is left."""
+        return (
+            self.width_of(side)
+            - self.billy_width_mm
+            - self.side_panel_mm
+            - self.window_gap(side)
+        )
+
+    def wall_stile(self, side: str) -> float:
+        """Wall-side stile width, mm: the wall gap plus the BILLY side it laps."""
+        return self.wall_gap(side) + self.billy_panel_mm
+
+    def window_stile(self, side: str) -> float:
+        """Window-side stile width, mm: side panel, window gap, BILLY side."""
+        return self.side_panel_mm + self.window_gap(side) + self.billy_panel_mm
+
+    def billy_x(self, side: str) -> float:
+        """Return the BILLY's left edge, mm, from its section's left end."""
+        if side == "left":  # wall on its left
+            return self.wall_gap(side)
+        return self.side_panel_mm + self.window_gap(side)
 
     @property
     def right_header_height(self) -> float:
@@ -479,10 +518,10 @@ class BillyBuiltIns:
         width = inches(width_in)
         x1 = x0 + width
         sp = self.side_panel_mm
-        s = self.stile_width(width_in)
         t = self.trim_thickness_mm
         fy0, fy1 = self.face_y - t, self.face_y  # face-frame plane
-        billy_x = x0 + self.wall_gap(width_in)
+        billy_x = x0 + self.billy_x(side)
+        s_wall, s_win = self.wall_stile(side), self.window_stile(side)
         # Top of the BILLY itself (the left one may be cut down), and of the
         # whole stack.
         top = self.billy_top if extension else self.left_case_top
@@ -575,8 +614,8 @@ class BillyBuiltIns:
         # case top and narrower uppers carry on to the ceiling.
         lower_top = self.ceiling if extension else top
         stiles = {
-            "wall": (x0, x0 + s) if window == "right" else (x1 - s, x1),
-            "window": (x1 - s, x1) if window == "right" else (x0, x0 + s),
+            "wall": (x0, x0 + s_wall) if window == "right" else (x1 - s_wall, x1),
+            "window": (x1 - s_win, x1) if window == "right" else (x0, x0 + s_win),
         }
         for where, (x_a, x_b) in stiles.items():
             children.append(
@@ -629,7 +668,9 @@ class BillyBuiltIns:
                 )
             )
 
-        inner0, inner1 = x0 + s, x1 - s
+        # The opening between the stiles: the BILLY's inside faces.
+        inner0 = billy_x + self.billy_panel_mm
+        inner1 = billy_x + self.billy_width_mm - self.billy_panel_mm
         rail = inches(self.rail_in)
         children.append(
             self._trim(
@@ -807,16 +848,47 @@ class BillyBuiltIns:
                 )
 
         bottom = z0 + inches(self.billy_kick_in)
-        full_pitch = (self.billy_height_mm - p - inches(self.billy_kick_in)) / 6
-        top_inside = z0 + height - p
-        openings = max(1, round((top_inside - bottom) / full_pitch))
-        pitch = (top_inside - bottom) / openings
-        carcass(BILLY, z0, z0 + height, bottom,
-                [bottom + i * pitch for i in range(1, openings)])
+        shelves = self.shelf_heights("right" if extension else "left")
+        carcass(BILLY, z0, z0 + height, bottom, shelves)
         if extension:
             ez = z0 + height
             carcass(BILLY_EXT, ez, ez + self.extension_height_mm, ez + p, [])
         return out
+
+    def _even_shelves(self, height: float) -> tuple[list[float], float]:
+        """Shelf centres for a BILLY of *height*, evenly spaced, and the pitch.
+
+        As many openings as fit at about the uncut case's pitch (202 cm has
+        six), so a cut-down case loses shelves rather than squashing them.
+        """
+        p = self.billy_panel_mm
+        bottom = self.riser_height_mm + inches(self.billy_kick_in)
+        full_pitch = (self.billy_height_mm - p - inches(self.billy_kick_in)) / 6
+        top_inside = self.riser_height_mm + height - p
+        openings = max(1, round((top_inside - bottom) / full_pitch))
+        pitch = (top_inside - bottom) / openings
+        return [bottom + i * pitch for i in range(1, openings)], pitch
+
+    def shelf_heights(self, side: str) -> list[float]:
+        """Shelf centre heights above the floor for one side's BILLY, mm.
+
+        The left case's are even.  With :attr:`align_shelves` the right
+        case's sit on the left's lines — carried on at the same pitch, so
+        the left case *top* becomes a shelf line on the right too — as far
+        as leaves a 6" opening under the right BILLY's own top.
+        """
+        if side == "left":
+            return self._even_shelves(self.left_case_height)[0]
+        if not self.align_shelves:
+            return self._even_shelves(self.billy_height_mm)[0]
+        _, pitch = self._even_shelves(self.left_case_height)
+        bottom = self.riser_height_mm + inches(self.billy_kick_in)
+        limit = self.billy_top - self.billy_panel_mm - inches(6.0)
+        heights, z = [], bottom + pitch
+        while z <= limit:
+            heights.append(z)
+            z += pitch
+        return heights
 
     # ------------------------------------------------------------------
     # Checks
@@ -857,6 +929,7 @@ class BillyBuiltIns:
         report.extend(self.check_widths())
         report.extend(self.check_extension_fit())
         report.extend(self.check_heat_pump())
+        report.extend(self.check_symmetry())
         report.extend(
             check_shelf_deflection(
                 material="particleboard",
@@ -908,17 +981,22 @@ class BillyBuiltIns:
         fmt = mm_to_fractional_inch
         findings = []
         for side, width_in in (("left", self.left_width_in), ("right", self.right_width_in)):
-            wall, win = self.wall_gap(width_in), self.window_gap(width_in)
-            s = self.stile_width(width_in)
+            wall, win = self.wall_gap(side), self.window_gap(side)
+            sw, sn = self.wall_stile(side), self.window_stile(side)
+            stiles = (
+                f"both stiles {fmt(sw)} (rip from {rip_source(sw + inches(0.25))})"
+                if abs(sw - sn) < 0.5
+                else f"wall stile {fmt(sw)} (rip from {rip_source(sw + inches(0.25))}), "
+                f"window stile {fmt(sn)} (rip from {rip_source(sn)})"
+            )
             findings.append(
                 Finding(
                     Severity.INFO,
                     "fit",
                     f'{side}: {width_in:g}" = {fmt(wall)} wall nailer + '
                     f'{fmt(self.billy_width_mm)} BILLY + {fmt(win)} window nailer + '
-                    f"{fmt(self.side_panel_mm, 32)} side panel; both stiles "
-                    f"{fmt(s)} (rip from {rip_source(s + inches(0.25))} — cut "
-                    f'1/4" fat and scribe the wall one)',
+                    f"{fmt(self.side_panel_mm, 32)} side panel; {stiles} — cut "
+                    f'the wall stile 1/4" fat and scribe it',
                 )
             )
             for where, gap in (("wall", wall), ("window", win)):
@@ -1153,6 +1231,60 @@ class BillyBuiltIns:
                     "airflow",
                     f"heat pump outlet {fmt(gap)} above the left BILLY top "
                     f"(wants {fmt(need)})",
+                )
+            )
+        return findings
+
+    def check_symmetry(self) -> list[Finding]:
+        """Say what reads as a pair across the bay, and where the difference went.
+
+        The two sections cannot match — 4-1/2" apart in width, one tall and
+        one under a heat pump — so the design matches what the eye compares
+        (the two stiles flanking the window, the openings, the shelf lines)
+        and puts the difference where it reads as wall: the left wall stile.
+
+        Returns
+        -------
+        list[Finding]
+            ``INFO`` lines describing the composition.
+        """
+        fmt = mm_to_fractional_inch
+        findings = []
+        lw, rw = self.window_stile("left"), self.window_stile("right")
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "symmetry",
+                f"window stiles {fmt(lw)} left, {fmt(rw)} right"
+                + (" — a pair either side of the bay" if abs(lw - rw) < 0.5 else "")
+                + f"; openings both {fmt(self.billy_width_mm - 2 * self.billy_panel_mm)}; "
+                f"the left section's extra width is in its "
+                f"{fmt(self.wall_stile('left'))} wall stile",
+            )
+        )
+        case_c = self.billy_x("left") + self.billy_width_mm / 2
+        hp_c = (self.heat_pump_x0 + self.heat_pump_x1) / 2
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "symmetry",
+                f"left case centre {fmt(abs(hp_c - case_c))} "
+                f"{'left' if case_c < hp_c else 'right'} of the heat pump's "
+                f"centre — the unit reads as sitting on the case's axis"
+                if abs(hp_c - case_c) < inches(1.0)
+                else f"left case centre is {fmt(abs(hp_c - case_c))} off the heat "
+                f"pump's centre",
+            )
+        )
+        if self.align_shelves:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "symmetry",
+                    f"right shelves set on the left's lines, "
+                    f"{fmt(self.shelf_heights('right')[1] - self.shelf_heights('right')[0])} "
+                    f"apart, the top one level with the left case top — set "
+                    f"each to the nearest pin hole",
                 )
             )
         return findings

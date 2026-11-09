@@ -68,32 +68,66 @@ def test_the_sections_fill_their_measured_alcoves(design, assembly):
     assert bb.size.Z == pytest.approx(99 * IN, abs=0.1)
 
 
-def test_each_stile_covers_the_filler_and_laps_the_billy_side(design, parts):
+def test_the_right_billy_is_centred_with_matching_stiles(design, parts):
     by_label = {p.label: p for p in parts}
-    # The BILLY stays centred: 42" less 80 cm, split, plus a 15 mm side.
-    assert by_label["left_wall_stile"].width_mm == pytest.approx((42 * IN - 800) / 2 + 15)
-    assert by_label["right_wall_stile"].width_mm == pytest.approx(
-        (37.5 * IN - 800) / 2 + 15
+    centred = (37.5 * IN - 800) / 2 + 15
+    assert by_label["right_wall_stile"].width_mm == pytest.approx(centred)
+    assert by_label["right_window_stile"].width_mm == pytest.approx(centred)
+
+
+def test_the_stiles_flanking_the_bay_are_a_pair(design, parts):
+    by_label = {p.label: p for p in parts}
+    assert by_label["left_window_stile"].width_mm == pytest.approx(
+        by_label["right_window_stile"].width_mm
     )
 
 
-def test_both_stiles_of_a_section_are_the_same_width(parts):
+def test_the_left_sections_extra_width_goes_to_its_wall_stile(design, parts):
     by_label = {p.label: p for p in parts}
-    for side in ("left", "right"):
-        assert by_label[f"{side}_window_stile"].width_mm == pytest.approx(
-            by_label[f"{side}_wall_stile"].width_mm
-        )
+    extra = (42 - 37.5) * IN
+    assert by_label["left_wall_stile"].width_mm == pytest.approx(
+        by_label["right_wall_stile"].width_mm + extra
+    )
+
+
+def test_matching_the_window_stiles_centres_the_case_under_the_heat_pump(design):
+    case_c = design.billy_x("left") + design.billy_width_mm / 2
+    hp_c = (design.heat_pump_x0 + design.heat_pump_x1) / 2
+    assert abs(case_c - hp_c) < 0.5 * IN
+    centred = BillyBuiltIns(match_window_stiles=False)
+    case_c = centred.billy_x("left") + centred.billy_width_mm / 2
+    assert abs(case_c - hp_c) > 2 * IN
+
+
+def test_unmatched_stiles_centre_each_billy_in_its_section():
+    d = BillyBuiltIns(match_window_stiles=False)
+    assert d.wall_stile("left") == pytest.approx(d.window_stile("left"))
 
 
 def test_the_width_is_spent_on_nailers_billy_and_side_panel(design):
-    for width in (design.left_width_in, design.right_width_in):
+    for side in ("left", "right"):
         total = (
-            design.wall_gap(width)
+            design.wall_gap(side)
             + design.billy_width_mm
-            + design.window_gap(width)
+            + design.window_gap(side)
             + design.side_panel_mm
         )
-        assert total == pytest.approx(width * IN)
+        assert total == pytest.approx(design.width_of(side))
+
+
+def test_the_right_shelves_sit_on_the_left_shelf_lines(design):
+    left, right = design.shelf_heights("left"), design.shelf_heights("right")
+    assert right[: len(left)] == pytest.approx(left)
+    # ...and the next one is level with the left case's top.
+    assert right[len(left)] == pytest.approx(design.left_case_top - 15.0, abs=1.0)
+
+
+def test_shelf_alignment_can_be_turned_off():
+    d = BillyBuiltIns(align_shelves=False)
+    heights = d.shelf_heights("right")
+    gaps = [b - a for a, b in zip(heights, heights[1:])]
+    assert max(gaps) - min(gaps) < 1e-6
+    assert len(heights) == 5
 
 
 def _child(section, label):
@@ -133,11 +167,11 @@ def test_the_left_side_panel_stops_at_the_cut_down_case(design, assembly):
 
 def test_nailers_fill_both_gaps_front_and_back(design, parts):
     by_label = {p.label: p for p in parts}
-    for side, width in (("left", 42.0), ("right", 37.5)):
+    for side in ("left", "right"):
         wall, window = by_label[f"{side}_wall_nailer"], by_label[f"{side}_window_nailer"]
         assert wall.qty == window.qty == 2
-        assert wall.width_mm == pytest.approx(design.wall_gap(width))
-        assert window.width_mm == pytest.approx(design.window_gap(width))
+        assert wall.width_mm == pytest.approx(design.wall_gap(side))
+        assert window.width_mm == pytest.approx(design.window_gap(side))
 
 
 def test_no_full_width_nailer_stands_beside_the_heat_pump(design, assembly):
@@ -159,6 +193,13 @@ def test_a_gap_too_narrow_for_a_nailer_is_flagged():
 def test_an_alcove_narrower_than_a_billy_is_refused():
     with pytest.raises(ValueError, match="narrower than a BILLY"):
         BillyBuiltIns(right_width_in=32.0)
+
+
+def test_the_symmetry_is_reported(design, assembly, parts):
+    report = design.check(assembly, parts)
+    lines = [f.message for f in _findings(report, "symmetry")]
+    assert any("a pair either side of the bay" in m for m in lines)
+    assert any("on the case's axis" in m for m in lines)
 
 
 def test_the_bottom_shelf_lands_flush_with_the_baseboard_top(design):

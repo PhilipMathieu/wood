@@ -1671,3 +1671,33 @@ and the header grows to a 1x6 rip. But 99" will not come out of a 4x8
 sheet, so the right side panel is made in two, joined on the header line —
 the front already has a horizontal joint there — splined, filled and
 painted.
+
+### Follow-up: symmetry, where the eye actually looks
+
+The question was whether the 4-1/2" difference between the sections could be
+made to read as symmetrical, or else leaned into. Both, in different axes.
+
+Across the bay, the eye compares the pair of stiles flanking the window, the
+two openings, and the horizontals — not the overall widths, whose far ends
+die into wall corners. Both cases are 80 cm BILLYs, so the openings already
+match. What did not was the stiles: centred, the left's were 5-13/16" to the
+right's 3-9/16". `match_window_stiles` (default on) gives the left section the
+right's window gap, so the two bay-side stiles are a 3-9/16" pair and all of
+the left's extra width goes to its wall stile, now 8-1/16" — a pilaster at
+the corner, where a wide board reads as wall. The lucky part: that same
+2-1/4" shift puts the left case's centre 3/8" from the heat pump's, where it
+had been 2-5/8" off. The unit now sits on the case's axis instead of
+visibly sliding off it, which no amount of symmetry elsewhere would fix.
+
+The horizontals: BILLY shelves are adjustable, so `align_shelves` (default
+on) sets the right case's shelves on the left case's lines, carried up at
+the same 13-7/16" pitch — which lands one on the left case's top. Every line
+on the left continues across the bay into the tower.
+
+Height is where the design leans in rather than fights: a low case with the
+heat pump set on its axis on one side, a full-height tower on the other, is
+asymmetric balance — the unit's mass over the wider, lower piece against the
+height of the narrower one. Trying to fake equal heights (a dummy header on
+the left, a false top on the right) would only draw attention to the trick,
+and the left header is not allowed anyway: the unit's 8" ceiling clearance
+takes the whole band.
