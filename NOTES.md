@@ -1638,3 +1638,36 @@ the full-width nailers stop: a 5" block of 2x beside the unit would stand
 in its side clearance, so only a 1x2 rises to carry the upper wall stile,
 and the window upper stile nails to the panel's edge. A 96" ceiling also
 uses a 96" sheet to the last fibre; past 95" the report asks for 4x10 ply.
+
+### Follow-up: the real ceiling and the real heat pump
+
+Measured: 8' 3" ceilings, and the head is an LG KNUAB181A, installed with
+its top the 8" below the ceiling LG asks for. Both guesses had been wrong
+in the direction that hides problems.
+
+The KNUAB181A is 998 x 345 mm face-on (LG Canada), 9.281" deep by US
+listings; LG's standard wall-mount manual wants 8" to the ceiling for 18k
+units, more than 4" to "any wall or enclosure" each side, and 6.5' to the
+floor. At 99" that puts the underside at ~77-7/16". A 202 cm BILLY on its
+riser tops out at 81-3/4" — 4-3/8" *into* the unit. "Just one unit" is no
+longer room for the heat pump; it is a collision. The left case height is
+now derived from the unit: cut the BILLY's sides and back down ~8-3/8" to
+leave 4" of outlet air (re-bore the top's cam and dowel holes), keeping
+four shelves at roughly the full case's pitch. The report names the uncut
+alternative — BILLY 106 plus the 35 cm extension.
+
+The width is the second surprise. 39-5/16" plus 4" a side is 47-5/16"
+between obstructions; the section is 42". With the unit's left end assumed
+4" off the wall, it overhangs the section by 1-5/16" over the bay. So the
+heat pump's offset is now a parameter rather than a centring rule, and the
+left side panel rises past the case only if its inside face clears the
+unit's right end by the full 4" — which at 42" it does not. It stops at the
+case top; the bay side above stays open; any fascia there must stand at
+least 47-5/16" from the wall, out over the bay. That is a question for the
+owner, not something to draw on a guess.
+
+On the right, 99" helps: the stack has 3-7/16" to spare instead of 7/16",
+and the header grows to a 1x6 rip. But 99" will not come out of a 4x8
+sheet, so the right side panel is made in two, joined on the header line —
+the front already has a horizontal joint there — splined, filled and
+painted.

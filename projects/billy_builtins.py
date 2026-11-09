@@ -12,10 +12,10 @@ The two sections
 * **Right**, 37-1/2" from its wall to the window: a BILLY 80x28x202 with
   the 80x28x35 height-extension unit on top, and a header rail closing the
   last inch to the ceiling.
-* **Left**, 42" from its wall to the window: a BILLY 80x28x202 on its own.
-  Above it hangs the mini-split head, and the fascia goes up to the ceiling
-  *around* it — stiles either side, open in front, so the unit keeps the
-  clearances its installation manual asks for.
+* **Left**, 42" from its wall to the window: a BILLY 80x28x202 *cut down*
+  to fit under the installed heat pump.  The fascia goes up to the ceiling
+  around the unit — the wall-side stile, open in front — so the unit keeps
+  the clearances its installation manual asks for.
 
 Each section has a wall on one side and the bay on the other.  The window
 side gets a finished **side panel** — 3/4" birch ply, floor to ceiling, full
@@ -32,37 +32,40 @@ side panel + gap + BILLY side — so the opening sits centred in the frame.
 
 Measured, assumed, and looked up
 --------------------------------
-Measured by the owner: the two widths, 37-1/2" and 42".
+Measured by the owner: the two widths, 42" and 37-1/2"; the ceiling, 8' 3"
+(99"); and the heat pump — an LG KNUAB181A, installed with its top the 8"
+below the ceiling LG asks for.
 
 Looked up: BILLY 80x28x202 cm and the 80x28x35 cm height extension (237 cm
-stacked, IKEA's own combination listing); the extension's dowels need about
-7 mm of lift to drop on, so the ceiling must clear the stack by that much.
-Mitsubishi MSZ-GS indoor unit, 31-7/16" x 11-5/8" x 9-1/8", whose
-installation manual asks 2-1/8" to the ceiling (5-1/8" with left or
-left-rear piping on the spacer), 3-7/8" to the left and 4-3/8" to the right.
+stacked); the extension's dowels need about 7 mm of lift to drop on.  The
+KNUAB181A is 998 x 345 mm face-on (LG Canada; 39-5/16" x 13-9/16"), and
+9.281" deep by US listings (LG Canada says 210 mm; the deeper figure is
+used).  LG's standard wall-mount manual: 8" to the ceiling for 18k units,
+more than 4" to "any wall or enclosure" either side, 6.5' to the floor.
 
-**Assumed, and every one of them a parameter** — measure before cutting:
+What that does to the left side
+-------------------------------
+Hung 8" below a 99" ceiling, the unit's underside is at about 77-7/16".  A
+202 cm BILLY on its riser tops out at 81-3/4" — 4-3/8" *into* the unit.
+So the left case is cut down to leave ``outlet_clearance_in`` of open air
+under the outlet louvre (4", a judgement — LG gives no figure below the
+unit): about 8-3/8" off the sides, new cam holes for the top.
 
-* ceiling height, 96" (the right stack has 7/16" to spare at 96");
-* the heat pump is a GS-size head, hung as high as its ceiling clearance
-  allows (``heat_pump_bottom_in`` takes the real height if it is up);
-* BILLY panels 15 mm, kick plate 3-1/4" (bottom-shelf top above the base);
-* 5-1/2" baseboard (poplar 1x6) — the riser makes up the difference so
-  the bottom shelf lands flush with the baseboard top;
-* 4" of open air below the heat pump's outlet louvre.  Not a manufacturer
-  number — the GS manual says only "where airflow is not blocked" — but the
-  louvre throws down and forward, and a case top inches under it deflects
-  the discharge straight back along the wall.
+And the unit is wide.  39-5/16" plus 4" a side needs 47-5/16" between
+obstructions, and the section is 42".  With its left end 4" off the wall
+(assumed — measure it), the unit overhangs the section by 1-5/16", so the
+left side panel cannot rise past the case: it stops at the case top and
+the bay side above it stays open.
 
-The default ceiling is where this design is tightest, and the checks say
-so: at 96" the outlet sits half an inch above the left BILLY.
+**Still assumed, each a parameter**: the unit's left offset (4"), BILLY
+panels 15 mm, kick plate 3-1/4", a 5-1/2" baseboard, and the 4" outlet air.
 
 Run it
 ------
 ::
 
     uv run python projects/billy_builtins.py
-    uv run python projects/billy_builtins.py --ceiling 100 --heat-pump-bottom 84
+    uv run python projects/billy_builtins.py --heat-pump-left-offset 5 --heat-pump-bottom 77.5
 """
 
 from __future__ import annotations
@@ -112,7 +115,7 @@ _ONE_BY_WIDTHS_IN: tuple[tuple[str, float], ...] = (
 
 BILLY = "BILLY bookcase 80x28x202 cm, white"
 BILLY_EXT = "BILLY height extension unit 80x28x35 cm, white"
-HEAT_PUMP = "mini-split head (existing / by the HVAC installer)"
+HEAT_PUMP = "LG KNUAB181A wall head (installed)"
 
 
 def inches(value: float) -> float:
@@ -179,9 +182,7 @@ class BillyBuiltIns:
         Width between the two sections, default 72" — a guess, used only to
         lay the drawing out.  Nothing is built there.
     ceiling_in : float, optional
-        Floor to ceiling, default 96" (assumed).  The one number this design
-        is most sensitive to: it decides whether the extension fits on the
-        right and whether the heat pump breathes on the left.
+        Floor to ceiling, default the measured 8' 3" (99").
     baseboard_in : float, optional
         Baseboard height, default 5-1/2" (a 1x6).  Match the room's.
     billy_kick_in : float, optional
@@ -190,20 +191,27 @@ class BillyBuiltIns:
     billy_panel_mm : float, optional
         BILLY side/top panel thickness, default 15 mm (assumed).
     heat_pump_width_in, heat_pump_height_in, heat_pump_depth_in : float, optional
-        Indoor unit size, default a Mitsubishi MSZ-GS (31-7/16 x 11-5/8 x
-        9-1/8).
+        Indoor unit size, default the installed LG KNUAB181A: 998 x 345 mm
+        (LG's metric spec) and 9.281" deep (US listings; LG Canada says
+        210 mm — the larger is used).
     heat_pump_bottom_in : float or None, optional
         Underside of the indoor unit above the floor.  ``None`` (default)
-        hangs it as high as ``heat_pump_ceiling_clearance_in`` allows.
+        puts its top ``heat_pump_ceiling_clearance_in`` below the ceiling,
+        which is how it was installed.
+    heat_pump_left_offset_in : float, optional
+        The unit's left end from the left section's wall, default 4" —
+        assumed: LG's minimum, which an installer working to the manual
+        would not have exceeded by much.  Measure it.
     heat_pump_ceiling_clearance_in : float, optional
-        Manufacturer's minimum to the ceiling, default 2-1/8" (MSZ-GS; 5-1/8"
-        with left or left-rear piping on the spacer).
+        Manufacturer's minimum to the ceiling, default 8" (LG standard wall
+        mount, 18k).
     heat_pump_left_clearance_in, heat_pump_right_clearance_in : float, optional
-        Manufacturer's side minimums, default 3-7/8" and 4-3/8" (MSZ-GS),
-        left and right *as seen facing the unit*.
+        Manufacturer's side minimums to "any wall or enclosure", default
+        4" each (LG), left and right *as seen facing the unit*.
     outlet_clearance_in : float, optional
         Open air required between the top of the left case and the unit's
-        underside, default 4" — a judgement, not a manufacturer figure.
+        underside, default 4" — a judgement, not a manufacturer figure.  The
+        left BILLY is cut down to leave it.
     upper_stile_in : float, optional
         Width of the left section's stiles above the BILLY, default 1-1/2".
         Narrower than the stiles below so they frame the heat pump rather
@@ -211,6 +219,9 @@ class BillyBuiltIns:
     min_nailer_in : float, optional
         Narrowest gap worth a nailer, default 3/4" — narrower and the BILLY
         side should go straight to the wall with shims.
+    side_panel_max_in : float, optional
+        Longest side panel cut in one piece, default 95" — a 4x8 sheet
+        less room to square and scribe.  Taller panels are made in two.
     rail_in : float, optional
         Face-frame rail width (mid rail, left top rail, minimum header),
         default 1-1/2".
@@ -230,21 +241,23 @@ class BillyBuiltIns:
     left_width_in: float = 42.0
     right_width_in: float = 37.5
     bay_opening_in: float = 72.0
-    ceiling_in: float = 96.0
+    ceiling_in: float = 99.0
     baseboard_in: float = 5.5
     billy_kick_in: float = 3.25
     billy_panel_mm: float = 15.0
-    heat_pump_width_in: float = 31.0 + 7 / 16
-    heat_pump_height_in: float = 11.625
-    heat_pump_depth_in: float = 9.125
+    heat_pump_width_in: float = 998.0 / IN
+    heat_pump_height_in: float = 345.0 / IN
+    heat_pump_depth_in: float = 9.281
     heat_pump_bottom_in: float | None = None
-    heat_pump_ceiling_clearance_in: float = 2.125
-    heat_pump_left_clearance_in: float = 3.875
-    heat_pump_right_clearance_in: float = 4.375
+    heat_pump_left_offset_in: float = 4.0
+    heat_pump_ceiling_clearance_in: float = 8.0
+    heat_pump_left_clearance_in: float = 4.0
+    heat_pump_right_clearance_in: float = 4.0
     outlet_clearance_in: float = 4.0
     upper_stile_in: float = 1.5
     rail_in: float = 1.5
     min_nailer_in: float = 0.75
+    side_panel_max_in: float = 95.0
     shelf_load_kg: float = 15.0
 
     inventory: Inventory = field(default_factory=Inventory.load)
@@ -379,13 +392,50 @@ class BillyBuiltIns:
 
     @property
     def heat_pump_x0(self) -> float:
-        """Left end of the heat pump, mm.
+        """Left end of the heat pump, mm, from the left section's wall."""
+        return inches(self.heat_pump_left_offset_in)
 
-        Centred between the left wall and the inside face of the left
-        section's side panel — the two things beside it.
+    @property
+    def heat_pump_x1(self) -> float:
+        """Right end of the heat pump, mm."""
+        return self.heat_pump_x0 + inches(self.heat_pump_width_in)
+
+    @property
+    def left_case_height(self) -> float:
+        """Height of the left BILLY, mm — cut down to clear the heat pump.
+
+        A 202 cm BILLY unless that would bring its top within
+        ``outlet_clearance_in`` of the unit's underside; then the sides are
+        cut down to leave exactly that.
+        """
+        room = (
+            self.heat_pump_bottom
+            - inches(self.outlet_clearance_in)
+            - self.riser_height_mm
+        )
+        return min(self.billy_height_mm, room)
+
+    @property
+    def left_case_cut(self) -> float:
+        """How much comes off the left BILLY's sides, mm (0 if none)."""
+        return self.billy_height_mm - self.left_case_height
+
+    @property
+    def left_case_top(self) -> float:
+        """Top of the left BILLY above the floor, mm."""
+        return self.riser_height_mm + self.left_case_height
+
+    @property
+    def left_panel_to_ceiling(self) -> bool:
+        """Whether the left side panel can rise past the case to the ceiling.
+
+        Only if its inside face stands at least the unit's right clearance
+        clear of the unit's right end — otherwise it is an "enclosure"
+        inside the clearance (or runs straight through the unit), and stops
+        at the case top.
         """
         inside = inches(self.left_width_in) - self.side_panel_mm
-        return (inside - inches(self.heat_pump_width_in)) / 2
+        return inside >= self.heat_pump_x1 + inches(self.heat_pump_right_clearance_in)
 
     # ------------------------------------------------------------------
     # Assembly
@@ -407,7 +457,7 @@ class BillyBuiltIns:
         )
         hp_pos, hx, hy, hz = _box(
             self.heat_pump_x0,
-            self.heat_pump_x0 + inches(self.heat_pump_width_in),
+            self.heat_pump_x1,
             -inches(self.heat_pump_depth_in),
             0.0,
             self.heat_pump_bottom,
@@ -433,30 +483,61 @@ class BillyBuiltIns:
         t = self.trim_thickness_mm
         fy0, fy1 = self.face_y - t, self.face_y  # face-frame plane
         billy_x = x0 + self.wall_gap(width_in)
-        case_top = self.extension_top if extension else self.billy_top
+        # Top of the BILLY itself (the left one may be cut down), and of the
+        # whole stack.
+        top = self.billy_top if extension else self.left_case_top
+        case_top = self.extension_top if extension else top
+        panel_top = self.ceiling if (extension or self.left_panel_to_ceiling) else top
         children: list[object] = []
 
         children += self._riser(side, billy_x)
-        children += self._billy(side, billy_x, self.riser_height_mm, extension)
-
-        # The side panel framing the bay: floor to ceiling, full depth.
-        px0 = x1 - sp if window == "right" else x0
-        pos, *_ = _box(px0, px0 + sp, self.face_y, 0.0, 0.0, self.ceiling)
-        children.append(
-            pos
-            * _UPRIGHT_SIDEWAYS
-            * Panel(
-                length_mm=self.ceiling,
-                width_mm=self.billy_depth_mm,
-                nominal_thickness=self.side_panel_nominal,
-                material="plywood_birch",
-                label=f"{side}_side_panel",
-                notes=(
-                    "frames the bay; scribed to wall and ceiling, front edge "
-                    "under the window stile, glued and screwed to its nailers"
-                ),
-            )
+        children += self._billy(
+            side, billy_x, self.riser_height_mm, extension, height=top - self.riser_height_mm
         )
+
+        # The side panel framing the bay: full depth, floor to ceiling —
+        # unless the heat pump's clearance reaches past it, when it stops at
+        # the case top.
+        px0 = x1 - sp if window == "right" else x0
+        # A panel taller than a 4x8 sheet allows is made in two, joined on
+        # the header line, where the front already has a horizontal joint.
+        split = (
+            self.ceiling - self.right_header_height
+            if extension
+            else inches(self.side_panel_max_in)
+        )
+        pieces = (
+            [(0.0, panel_top, f"{side}_side_panel")]
+            if panel_top <= inches(self.side_panel_max_in)
+            else [
+                (0.0, split, f"{side}_side_panel"),
+                (split, panel_top, f"{side}_side_panel_top"),
+            ]
+        )
+        for za, zb, label in pieces:
+            pos, *_ = _box(px0, px0 + sp, self.face_y, 0.0, za, zb)
+            children.append(
+                pos
+                * _UPRIGHT_SIDEWAYS
+                * Panel(
+                    length_mm=zb - za,
+                    width_mm=self.billy_depth_mm,
+                    nominal_thickness=self.side_panel_nominal,
+                    material="plywood_birch",
+                    label=label,
+                    notes=(
+                        "frames the bay; scribed to wall"
+                        + (" and ceiling" if zb == self.ceiling
+                           else "; stops at the case top, below the heat pump"
+                           if zb == top else "")
+                        + (f"; splined to the {'upper' if za == 0 else 'lower'} "
+                           "piece on the header line, filled and painted"
+                           if len(pieces) > 1 else "")
+                        + "; front edge under the window stile, glued and "
+                        "screwed to its nailers"
+                    ),
+                )
+            )
 
         # Nailers: 2x ripped to each gap, front and back, floor to case top.
         wall_x = (x0, billy_x) if window == "right" else (billy_x + self.billy_width_mm, x1)
@@ -492,7 +573,7 @@ class BillyBuiltIns:
 
         # Stiles: full height on the right; on the left they stop at the
         # case top and narrower uppers carry on to the ceiling.
-        lower_top = self.ceiling if extension else self.billy_top
+        lower_top = self.ceiling if extension else top
         stiles = {
             "wall": (x0, x0 + s) if window == "right" else (x1 - s, x1),
             "window": (x1 - s, x1) if window == "right" else (x0, x0 + s),
@@ -516,11 +597,14 @@ class BillyBuiltIns:
                 "wall": (x0, x0 + u) if window == "right" else (x1 - u, x1),
                 "window": (x1 - u, x1) if window == "right" else (x0, x0 + u),
             }
+            if not self.left_panel_to_ceiling:
+                # Nothing to frame that side with inside the clearance.
+                del uppers["window"]
             for where, (x_a, x_b) in uppers.items():
                 children.append(
                     self._trim(
                         f"{side}_{where}_upper_stile",
-                        x_a, x_b, fy0, fy1, self.billy_top, self.ceiling,
+                        x_a, x_b, fy0, fy1, top, self.ceiling,
                         orient="upright",
                         notes=(
                             "frames the heat pump; nailed to the "
@@ -532,12 +616,12 @@ class BillyBuiltIns:
             # nailer would stand in the heat pump's side clearance.
             wx = x0 if window == "right" else x1 - t
             pos, *_ = _box(wx, wx + t, self.face_y, self.face_y + inches(1.5),
-                           self.billy_top, self.ceiling)
+                           top, self.ceiling)
             children.append(
                 pos
                 * _UPRIGHT_SIDEWAYS
                 * Board(
-                    length_mm=self.ceiling - self.billy_top,
+                    length_mm=self.ceiling - top,
                     nominal="1x2",
                     material="pine",
                     label=f"{side}_upper_wall_nailer",
@@ -578,7 +662,7 @@ class BillyBuiltIns:
             children.append(
                 self._trim(
                     f"{side}_top_rail",
-                    inner0, inner1, fy0, fy1, self.billy_top - rail, self.billy_top,
+                    inner0, inner1, fy0, fy1, top - rail, top,
                     orient="rail",
                     notes="top flush with the BILLY top — nothing proud under the outlet",
                 )
@@ -690,9 +774,14 @@ class BillyBuiltIns:
         return out
 
     def _billy(
-        self, side: str, x0: float, z0: float, extension: bool
+        self, side: str, x0: float, z0: float, extension: bool, *, height: float
     ) -> list[object]:
-        """Return a BILLY (and extension) as bought panels, for the drawing."""
+        """Return a BILLY (and extension) as bought panels, for the drawing.
+
+        *height* is the case as installed — under 202 cm when the sides
+        have been cut down — and sets how many shelves it keeps, at the
+        uncut case's pitch.
+        """
         p = self.billy_panel_mm
         w, d = self.billy_width_mm, self.billy_depth_mm
         out: list[object] = []
@@ -718,12 +807,14 @@ class BillyBuiltIns:
                 )
 
         bottom = z0 + inches(self.billy_kick_in)
-        top_inside = z0 + self.billy_height_mm - p
-        pitch = (top_inside - bottom) / 6
-        carcass(BILLY, z0, z0 + self.billy_height_mm, bottom,
-                [bottom + i * pitch for i in range(1, 6)])
+        full_pitch = (self.billy_height_mm - p - inches(self.billy_kick_in)) / 6
+        top_inside = z0 + height - p
+        openings = max(1, round((top_inside - bottom) / full_pitch))
+        pitch = (top_inside - bottom) / openings
+        carcass(BILLY, z0, z0 + height, bottom,
+                [bottom + i * pitch for i in range(1, openings)])
         if extension:
-            ez = z0 + self.billy_height_mm
+            ez = z0 + height
             carcass(BILLY_EXT, ez, ez + self.extension_height_mm, ez + p, [])
         return out
 
@@ -911,27 +1002,29 @@ class BillyBuiltIns:
         return findings
 
     def check_heat_pump(self) -> list[Finding]:
-        """Hold the left section to the heat pump's airflow clearances.
+        """Hold the left section to the installed heat pump's clearances.
 
-        Four zones around the indoor unit, each a different rule:
+        The unit is already on the wall, so the cabinetry answers to it,
+        never the other way round.  Four zones, each its own rule:
 
         * **Ceiling** — the manufacturer's minimum above the unit, where the
-          intake grille is.
-        * **Sides** — the manufacturer's minimums, to the alcove walls (the
-          real obstruction beside the unit).  The upper stiles stand in the
-          face plane, ahead of the unit's front, and must not cover its
-          ends.
+          intake grille is.  The installer's job; reported, not designed.
+        * **Sides** — the manufacturer's minimum to "any wall or enclosure".
+          On the wall side that is the installer's offset.  On the bay side
+          it decides whether the side panel and an upper stile may rise
+          past the case: only if they stand clear of the unit's right end
+          by the full clearance.
         * **Front** — open.  A header across the front may sit only above
-          the ceiling clearance; lower, it is in front of the intake and
-          stops the front panel lifting for the filters.
-        * **Below** — the outlet louvre, which throws down and forward.  The
-          case top under it is held ``outlet_clearance_in`` away.
+          the ceiling clearance.
+        * **Below** — the outlet louvre.  The left BILLY is cut down to
+          leave ``outlet_clearance_in`` under it, and the cut is reported,
+          because it is work: new cam and dowel holes for the top.
 
         Returns
         -------
         list[Finding]
-            ``ERROR`` for a manufacturer minimum broken, ``WARN`` for the
-            outlet judgement, ``INFO`` for each zone that passes.
+            ``ERROR`` for a manufacturer minimum broken, ``WARN`` for work
+            the clearances force, ``INFO`` for each zone that passes.
         """
         findings: list[Finding] = []
         fmt = mm_to_fractional_inch
@@ -943,35 +1036,65 @@ class BillyBuiltIns:
                 Severity.INFO if above >= need_above - 0.5 else Severity.ERROR,
                 "airflow",
                 f"heat pump top {fmt(above)} below the ceiling (needs "
-                f"{fmt(need_above)}; 5-1/8\" if the piping leaves left or "
-                f"left-rear on the spacer)",
+                f"{fmt(need_above)}); underside at {fmt(self.heat_pump_bottom)} "
+                f"— LG also asks 6.5' to the floor, so measure the real "
+                f"underside before cutting the case",
+            )
+        )
+
+        left_need = inches(self.heat_pump_left_clearance_in)
+        findings.append(
+            Finding(
+                Severity.INFO if self.heat_pump_x0 >= left_need else Severity.ERROR,
+                "airflow",
+                f"heat pump left end {fmt(self.heat_pump_x0)} from the wall "
+                f"(needs {fmt(left_need)}) — assumed; measure it",
             )
         )
 
         width = inches(self.left_width_in)
-        hp_w = inches(self.heat_pump_width_in)
-        left_gap = self.heat_pump_x0
-        right_gap = width - self.side_panel_mm - self.heat_pump_x0 - hp_w
-        for name, gap, need, what in (
-            ("left", left_gap, inches(self.heat_pump_left_clearance_in), "the wall"),
-            ("right", right_gap, inches(self.heat_pump_right_clearance_in), "the side panel"),
-        ):
+        right_need = inches(self.heat_pump_right_clearance_in)
+        clear_line = self.heat_pump_x1 + right_need
+        if self.left_panel_to_ceiling:
+            gap = width - self.side_panel_mm - self.heat_pump_x1
             findings.append(
                 Finding(
-                    Severity.INFO if gap >= need else Severity.ERROR,
+                    Severity.INFO,
                     "airflow",
-                    f"heat pump {name} end {fmt(gap)} from {what} (needs {fmt(need)})",
+                    f"heat pump right end {fmt(gap)} from the side panel "
+                    f"(needs {fmt(right_need)}); panel and upper stile run to "
+                    f"the ceiling",
                 )
             )
+        else:
+            over = self.heat_pump_x1 - width
+            where = (
+                f"overhangs the {self.left_width_in:g}\" section by {fmt(over)}"
+                if over > 0
+                else f"ends {fmt(-over)} short of the section's edge"
+            )
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "airflow",
+                    f"the {fmt(inches(self.heat_pump_width_in))} unit {where}, "
+                    f"and its right clearance runs to {fmt(clear_line)} from "
+                    f"the wall — so the side panel stops at the case top and "
+                    f"the bay side above it stays open.  Any fascia framing "
+                    f"that side must stand at least {fmt(clear_line)} from "
+                    f"the wall, out over the bay",
+                )
+            )
+
         u = inches(self.upper_stile_in)
-        reveal = min(left_gap, right_gap + self.side_panel_mm) - u
+        reveal = self.heat_pump_x0 - u
         findings.append(
             Finding(
                 Severity.INFO if reveal >= 0 else Severity.WARN,
                 "airflow",
-                f"upper stiles {fmt(u)} wide leave {fmt(max(reveal, 0.0))} "
-                f"between each stile and the unit's end in front view"
-                + ("" if reveal >= 0 else " — they cover the unit's ends; narrow them"),
+                f"upper wall stile {fmt(u)} wide leaves {fmt(max(reveal, 0.0))} "
+                f"to the unit's end in front view"
+                + ("" if reveal >= 0 else " — it covers the unit's end; narrow it"),
             )
         )
 
@@ -989,45 +1112,49 @@ class BillyBuiltIns:
                 Finding(
                     Severity.INFO,
                     "airflow",
-                    "no header across the heat pump: there is no band above "
-                    "its ceiling clearance to put one in, so the fascia is the "
-                    "two upper stiles, open to the ceiling — the header line "
-                    "breaks here on purpose",
+                    "no header across the heat pump: its ceiling clearance "
+                    "takes the whole band above it, so the front stays open "
+                    "to the ceiling — the header line breaks here on purpose",
                 )
             )
 
-        gap = self.heat_pump_bottom - self.billy_top
+        gap = self.heat_pump_bottom - self.left_case_top
         need = inches(self.outlet_clearance_in)
-        msg = (
-            f"heat pump outlet {fmt(max(gap, 0.0))} above the left BILLY top "
-            f"(wants {fmt(need)})"
-        )
-        if gap < 0:
+        if self.left_case_height < inches(20.0):
             findings.append(
-                Finding(Severity.ERROR, "airflow", f"{msg} — the unit hits the case")
+                Finding(
+                    Severity.ERROR,
+                    "airflow",
+                    f"only {fmt(max(self.left_case_height, 0.0))} of case fits "
+                    f"under the heat pump with {fmt(need)} of outlet air — not "
+                    f"a bookcase",
+                )
             )
-        elif gap < need:
-            short = need - gap
-            ceiling_needed = (
-                self.billy_top
-                + need
-                + inches(self.heat_pump_height_in)
-                + need_above
-            )
+        elif self.left_case_cut > 0:
+            uncut_top = self.riser_height_mm + self.billy_height_mm
             findings.append(
                 Finding(
                     Severity.WARN,
                     "airflow",
-                    f"{msg} — the case top will turn the discharge back along "
-                    f"the wall.  Needs a {fmt(ceiling_needed)} ceiling as "
-                    f"drawn; or cut the left BILLY's sides down "
-                    f"{fmt(short, 8)} and re-bore the top's cam holes; or "
-                    f"drop the left riser and let the baseboard lap the "
-                    f"bottom shelf",
+                    f"a full BILLY would top out at {fmt(uncut_top)}, "
+                    f"{fmt(uncut_top - self.heat_pump_bottom)} into the heat "
+                    f"pump; cut the left BILLY's sides and back down "
+                    f"{fmt(self.left_case_cut, 8)} to "
+                    f"{fmt(self.left_case_height, 8)}, re-bore the top's cam "
+                    f"and dowel holes, and it keeps {fmt(gap)} of air under "
+                    f"the outlet.  Uncut alternative: BILLY 80x28x106 plus "
+                    f"the 35 cm extension (141 cm), a lower case with more air",
                 )
             )
         else:
-            findings.append(Finding(Severity.INFO, "airflow", msg))
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "airflow",
+                    f"heat pump outlet {fmt(gap)} above the left BILLY top "
+                    f"(wants {fmt(need)})",
+                )
+            )
         return findings
 
     def check_stock_lengths(self, parts: list[CutPart]) -> list[Finding]:
@@ -1138,18 +1265,19 @@ def _spec() -> ProjectSpec:
         name="Billy built-ins",
         summary=(
             "Two IKEA BILLY bookcases built in either side of the bay: "
-            "the right one extended to the ceiling, the left one stopping "
-            "under the heat pump, with the poplar face frame, baseboard and "
-            "fascia framing the unit's airflow clearances."
+            "the right one extended to the ceiling, the left one cut down "
+            "under the installed heat pump, with a poplar face frame, ply "
+            "side panels at the bay, and fascia that keeps the unit's "
+            "airflow clearances."
         ),
         species="poplar",
         build=design.build,
         check=design.check,
         inventory=design.inventory,
         notes=(
-            'Measured: 42" (left) and 37-1/2" (right) wall to wall. Assumed '
-            'until measured: 96" ceiling, a Mitsubishi GS-size head hung at '
-            "its minimum ceiling clearance, 5-1/2\" baseboard."
+            'Measured: 42" (left) and 37-1/2" (right), wall to bay; 99" '
+            "ceiling; LG KNUAB181A head installed 8\" below it. Assumed until "
+            'measured: the head 4" off the left wall, 5-1/2" baseboard.'
         ),
         tags=["built-in", "ikea-hack", "paint-grade"],
     )
@@ -1164,9 +1292,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--left-width", type=float, default=42.0)
     parser.add_argument("--right-width", type=float, default=37.5)
-    parser.add_argument("--ceiling", type=float, default=96.0)
+    parser.add_argument("--ceiling", type=float, default=99.0)
     parser.add_argument("--baseboard", type=float, default=5.5)
     parser.add_argument("--heat-pump-bottom", type=float, default=None)
+    parser.add_argument("--heat-pump-left-offset", type=float, default=4.0)
     parser.add_argument("--outdir", type=Path, default=Path("build"))
     args = parser.parse_args()
     run(
@@ -1176,6 +1305,7 @@ def main() -> None:
             ceiling_in=args.ceiling,
             baseboard_in=args.baseboard,
             heat_pump_bottom_in=args.heat_pump_bottom,
+            heat_pump_left_offset_in=args.heat_pump_left_offset,
         ),
         args.outdir,
     )
