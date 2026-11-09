@@ -116,6 +116,40 @@ def extract(assembly: Any, consolidate_parts: bool = True) -> list[CutPart]:
     return consolidate(parts) if consolidate_parts else parts
 
 
+def purchased_items(assembly: Any) -> dict[str, int]:
+    """Count the things an assembly buys whole rather than cuts.
+
+    The complement of :func:`extract`: every
+    :class:`woodshop.parts.Purchased` leaf, grouped by its ``item``.  A
+    flat-pack bookcase modelled as six panels is one purchase, so the count
+    is of distinct *instances* — a leaf whose ``instance`` attribute is set
+    counts once per distinct value, and an untagged leaf counts once.
+
+    Parameters
+    ----------
+    assembly : build123d.Compound
+        The assembly to walk.
+
+    Returns
+    -------
+    dict[str, int]
+        Quantity of each purchased item, in first-seen order.
+    """
+    seen: dict[str, set[Any]] = {}
+
+    def walk(node: Any) -> None:
+        if getattr(node, "purchased", False):
+            key = getattr(node, "instance", None)
+            seen.setdefault(node.item, set()).add(key if key is not None else id(node))
+            return
+        children = list(getattr(node, "children", []) or [])
+        for child in children:
+            walk(child)
+
+    walk(assembly)
+    return {item: len(instances) for item, instances in seen.items()}
+
+
 def consolidate(parts: list[CutPart]) -> list[CutPart]:
     """Merge parts that are identical in every respect but quantity.
 
@@ -165,6 +199,9 @@ def consolidate(parts: list[CutPart]) -> list[CutPart]:
 
 def _walk(node: Any, acc: list[CutPart]) -> None:
     """Recursively walk *node* collecting parts into *acc*."""
+    # Bought whole (a flat-pack carcass, an appliance): drawn, never cut.
+    if getattr(node, "purchased", False):
+        return
     # If the node itself has material metadata it is a leaf part.
     if hasattr(node, "material") and hasattr(node, "stock_length_mm"):
         # Prefer the *blank* dimensions recorded on the part.  Two reasons:

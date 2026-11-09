@@ -41,6 +41,9 @@ projects/
   media_console.py    80" console as a slide-together grid: five record bays,
                       a CD row, half-lapped panels, no glue. Cherry-plywood
                       and painted-birch/solid-top builds
+  billy_builtins.py   two IKEA BILLYs built in either side of a bay: poplar
+                      face frame, baseboard and fascia, the left one framing
+                      a mini-split head's airflow clearances
   workbench.py        minimal example
 scripts/
   build_gallery.py    one command to regenerate the gallery
@@ -56,6 +59,7 @@ uv run pytest
 uv run python projects/mysa_bed.py --size queen --variant both --outdir build
 uv run python projects/mysa_nightstand.py --outdir build
 uv run python projects/media_console.py --variant both --outdir build
+uv run python projects/billy_builtins.py --ceiling 96 --outdir build
 ```
 
 That writes to `build/`:

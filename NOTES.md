@@ -1545,3 +1545,70 @@ points, which was plenty for a straight board edge but made the nightstand's
 circular top render as a visible 16-gon — bumped to 64, which reads as a
 circle again at gallery sizes without meaningfully changing render time (a
 few tenths of a second per view, even on the console's few thousand edges).
+
+## Addendum: the BILLY built-ins, where the ceiling decides everything
+
+The brief: the BILLY hack either side of the bay window. Right alcove 37-1/2"
+wall to wall, with the height extension; left alcove 42", one BILLY only,
+because the mini-split head hangs above it. Baseboard across the bottom and
+fascia to the ceiling, *around* the heat pump so it keeps its airflow.
+
+### Drawing things nobody cuts
+
+Every earlier project cut everything it drew. Here the two largest objects
+are bought whole — the BILLYs, and the heat pump — and the face frame is
+meaningless without them in the picture. So `woodshop.parts.Purchased`: a
+box that carries `material` (for its colour) and the two attributes the
+renderer keys on, plus `purchased = True`, which `extract()` skips. Its
+complement, `purchased_items()`, counts *instances* rather than leaves — a
+BILLY drawn as a dozen panels is one line at the till — and the project
+reports that count as its shopping list.
+
+### What was measured, what was looked up, what is a guess
+
+Measured: the two widths. Looked up: BILLY 80x28x202 cm and the 80x28x35
+extension (237 cm stacked); the extension's dowels want ~7 mm of lift to
+drop on. The heat pump defaults to a Mitsubishi MSZ-GS head (31-7/16 x
+11-5/8 x 9-1/8), whose installation manual asks 2-1/8" to the ceiling
+(5-1/8" with left piping on the spacer), 3-7/8" left and 4-3/8" right.
+
+Guessed, and each a parameter: a 96" ceiling, the BILLY's 15 mm panels and
+3-1/4" kick, a 5-1/2" baseboard, and 4" of open air under the outlet
+louvre — that last one is judgement, not a manufacturer figure; the GS
+manual only says "where airflow is not blocked".
+
+### Why the defaults produce two warnings, on purpose
+
+The riser is *derived*: baseboard height less the BILLY's kick, so the
+bottom shelf lands flush with the baseboard top. At 5-1/2" that is 2-1/4",
+and at 96" it leaves the right stack 7/16" under the ceiling — enough for
+the 7 mm lift, not enough to skip measuring the ceiling front and back.
+
+The left side is the real problem. A 202 cm BILLY on that riser tops out at
+81-3/4"; a GS head at its minimum ceiling clearance hangs from 82-1/4". Half
+an inch of air under a louvre that throws downward, with the case top
+reaching 2-5/8" further into the room than the unit — it would blow into
+the shelf. The check says so and prices the ways out: a 99-1/2" ceiling,
+or cut the BILLY's sides down 3-1/2" (re-bore the top's cam holes), or drop
+the left riser and let the baseboard lap the bottom shelf. I have not
+picked one; that wants the real ceiling and the real mounting height.
+
+### The fascia around the heat pump
+
+Three rules, each its own finding. The side clearances are to the *walls*
+— the real obstruction beside the unit — and 42" leaves 5-5/16" a side
+against 3-7/8"/4-3/8", which is presumably why the left alcove is the one
+with the heat pump. The lower stiles there are 5-13/16" wide, which would
+mask the unit's ends, so above the case they step down to 1-1/2" uppers.
+And a header across the front may only sit in the band *above* the ceiling
+clearance — lower, it is in front of the intake and blocks the front panel
+lifting for the filters. At 96" that band is empty, so there is no header
+on the left and the line breaks there deliberately.
+
+### Shelves
+
+BILLY shelves are 15 mm particleboard spanning 30-5/16". At 15 kg the beam
+estimate is ~6 mm of sag, span/129 — which matches their reputation.
+`ELASTIC_MODULUS_MPA` gained `particleboard` at 2,000 MPa (EN 312 P2 asks
+for 1,600; product tests run 2,000-3,000). The face frame does nothing for
+an adjustable shelf; a 1x2 nosing glued on edge does, and the report says so.

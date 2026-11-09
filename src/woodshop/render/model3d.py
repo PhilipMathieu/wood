@@ -91,6 +91,9 @@ MATERIAL_COLORS: dict[str, str] = {
     "plywood_cherry": "#c47a54",
     "plywood_birch": "#e8d6b3",
     "plywood_baltic_birch": "#f0e2c4",
+    # Bought whole, drawn for context (woodshop.parts.Purchased).
+    "billy_white": "#f4f2ec",
+    "heat_pump": "#c9d3dc",
 }
 
 _FALLBACK_COLOR = "#9e9e9e"

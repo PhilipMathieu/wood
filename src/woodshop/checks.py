@@ -130,6 +130,10 @@ ELASTIC_MODULUS_MPA: dict[str, float] = {
     "plywood_birch": 6_900.0,
     "plywood_cherry": 6_200.0,
     "plywood_baltic_birch": 6_500.0,
+    # Furniture-grade particleboard (EN 312 type P2 asks >= 1,600 MPa for
+    # 13-20 mm; typical product tests run 2,000-3,000).  The low end of the
+    # typical range, because flat-pack shelves also creep under books.
+    "particleboard": 2_000.0,
 }
 
 

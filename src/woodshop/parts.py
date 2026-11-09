@@ -109,6 +109,7 @@ __all__ = [
     "StockPart",
     "ShapedPart",
     "ShapedBoard",
+    "Purchased",
     "retag",
     "total_board_feet",
 ]
@@ -876,6 +877,81 @@ def _polygon_area(points: Sequence[tuple[float, float]]) -> float:
 
 
 #: Attributes that make a solid recognisable to the cut list.
+class Purchased(Box):
+    """Something bought whole and placed in an assembly — not cut, not listed.
+
+    A built-in made from flat-pack carcasses, or a cabinet built round an
+    appliance, has to *draw* the bought thing — the face frame only makes
+    sense around the case it covers — without the cut list telling anybody
+    to saw a bookcase out of a sheet.  A ``Purchased`` box is drawn like any
+    part (it carries ``material`` for its colour) but marks itself
+    ``purchased``, which :func:`woodshop.cutlist.extract.extract` skips and
+    :func:`woodshop.cutlist.extract.purchased_items` collects instead.
+
+    Parameters
+    ----------
+    length_mm, width_mm, thickness_mm : float
+        Box size along X, Y and Z, as for :class:`StockPart`.
+    material : str
+        Colour key for the renderer, e.g. ``"billy_white"``.
+    label : str
+        What it is.  Every box sharing a label and a ``item`` is one row of
+        the shopping list.
+    item : str, optional
+        The thing bought, when the box is one panel of it — six panels of a
+        flat-pack bookcase are one ``item`` and one purchase.  Defaults to
+        *label*.
+    notes : str, optional
+        Carried to the shopping list.
+    rotation, align, mode
+        Passed through to :class:`build123d.Box`.
+
+    Examples
+    --------
+    >>> side = Purchased(2020.0, 280.0, 15.0, material="billy_white",
+    ...                  label="billy_side", item="BILLY 80x28x202")
+    >>> side.purchased, side.item
+    (True, 'BILLY 80x28x202')
+    """
+
+    purchased: bool = True
+
+    def __init__(
+        self,
+        length_mm: float,
+        width_mm: float,
+        thickness_mm: float,
+        *,
+        material: str,
+        label: str,
+        item: str = "",
+        notes: str = "",
+        rotation: RotationLike = (0, 0, 0),
+        align: Align | tuple[Align, Align, Align] = (
+            Align.CENTER,
+            Align.CENTER,
+            Align.CENTER,
+        ),
+        mode: Mode = Mode.ADD,
+    ) -> None:
+        super().__init__(
+            length=length_mm,
+            width=width_mm,
+            height=thickness_mm,
+            rotation=rotation,
+            align=align,
+            mode=mode,
+        )
+        self.label = label
+        self.material = material
+        self.item = item or label
+        self.notes = notes
+        self.purchased = True
+        # The renderer recognises a drawable leaf by these two attributes.
+        self.stock_length_mm = float(length_mm)
+        self.length_mm = float(length_mm)
+
+
 _METADATA_ATTRS: tuple[str, ...] = (
     "label",
     "material",
