@@ -47,7 +47,7 @@ def test_a_purchased_box_is_not_on_the_cut_list():
 
 
 def test_no_billy_panel_or_heat_pump_reaches_the_cut_list(parts):
-    assert {p.material for p in parts} == {"poplar", "pine"}
+    assert {p.material for p in parts} == {"poplar", "pine", "plywood_birch"}
 
 
 def test_six_panels_of_a_bookcase_are_one_purchase(assembly):
@@ -70,14 +70,74 @@ def test_the_sections_fill_their_measured_alcoves(design, assembly):
 
 def test_each_stile_covers_the_filler_and_laps_the_billy_side(design, parts):
     by_label = {p.label: p for p in parts}
-    # 42" less 80 cm is a hair over 10-1/2", split, plus a 15 mm side.
-    assert by_label["left_stile"].width_mm == pytest.approx((42 * IN - 800) / 2 + 15)
-    assert by_label["right_stile"].width_mm == pytest.approx((37.5 * IN - 800) / 2 + 15)
+    # The BILLY stays centred: 42" less 80 cm, split, plus a 15 mm side.
+    assert by_label["left_wall_stile"].width_mm == pytest.approx((42 * IN - 800) / 2 + 15)
+    assert by_label["right_wall_stile"].width_mm == pytest.approx(
+        (37.5 * IN - 800) / 2 + 15
+    )
+
+
+def test_both_stiles_of_a_section_are_the_same_width(parts):
+    by_label = {p.label: p for p in parts}
+    for side in ("left", "right"):
+        assert by_label[f"{side}_window_stile"].width_mm == pytest.approx(
+            by_label[f"{side}_wall_stile"].width_mm
+        )
+
+
+def test_the_width_is_spent_on_nailers_billy_and_side_panel(design):
+    for width in (design.left_width_in, design.right_width_in):
+        total = (
+            design.wall_gap(width)
+            + design.billy_width_mm
+            + design.window_gap(width)
+            + design.side_panel_mm
+        )
+        assert total == pytest.approx(width * IN)
+
+
+def test_each_section_has_a_side_panel_framing_the_bay(design, assembly, parts):
+    panels = {p.label: p for p in parts if p.material == "plywood_birch"}
+    assert set(panels) == {"left_side_panel", "right_side_panel"}
+    for p in panels.values():
+        assert p.length_mm == pytest.approx(design.ceiling)
+        assert p.width_mm == pytest.approx(design.billy_depth_mm)
+    # The panels sit on the bay side: left section's right end, right's left.
+    left, right = assembly.children[0], assembly.children[1]
+    lp = next(c for c in left.children if getattr(c, "label", "") == "left_side_panel")
+    rp = next(c for c in right.children if getattr(c, "label", "") == "right_side_panel")
+    assert lp.bounding_box().max.X == pytest.approx(42 * IN, abs=0.01)
+    assert rp.bounding_box().min.X == pytest.approx(design.right_x0, abs=0.01)
+
+
+def test_nailers_fill_both_gaps_front_and_back(design, parts):
+    by_label = {p.label: p for p in parts}
+    for side, width in (("left", 42.0), ("right", 37.5)):
+        wall, window = by_label[f"{side}_wall_nailer"], by_label[f"{side}_window_nailer"]
+        assert wall.qty == window.qty == 2
+        assert wall.width_mm == pytest.approx(design.wall_gap(width))
+        assert window.width_mm == pytest.approx(design.window_gap(width))
+
+
+def test_no_full_width_nailer_stands_beside_the_heat_pump(design, assembly):
+    """Only a 1x2 nailer may rise past the left case top.
+
+    A 5" nailer there would sit in the heat pump's side clearance.
+    """
+    left = assembly.children[0]
+    for c in left.children:
+        if "nailer" in getattr(c, "label", "") and c.label != "left_upper_wall_nailer":
+            assert c.bounding_box().max.Z <= design.billy_top + 0.01
+
+
+def test_a_gap_too_narrow_for_a_nailer_is_flagged():
+    findings = BillyBuiltIns(right_width_in=33.5).check_widths()
+    assert any(f.severity is Severity.WARN and "nailer" in f.message for f in findings)
 
 
 def test_an_alcove_narrower_than_a_billy_is_refused():
     with pytest.raises(ValueError, match="narrower than a BILLY"):
-        BillyBuiltIns(right_width_in=30.0)
+        BillyBuiltIns(right_width_in=32.0)
 
 
 def test_the_bottom_shelf_lands_flush_with_the_baseboard_top(design):
@@ -114,7 +174,7 @@ def test_a_taller_ceiling_grows_the_right_header():
 
 def test_the_42_inch_alcove_meets_the_side_clearances(design):
     side = [
-        f for f in design.check_heat_pump() if "from the wall" in f.message
+        f for f in design.check_heat_pump() if " end " in f.message and "needs" in f.message
     ]
     assert len(side) == 2
     assert all(f.severity is Severity.INFO for f in side)
@@ -123,9 +183,19 @@ def test_the_42_inch_alcove_meets_the_side_clearances(design):
 def test_a_narrow_left_alcove_breaks_a_side_clearance():
     findings = BillyBuiltIns(left_width_in=38.0).check_heat_pump()
     assert any(
-        f.severity is Severity.ERROR and "from the wall" in f.message
+        f.severity is Severity.ERROR and "needs" in f.message
         for f in findings
     )
+
+
+def test_the_right_clearance_is_measured_to_the_side_panel(design):
+    right = [f for f in design.check_heat_pump() if "right end" in f.message]
+    assert "side panel" in right[0].message
+
+
+def test_a_ceiling_over_eight_feet_outgrows_a_4x8_side_panel():
+    tall = BillyBuiltIns(ceiling_in=100.0)
+    assert any("4x10" in f.message for f in tall.check_stock_lengths(extract(tall.build())))
 
 
 def test_at_eight_feet_the_outlet_is_crowded_by_the_case_top(design):

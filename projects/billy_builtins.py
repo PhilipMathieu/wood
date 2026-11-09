@@ -9,13 +9,26 @@ reads one piece of joinery instead of two bookcases.  Everything that is
 
 The two sections
 ----------------
-* **Right**, 37-1/2" wall to wall: a BILLY 80x28x202 with the 80x28x35
-  height-extension unit on top, and a header rail closing the last inch to
-  the ceiling.
-* **Left**, 42" wall to wall: a BILLY 80x28x202 on its own.  Above it hangs
-  the mini-split head, and the fascia goes up to the ceiling *around* it —
-  stiles either side, open in front, so the unit keeps the clearances its
-  installation manual asks for.
+* **Right**, 37-1/2" from its wall to the window: a BILLY 80x28x202 with
+  the 80x28x35 height-extension unit on top, and a header rail closing the
+  last inch to the ceiling.
+* **Left**, 42" from its wall to the window: a BILLY 80x28x202 on its own.
+  Above it hangs the mini-split head, and the fascia goes up to the ceiling
+  *around* it — stiles either side, open in front, so the unit keeps the
+  clearances its installation manual asks for.
+
+Each section has a wall on one side and the bay on the other.  The window
+side gets a finished **side panel** — 3/4" birch ply, floor to ceiling, full
+depth — which frames the bay and is what the room sees there; the baseboard
+returns along it.  The measured width runs to the panel's outside face.
+
+The width that is not BILLY or side panel is split evenly either side of
+the case and filled with **nailers**: 2x stock ripped to the gap, front and
+back, floor to case top, screwed to the wall (or glued and screwed to the
+side panel).  The BILLY screws through its sides into them, and the stiles
+nail to their front edges.  Splitting evenly keeps the two stiles the same
+width — the wall stile covers gap + BILLY side, the window stile covers
+side panel + gap + BILLY side — so the opening sits centred in the frame.
 
 Measured, assumed, and looked up
 --------------------------------
@@ -68,12 +81,13 @@ from woodshop.checks import (
     check_envelope,
     check_material_suitability,
     check_price_provenance,
+    check_sheet_fit,
     check_shelf_deflection,
 )
 from woodshop.cutlist.extract import CutPart, extract, purchased_items
 from woodshop.inventory import Inventory
 from woodshop.lumber import mm_to_fractional_inch
-from woodshop.parts import Board, Purchased
+from woodshop.parts import Board, Panel, Purchased
 from woodshop.project import ProjectSpec
 from woodshop.render import export_assembly, render_assembly, render_cut_list
 
@@ -159,8 +173,8 @@ class BillyBuiltIns:
     Parameters
     ----------
     left_width_in, right_width_in : float, optional
-        Wall-to-wall width of each alcove, default the measured 42" and
-        37-1/2".
+        Width of each section from its wall to the outside face of its
+        window-side panel, default the measured 42" and 37-1/2".
     bay_opening_in : float, optional
         Width between the two sections, default 72" — a guess, used only to
         lay the drawing out.  Nothing is built there.
@@ -194,6 +208,9 @@ class BillyBuiltIns:
         Width of the left section's stiles above the BILLY, default 1-1/2".
         Narrower than the stiles below so they frame the heat pump rather
         than masking its ends.
+    min_nailer_in : float, optional
+        Narrowest gap worth a nailer, default 3/4" — narrower and the BILLY
+        side should go straight to the wall with shims.
     rail_in : float, optional
         Face-frame rail width (mid rail, left top rail, minimum header),
         default 1-1/2".
@@ -227,6 +244,7 @@ class BillyBuiltIns:
     outlet_clearance_in: float = 4.0
     upper_stile_in: float = 1.5
     rail_in: float = 1.5
+    min_nailer_in: float = 0.75
     shelf_load_kg: float = 15.0
 
     inventory: Inventory = field(default_factory=Inventory.load)
@@ -240,14 +258,18 @@ class BillyBuiltIns:
     extension_lift_mm: float = 7.0
     #: Paint-grade face frame and baseboard: dressed 3/4" poplar.
     trim_thickness_mm: float = 19.05
+    #: Window-side panels: 3/4" birch ply, which is 23/32".
+    side_panel_nominal: str = "3/4"
+    #: Nailers are 2x stock ripped to the gap: 1-1/2" front to back.
+    nailer_depth_mm: float = 38.1
 
     def __post_init__(self) -> None:
         """Refuse an alcove a BILLY will not go into."""
         for side, width in (("left", self.left_width_in), ("right", self.right_width_in)):
-            if inches(width) < self.billy_width_mm:
+            if self.window_gap(width) < 0:
                 raise ValueError(
-                    f'{side} alcove is {width:g}" — narrower than a BILLY\'s '
-                    f'{self.billy_width_mm / IN:.2f}"'
+                    f'{side} section is {width:g}" — narrower than a BILLY\'s '
+                    f'{self.billy_width_mm / IN:.2f}" plus its side panel'
                 )
         if self.riser_height_mm > inches(3.5):
             raise ValueError(
@@ -284,13 +306,31 @@ class BillyBuiltIns:
         """Back face of the face frame (the BILLY front edges), mm."""
         return -self.billy_depth_mm
 
-    def filler(self, width_in: float) -> float:
-        """Gap from each side wall to a centred BILLY, mm."""
+    @property
+    def side_panel_mm(self) -> float:
+        """Thickness of the window-side panel, mm (3/4" ply is 23/32")."""
+        return float(Panel(10.0, 10.0, material="plywood_birch", label="probe",
+                           nominal_thickness=self.side_panel_nominal).thickness_mm)
+
+    def wall_gap(self, width_in: float) -> float:
+        """Nailer gap between the wall and the BILLY, mm.
+
+        The BILLY stays centred in the section, so both stiles come out the
+        same width; the side panel is taken out of the window-side gap.
+        """
         return (inches(width_in) - self.billy_width_mm) / 2
 
+    def window_gap(self, width_in: float) -> float:
+        """Nailer gap between the BILLY and the side panel, mm."""
+        return self.wall_gap(width_in) - self.side_panel_mm
+
     def stile_width(self, width_in: float) -> float:
-        """Lower stile width, mm: the filler plus the BILLY side it laps."""
-        return self.filler(width_in) + self.billy_panel_mm
+        """Lower stile width, mm.
+
+        Wall side: the wall gap plus the BILLY side it laps.  Window side:
+        side panel, window gap, BILLY side — the same number.
+        """
+        return self.wall_gap(width_in) + self.billy_panel_mm
 
     @property
     def right_header_height(self) -> float:
@@ -339,8 +379,13 @@ class BillyBuiltIns:
 
     @property
     def heat_pump_x0(self) -> float:
-        """Left end of the heat pump, mm — centred in the left section."""
-        return (inches(self.left_width_in) - inches(self.heat_pump_width_in)) / 2
+        """Left end of the heat pump, mm.
+
+        Centred between the left wall and the inside face of the left
+        section's side panel — the two things beside it.
+        """
+        inside = inches(self.left_width_in) - self.side_panel_mm
+        return (inside - inches(self.heat_pump_width_in)) / 2
 
     # ------------------------------------------------------------------
     # Assembly
@@ -354,9 +399,11 @@ class BillyBuiltIns:
         build123d.Compound
             ``left`` and ``right`` sub-assemblies plus the heat pump.
         """
-        left = self._section("left", 0.0, self.left_width_in, extension=False)
+        left = self._section(
+            "left", 0.0, self.left_width_in, extension=False, window="right"
+        )
         right = self._section(
-            "right", self.right_x0, self.right_width_in, extension=True
+            "right", self.right_x0, self.right_width_in, extension=True, window="left"
         )
         hp_pos, hx, hy, hz = _box(
             self.heat_pump_x0,
@@ -372,50 +419,133 @@ class BillyBuiltIns:
         return Compound(children=[left, right, heat_pump], label="billy_builtins")
 
     def _section(
-        self, side: str, x0: float, width_in: float, *, extension: bool
+        self, side: str, x0: float, width_in: float, *, extension: bool, window: str
     ) -> Compound:
-        """Build one alcove: riser, BILLY (and extension), face frame, trim."""
+        """Build one section: riser, BILLY, nailers, side panel, face frame, trim.
+
+        *window* says which end faces the bay (``"left"`` or ``"right"``);
+        the wall is at the other end.
+        """
         width = inches(width_in)
-        f = self.filler(width_in)
+        x1 = x0 + width
+        sp = self.side_panel_mm
         s = self.stile_width(width_in)
         t = self.trim_thickness_mm
         fy0, fy1 = self.face_y - t, self.face_y  # face-frame plane
+        billy_x = x0 + self.wall_gap(width_in)
+        case_top = self.extension_top if extension else self.billy_top
         children: list[object] = []
 
-        children += self._riser(side, x0 + f)
-        children += self._billy(side, x0 + f, self.riser_height_mm, extension)
+        children += self._riser(side, billy_x)
+        children += self._billy(side, billy_x, self.riser_height_mm, extension)
 
-        # Stiles: full height on the right; on the left they stop at the
-        # case top and narrower uppers carry on to the ceiling.
-        lower_top = self.ceiling if extension else self.billy_top
-        for x_a, x_b in ((x0, x0 + s), (x0 + width - s, x0 + width)):
-            children.append(
-                self._trim(
-                    f"{side}_stile",
-                    x_a, x_b, fy0, fy1, 0.0, lower_top,
-                    orient="upright",
-                    notes=(
-                        "scribed to the wall; glued and brad-nailed to the "
-                        "BILLY side, which it laps by its panel thickness"
-                    ),
-                )
+        # The side panel framing the bay: floor to ceiling, full depth.
+        px0 = x1 - sp if window == "right" else x0
+        pos, *_ = _box(px0, px0 + sp, self.face_y, 0.0, 0.0, self.ceiling)
+        children.append(
+            pos
+            * _UPRIGHT_SIDEWAYS
+            * Panel(
+                length_mm=self.ceiling,
+                width_mm=self.billy_depth_mm,
+                nominal_thickness=self.side_panel_nominal,
+                material="plywood_birch",
+                label=f"{side}_side_panel",
+                notes=(
+                    "frames the bay; scribed to wall and ceiling, front edge "
+                    "under the window stile, glued and screwed to its nailers"
+                ),
             )
-        if not extension:
-            u = inches(self.upper_stile_in)
-            for x_a, x_b in ((x0, x0 + u), (x0 + width - u, x0 + width)):
+        )
+
+        # Nailers: 2x ripped to each gap, front and back, floor to case top.
+        wall_x = (x0, billy_x) if window == "right" else (billy_x + self.billy_width_mm, x1)
+        win_x = (
+            (billy_x + self.billy_width_mm, px0) if window == "right" else (px0 + sp, billy_x)
+        )
+        nd = self.nailer_depth_mm
+        for where, (xa, xb), fixing in (
+            ("wall", wall_x, "screwed to the wall studs or plugs"),
+            ("window", win_x, "glued and screwed to the side panel"),
+        ):
+            gap = xb - xa
+            if gap < inches(self.min_nailer_in):
+                continue
+            for ya, yb, face in ((self.face_y, self.face_y + nd, "front"), (-nd, 0.0, "back")):
+                pos, *_ = _box(xa, xb, ya, yb, 0.0, case_top)
                 children.append(
-                    self._trim(
-                        f"{side}_upper_stile",
-                        x_a, x_b, fy0, fy1, self.billy_top, self.ceiling,
-                        orient="upright",
+                    pos
+                    * _UPRIGHT
+                    * Board(
+                        length_mm=case_top,
+                        thickness_mm=nd,
+                        width_mm=gap,
+                        material="pine",
+                        label=f"{side}_{where}_nailer",
                         notes=(
-                            "frames the heat pump; scribed to wall and "
-                            "ceiling, nailed to the wall nailer"
+                            f"2x ripped to {mm_to_fractional_inch(gap)}; {fixing}; "
+                            "the BILLY screws through its side into it"
+                            + ("; the stile nails to its edge" if face == "front" else "")
                         ),
                     )
                 )
 
-        inner0, inner1 = x0 + s, x0 + width - s
+        # Stiles: full height on the right; on the left they stop at the
+        # case top and narrower uppers carry on to the ceiling.
+        lower_top = self.ceiling if extension else self.billy_top
+        stiles = {
+            "wall": (x0, x0 + s) if window == "right" else (x1 - s, x1),
+            "window": (x1 - s, x1) if window == "right" else (x0, x0 + s),
+        }
+        for where, (x_a, x_b) in stiles.items():
+            children.append(
+                self._trim(
+                    f"{side}_{where}_stile",
+                    x_a, x_b, fy0, fy1, 0.0, lower_top,
+                    orient="upright",
+                    notes=(
+                        "scribed to the wall" if where == "wall"
+                        else "outside edge flush with the side panel's face"
+                    )
+                    + "; glued and brad-nailed to the nailer and the BILLY side it laps",
+                )
+            )
+        if not extension:
+            u = inches(self.upper_stile_in)
+            uppers = {
+                "wall": (x0, x0 + u) if window == "right" else (x1 - u, x1),
+                "window": (x1 - u, x1) if window == "right" else (x0, x0 + u),
+            }
+            for where, (x_a, x_b) in uppers.items():
+                children.append(
+                    self._trim(
+                        f"{side}_{where}_upper_stile",
+                        x_a, x_b, fy0, fy1, self.billy_top, self.ceiling,
+                        orient="upright",
+                        notes=(
+                            "frames the heat pump; nailed to the "
+                            + ("upper wall nailer" if where == "wall" else "side panel's edge")
+                        ),
+                    )
+                )
+            # Above the case only the stile needs fixing — a full-width
+            # nailer would stand in the heat pump's side clearance.
+            wx = x0 if window == "right" else x1 - t
+            pos, *_ = _box(wx, wx + t, self.face_y, self.face_y + inches(1.5),
+                           self.billy_top, self.ceiling)
+            children.append(
+                pos
+                * _UPRIGHT_SIDEWAYS
+                * Board(
+                    length_mm=self.ceiling - self.billy_top,
+                    nominal="1x2",
+                    material="pine",
+                    label=f"{side}_upper_wall_nailer",
+                    notes="screwed to the wall above the case; carries the upper stile",
+                )
+            )
+
+        inner0, inner1 = x0 + s, x1 - s
         rail = inches(self.rail_in)
         children.append(
             self._trim(
@@ -459,39 +589,35 @@ class BillyBuiltIns:
                 children.append(
                     self._trim(
                         f"{side}_header",
-                        x0 + u, x0 + width - u, fy0, fy1,
+                        x0 + u, x1 - u, fy0, fy1,
                         self.ceiling - hh, self.ceiling,
                         orient="rail",
                         notes="fascia above the heat pump's ceiling clearance",
                     )
                 )
 
-        # Baseboard across the front, over the face frame.
+        # Baseboard across the front, over the face frame, mitered into a
+        # return that runs back along the side panel to the wall.
+        bh = inches(self.baseboard_in)
+        bx0, bx1 = (x0, x1 + t) if window == "right" else (x0 - t, x1)
         children.append(
             self._trim(
                 f"{side}_baseboard",
-                x0, x0 + width, fy0 - t, fy0, 0.0, inches(self.baseboard_in),
+                bx0, bx1, fy0 - t, fy0, 0.0, bh,
                 orient="rail",
-                notes="over the face frame, wall to wall; coped or butted to the room's",
+                notes="over the face frame; mitered to the return at the bay, "
+                "coped or butted to the room's at the wall",
             )
         )
-
-        # A nailer on each side wall behind the stile's scribed edge.
-        nailer_w = inches(1.5)
-        if f >= t:
-            for xa in (x0, x0 + width - t):
-                pos, *_ = _box(xa, xa + t, fy1, fy1 + nailer_w, 0.0, self.ceiling)
-                children.append(
-                    pos
-                    * _UPRIGHT_SIDEWAYS
-                    * Board(
-                        length_mm=self.ceiling,
-                        nominal="1x2",
-                        material="pine",
-                        label=f"{side}_wall_nailer",
-                        notes="screwed to the side wall; the stile nails into its edge",
-                    )
-                )
+        rx0 = x1 if window == "right" else x0 - t
+        children.append(
+            self._trim(
+                f"{side}_baseboard_return",
+                rx0, rx0 + t, fy0 - t, 0.0, 0.0, bh,
+                orient="return",
+                notes="along the side panel's bay face, wall to the miter",
+            )
+        )
         return Compound(children=children, label=f"{side}_section")
 
     def _trim(
@@ -510,12 +636,14 @@ class BillyBuiltIns:
         """Return one poplar trim piece filling an axis-aligned span."""
         pos, dx, dy, dz = _box(x0, x1, y0, y1, z0, z1)
         if orient == "upright":
-            length, width, rot = dz, dx, _UPRIGHT
+            length, width, thick, rot = dz, dx, dy, _UPRIGHT
+        elif orient == "return":
+            length, width, thick, rot = dy, dz, dx, _ON_EDGE_DEEP
         else:
-            length, width, rot = dx, dz, _ON_EDGE
+            length, width, thick, rot = dx, dz, dy, _ON_EDGE
         board = Board(
             length_mm=length,
-            thickness_mm=dy,
+            thickness_mm=thick,
             width_mm=width,
             material="poplar",
             label=label,
@@ -625,6 +753,7 @@ class BillyBuiltIns:
                 actual_l_mm=bb.size.X,
                 actual_w_mm=bb.size.Y,
                 actual_h_mm=bb.size.Z,
+                # The baseboard returns face the bay, inside this extent.
                 published_l_mm=inches(
                     self.left_width_in + self.bay_opening_in + self.right_width_in
                 ),
@@ -633,6 +762,7 @@ class BillyBuiltIns:
             )
         )
         report.extend(check_material_suitability(parts, self.inventory))
+        report.extend(check_sheet_fit(parts, self.inventory))
         report.extend(self.check_widths())
         report.extend(self.check_extension_fit())
         report.extend(self.check_heat_pump())
@@ -671,30 +801,46 @@ class BillyBuiltIns:
         return report
 
     def check_widths(self) -> list[Finding]:
-        """Report the filler each side of each BILLY and the stile it makes.
+        """Report how each section's width is spent, nailers included.
+
+        Wall | wall gap | BILLY | window gap | side panel.  The gaps are
+        what the nailers fill, so each must be wide enough to be worth one;
+        under :attr:`min_nailer_in` the BILLY side goes to the wall (or
+        panel) on shims instead, and the stile has nothing behind its edge.
 
         Returns
         -------
         list[Finding]
-            One ``INFO`` per section; a ``WARN`` where the filler is too
-            narrow for a wall nailer behind the stile.
+            One ``INFO`` per section; a ``WARN`` per gap too narrow for a
+            nailer.
         """
+        fmt = mm_to_fractional_inch
         findings = []
         for side, width_in in (("left", self.left_width_in), ("right", self.right_width_in)):
-            f = self.filler(width_in)
+            wall, win = self.wall_gap(width_in), self.window_gap(width_in)
             s = self.stile_width(width_in)
-            text = (
-                f'{side}: {width_in:g}" alcove leaves {mm_to_fractional_inch(f)} '
-                f"each side of the BILLY; stiles {mm_to_fractional_inch(s)} wide "
-                f"(rip from {rip_source(s + inches(0.25))} — cut 1/4\" fat and "
-                f"scribe to the wall)"
-            )
-            if f < self.trim_thickness_mm:
-                findings.append(
-                    Finding(Severity.WARN, "fit", text + " — no room for a wall nailer")
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "fit",
+                    f'{side}: {width_in:g}" = {fmt(wall)} wall nailer + '
+                    f'{fmt(self.billy_width_mm)} BILLY + {fmt(win)} window nailer + '
+                    f"{fmt(self.side_panel_mm, 32)} side panel; both stiles "
+                    f"{fmt(s)} (rip from {rip_source(s + inches(0.25))} — cut "
+                    f'1/4" fat and scribe the wall one)',
                 )
-            else:
-                findings.append(Finding(Severity.INFO, "fit", text))
+            )
+            for where, gap in (("wall", wall), ("window", win)):
+                if gap < inches(self.min_nailer_in):
+                    findings.append(
+                        Finding(
+                            Severity.WARN,
+                            "fit",
+                            f"{side} {where} gap is {fmt(gap)} — too narrow for a "
+                            f"nailer; shim the BILLY side tight instead and glue "
+                            f"the stile to it",
+                        )
+                    )
         return findings
 
     def check_extension_fit(self) -> list[Finding]:
@@ -805,20 +951,20 @@ class BillyBuiltIns:
         width = inches(self.left_width_in)
         hp_w = inches(self.heat_pump_width_in)
         left_gap = self.heat_pump_x0
-        right_gap = width - self.heat_pump_x0 - hp_w
-        for name, gap, need in (
-            ("left", left_gap, inches(self.heat_pump_left_clearance_in)),
-            ("right", right_gap, inches(self.heat_pump_right_clearance_in)),
+        right_gap = width - self.side_panel_mm - self.heat_pump_x0 - hp_w
+        for name, gap, need, what in (
+            ("left", left_gap, inches(self.heat_pump_left_clearance_in), "the wall"),
+            ("right", right_gap, inches(self.heat_pump_right_clearance_in), "the side panel"),
         ):
             findings.append(
                 Finding(
                     Severity.INFO if gap >= need else Severity.ERROR,
                     "airflow",
-                    f"heat pump {name} end {fmt(gap)} from the wall (needs {fmt(need)})",
+                    f"heat pump {name} end {fmt(gap)} from {what} (needs {fmt(need)})",
                 )
             )
         u = inches(self.upper_stile_in)
-        reveal = min(left_gap, right_gap) - u
+        reveal = min(left_gap, right_gap + self.side_panel_mm) - u
         findings.append(
             Finding(
                 Severity.INFO if reveal >= 0 else Severity.WARN,
@@ -892,19 +1038,32 @@ class BillyBuiltIns:
         list[Finding]
             One ``WARN`` listing the long parts, or nothing.
         """
-        long = sorted(
-            {p.label for p in parts if p.length_mm > inches(95.0)}
-        )
-        if not long:
-            return []
-        return [
-            Finding(
-                Severity.WARN,
-                "stock",
-                f"{', '.join(long)} run past 95\" — an 8' board leaves no "
-                f"room to square the ends; buy 10' stock for them",
+        sheet = {s.material for s in self.inventory.sheet_goods}
+        too_long = [p for p in parts if p.length_mm > inches(95.0)]
+        boards = sorted({p.label for p in too_long if p.material not in sheet})
+        panels = sorted({p.label for p in too_long if p.material in sheet})
+        findings = []
+        if boards:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "stock",
+                    f"{', '.join(boards)} run past 95\" — an 8' board leaves "
+                    f"no room to square the ends; buy 10' stock for them",
+                )
             )
-        ]
+        if panels:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "stock",
+                    f"{', '.join(panels)} run past 95\" — a 4x8 sheet leaves "
+                    f"nothing to scribe to the ceiling; order 4x10 birch ply "
+                    f'(or 49x97 MDF), or let the panel stop under a 1x '
+                    f"crown-line rail",
+                )
+            )
+        return findings
 
     def shopping_list(self, assembly: Compound) -> list[Finding]:
         """List what is bought whole rather than cut.

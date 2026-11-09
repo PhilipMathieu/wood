@@ -1612,3 +1612,29 @@ estimate is ~6 mm of sag, span/129 — which matches their reputation.
 `ELASTIC_MODULUS_MPA` gained `particleboard` at 2,000 MPa (EN 312 P2 asks
 for 1,600; product tests run 2,000-3,000). The face frame does nothing for
 an adjustable shelf; a 1x2 nosing glued on edge does, and the report says so.
+
+### Follow-up: a side panel at the bay, and nailers that take up room
+
+The first pass treated both ends of each section as walls. They are not:
+one end of each faces the bay window, and there is nothing there to scribe
+to. That end now gets a 3/4" birch-ply side panel, floor to ceiling and
+full depth, which frames the window and carries a mitered baseboard return.
+The measured widths are taken to run to the panel's outside face.
+
+The gaps beside each BILLY are no longer a 1x2 lost in a void: they are
+filled front and back with 2x ripped to the gap, floor to case top, screwed
+to the wall (or glued and screwed to the panel), and the BILLY screws
+through its sides into them. The arithmetic came out kinder than expected —
+keep the BILLY centred and take the 23/32" panel out of the window-side gap,
+and the wall stile (gap + BILLY side) and the window stile (panel + gap +
+BILLY side) are the *same width*, so the opening still sits centred in its
+frame. Right: 3" | BILLY | 2-5/16" | panel. Left: 5-1/4" | BILLY | 4-9/16" |
+panel.
+
+Two consequences the checks now carry. The heat pump's right-hand
+clearance is measured to the panel, not a wall — 4-15/16" against 4-3/8",
+with the unit re-centred between wall and panel. And above the left case
+the full-width nailers stop: a 5" block of 2x beside the unit would stand
+in its side clearance, so only a 1x2 rises to carry the upper wall stile,
+and the window upper stile nails to the panel's edge. A 96" ceiling also
+uses a 96" sheet to the last fibre; past 95" the report asks for 4x10 ply.
