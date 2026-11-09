@@ -92,7 +92,13 @@ from woodshop.inventory import Inventory
 from woodshop.lumber import mm_to_fractional_inch
 from woodshop.parts import Board, Panel, Purchased
 from woodshop.project import ProjectSpec
-from woodshop.render import export_assembly, render_assembly, render_cut_list
+from woodshop.render import (
+    View,
+    export_assembly,
+    render_assembly,
+    render_cut_list,
+    shade_view,
+)
 
 IN = 25.4
 
@@ -1339,6 +1345,242 @@ class BillyBuiltIns:
 
 
 # ---------------------------------------------------------------------------
+# The proposal render: the built-ins in their room
+# ---------------------------------------------------------------------------
+
+#: Finish colours for the proposal: everything painted to match BILLY white,
+#: against a warm greige wall and an oak floor.
+PROPOSAL_COLORS: dict[str, str] = {
+    "poplar": "#f3f1ea",
+    "plywood_birch": "#f3f1ea",
+    "pine": "#f3f1ea",
+    "billy_white": "#f3f1ea",
+    "heat_pump": "#e2e6ea",
+    "context_wall": "#d6cfc2",
+    "context_trim": "#f6f4ee",
+    "context_glass": "#a9c3d4",
+    "context_floor": "#b58a5f",
+}
+
+
+@dataclass
+class BayRoom:
+    """The room around the built-ins, for the proposal render only.
+
+    Nothing here is measured except what :class:`BillyBuiltIns` carries; the
+    bay's shape is a typical one, and says so on the sheet.
+
+    Parameters
+    ----------
+    design : BillyBuiltIns
+        The built-ins the room is drawn around.
+    bay_depth_in : float, optional
+        How far the bay projects past the wall, default 18" (assumed).
+    sill_in, head_in : float, optional
+        Window sill and head heights, default 20" and 84" (assumed).
+    wall_in : float, optional
+        Wall thickness, default 5-1/2".
+    return_in : float, optional
+        How far the side walls are drawn into the room — just enough to
+        show the corners without hiding the cases from a three-quarter view.
+    """
+
+    design: BillyBuiltIns
+    bay_depth_in: float = 18.0
+    sill_in: float = 20.0
+    head_in: float = 84.0
+    wall_in: float = 5.5
+    return_in: float = 16.0
+
+    @property
+    def pier(self) -> float:
+        """Wall left between each section and the bay opening, mm.
+
+        The heat pump hangs on the wall, so the wall must run at least to
+        its right end; with the unit overhanging the left section that
+        leaves a narrow pier before the bay opens.  Mirrored on the right.
+        """
+        d = self.design
+        over = d.heat_pump_x1 - inches(d.left_width_in)
+        return over + inches(1.5) if over > 0 else 0.0
+
+    def build(self) -> Compound:
+        """Return walls, bay, and floor as purchased (never cut) boxes."""
+        d = self.design
+        c = d.ceiling
+        wt = inches(self.wall_in)
+        left = inches(d.left_width_in)
+        end = d.right_x0 + inches(d.right_width_in)
+        open0, open1 = left + self.pier, d.right_x0 - self.pier
+        out: list[object] = []
+
+        def box(mat, x0, x1, y0, y1, z0, z1):
+            pos, dx, dy, dz = _box(x0, x1, y0, y1, z0, z1)
+            out.append(pos * Purchased(dx, dy, dz, material=mat, label=mat, item="room"))
+
+        # Back wall either side of the bay opening, side-wall returns, floor.
+        box("context_wall", -wt, open0, 0.0, wt, 0.0, c)
+        box("context_wall", open1, end + wt, 0.0, wt, 0.0, c)
+        ret = inches(self.return_in)
+        box("context_wall", -wt, 0.0, -ret, 0.0, 0.0, c)
+        box("context_wall", end, end + wt, -ret, 0.0, 0.0, c)
+        dpt = inches(self.bay_depth_in)
+        box("context_floor", -wt, end + wt, -inches(48.0), dpt + wt, -inches(0.75), 0.0)
+
+        # The bay: two 45-degree sides and a front, each a knee wall, a
+        # window, and wall to the ceiling, cased on the room side.
+        corners = [(open0, 0.0), (open0 + dpt, dpt), (open1 - dpt, dpt), (open1, 0.0)]
+        for a, b in zip(corners, corners[1:]):
+            self._bay_wall(out, a, b, wt)
+        return Compound(children=out, label="room")
+
+    def _bay_wall(self, out: list, a: tuple, b: tuple, wt: float) -> None:
+        """Append one segment of bay wall, from plan point *a* to *b*."""
+        c = self.design.ceiling
+        sill, head = inches(self.sill_in), inches(self.head_in)
+        ax, ay = a
+        bx, by = b
+        length = math.hypot(bx - ax, by - ay)
+        ux, uy = (bx - ax) / length, (by - ay) / length
+        nx, ny = -uy, ux  # outward: away from the room
+        angle = math.degrees(math.atan2(uy, ux))
+        casing, post = inches(3.5), inches(3.0)
+
+        def slab(mat, s0, s1, o0, o1, z0, z1):
+            """Add a box from s0 to s1 along the segment, o0 to o1 off its inner face."""
+            sm, om = (s0 + s1) / 2, (o0 + o1) / 2
+            cx = ax + ux * sm + nx * om
+            cy = ay + uy * sm + ny * om
+            part = Purchased(
+                s1 - s0, o1 - o0, z1 - z0, material=mat, label=mat, item="room",
+                rotation=(0, 0, angle),
+            )
+            out.append(Pos(cx, cy, (z0 + z1) / 2) * part)
+
+        slab("context_wall", 0.0, length, 0.0, wt, 0.0, sill)
+        slab("context_wall", 0.0, length, 0.0, wt, head, c)
+        for s0, s1 in ((0.0, post), (length - post, length)):
+            slab("context_wall", s0, s1, 0.0, wt, sill, head)
+        slab("context_glass", post, length - post, wt / 2 - 6.0, wt / 2 + 6.0, sill, head)
+        mid = (sill + head) / 2
+        slab("context_trim", post, length - post, wt / 2 - 20.0, wt / 2 + 20.0,
+             mid - 19.0, mid + 19.0)
+        t = inches(0.75)
+        for s0, s1 in ((0.0, casing), (length - casing, length)):
+            slab("context_trim", s0, s1, -t, 0.0, sill, head + casing)
+        slab("context_trim", 0.0, length, -t, 0.0, head, head + casing)
+        slab("context_trim", 0.0, length, -inches(1.5), 0.0, sill - t, sill)
+        slab("context_trim", casing, length - casing, -t, 0.0, sill - t - casing, sill - t)
+
+
+def render_proposal(
+    design: BillyBuiltIns,
+    output_png: Path,
+    room: BayRoom | None = None,
+    size: int = 1800,
+) -> Path:
+    """Draw the built-ins in their room: a three-quarter view and a dimensioned elevation.
+
+    Everything is in finish colours (:data:`PROPOSAL_COLORS`) — paint-grade
+    trim and BILLYs one white — and the bay is a typical one, labelled as
+    assumed on the sheet.
+
+    Parameters
+    ----------
+    design : BillyBuiltIns
+        The built-ins.
+    output_png : Path
+        Where to write the sheet.
+    room : BayRoom, optional
+        The room; a default bay if not given.
+    size : int, optional
+        Long side of each raster, pixels.
+
+    Returns
+    -------
+    Path
+        *output_png*.
+    """
+    import matplotlib.pyplot as plt
+
+    room = room or BayRoom(design)
+    scene = Compound(children=[design.build(), room.build()], label="scene")
+    fmt = mm_to_fractional_inch
+
+    iso, _ = shade_view(scene, View("", 9.0, -64.0), material_colors=PROPOSAL_COLORS,
+                        exposure=1.18,
+                        size=size)
+    elev, proj = shade_view(scene, View("", 0.0, -90.0), material_colors=PROPOSAL_COLORS,
+                        exposure=1.18,
+                            size=size)
+
+    fig = plt.figure(figsize=(13.0, 17.0))
+    fig.suptitle("Billy built-ins — proposal", fontsize=18, y=0.985)
+    ax1 = fig.add_axes((0.02, 0.50, 0.96, 0.46))
+    ax1.imshow(iso)
+    ax1.set_axis_off()
+    ax2 = fig.add_axes((0.02, 0.07, 0.96, 0.42))
+    ax2.imshow(elev)
+    ax2.set_axis_off()
+
+    y = -400.0  # in front of everything, so the projection is unambiguous
+    px = lambda x, z: proj.to_pixel((x, y, z))  # noqa: E731
+    h, w = elev.shape[:2]
+    style = dict(fontsize=10, color="#37322c", ha="center", va="center",
+                 bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.85))
+    arrow = dict(arrowstyle="<->", color="#37322c", lw=0.9, shrinkA=0, shrinkB=0)
+
+    def dim(p0, p1, label, offset=(0, 0)):
+        (c0, r0), (c1, r1) = p0, p1
+        ax2.annotate("", xy=(c0, r0), xytext=(c1, r1), arrowprops=arrow)
+        ax2.text((c0 + c1) / 2 + offset[0], (r0 + r1) / 2 + offset[1], label, **style)
+
+    left = inches(design.left_width_in)
+    end = design.right_x0 + inches(design.right_width_in)
+    zb = -inches(4.0)
+    dim(px(0.0, zb), px(left, zb), fmt(left))
+    dim(px(left, zb), px(design.right_x0, zb),
+        f"{fmt(design.right_x0 - left)} (assumed)")
+    dim(px(design.right_x0, zb), px(end, zb), fmt(inches(design.right_width_in)))
+
+    xr = end + inches(9.0)
+    dim(px(xr, 0.0), px(xr, design.ceiling), f"{fmt(design.ceiling)} ceiling", (0, 0))
+    xs = end - inches(6.0)
+    dim(px(xs, 0.0), px(xs, design.extension_top), fmt(design.extension_top))
+
+    xh = design.heat_pump_x1 + inches(3.0)
+    dim(px(xh, design.heat_pump_top), px(xh, design.ceiling),
+        f'{fmt(design.ceiling - design.heat_pump_top)} (LG)')
+    dim(px(xh, design.left_case_top), px(xh, design.heat_pump_bottom),
+        f"{fmt(design.heat_pump_bottom - design.left_case_top)} air")
+    xl = inches(4.0)
+    dim(px(xl, 0.0), px(xl, design.left_case_top), fmt(design.left_case_top))
+
+    pad = 0.05 * w
+    ax2.set_xlim(-pad, w + pad)
+    ax2.set_ylim(h + pad, -pad)
+
+    notes = (
+        f"Measured: {design.left_width_in:g}\" and {design.right_width_in:g}\" "
+        f"sections; {design.ceiling_in:g}\" ceiling; LG KNUAB181A head "
+        f"{design.heat_pump_ceiling_clearance_in:g}\" below it.   "
+        f"Assumed: the head {design.heat_pump_left_offset_in:g}\" off the "
+        f"left wall; the bay ({fmt(design.right_x0 - left)} between sections, "
+        f"{room.bay_depth_in:g}\" deep, 45° sides, sill {room.sill_in:g}\", "
+        f"head {room.head_in:g}\") is illustrative.\n"
+        "Trim, side panels and BILLYs painted one white.  Left BILLY cut down "
+        f"{fmt(design.left_case_cut, 8)} to clear the heat pump; right BILLY "
+        "with height extension.  Ceiling not drawn."
+    )
+    fig.text(0.5, 0.025, notes, ha="center", va="center", fontsize=10,
+             color="#5a534a", wrap=True)
+    output_png = Path(output_png)
+    fig.savefig(output_png, dpi=130)
+    plt.close(fig)
+    return output_png
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1385,6 +1627,7 @@ def run(builtins: BillyBuiltIns, outdir: Path) -> CheckReport:
     export_assembly(
         assembly, output_step=outdir / f"{stem}.step", output_stl=outdir / f"{stem}.stl"
     )
+    render_proposal(builtins, outdir / f"{stem}_proposal.png")
     print(f"\nWrote cut list, views and CAD export to {outdir}/")
     return report
 

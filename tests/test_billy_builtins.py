@@ -332,3 +332,30 @@ def test_the_shopping_list_is_in_the_report(design, assembly, parts):
     report = design.check(assembly, parts)
     purchases = _findings(report, "purchase")
     assert any(BILLY_EXT in f.message for f in purchases)
+
+
+# ---------------------------------------------------------------------------
+# The proposal render
+# ---------------------------------------------------------------------------
+
+
+def test_the_room_leaves_wall_behind_the_heat_pump(design):
+    """The unit hangs on the wall, so the bay cannot open under its end."""
+    from billy_builtins import BayRoom
+
+    room = BayRoom(design)
+    assert 42 * IN + room.pier > design.heat_pump_x1
+
+
+def test_the_room_is_never_on_the_cut_list_or_shopping_list(design):
+    from billy_builtins import BayRoom
+
+    room = BayRoom(design).build()
+    assert extract(room) == []
+
+
+def test_the_proposal_sheet_is_written(design, tmp_path):
+    from billy_builtins import render_proposal
+
+    out = render_proposal(design, tmp_path / "proposal.png", size=400)
+    assert out.exists() and out.stat().st_size > 10_000

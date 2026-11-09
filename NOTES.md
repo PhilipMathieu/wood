@@ -1701,3 +1701,31 @@ height of the narrower one. Trying to fake equal heights (a dummy header on
 the left, a false top on the right) would only draw attention to the trick,
 and the left header is not allowed anyway: the unit's 8" ceiling clearance
 takes the whole band.
+
+### Follow-up: a proposal render, with the room in it
+
+The standard sheet draws the parts and nothing else, which is right for a
+cut list and useless for deciding whether you want the thing in your
+living room. `render_proposal` draws the built-ins in a `BayRoom` — back
+wall, short side-wall returns (long ones would hide the cases from a
+three-quarter view), an oak floor, and a three-sided bay with cased,
+two-light windows — in finish colours: trim, side panels and BILLYs one
+white, against greige walls. The ceiling is left off; any camera above it
+would see only its top.
+
+Two library additions made it possible without a second renderer.
+`shade_view` exposes the z-buffered raster for one view and returns its
+world→pixel projection, so the elevation can carry dimension strings.
+`material_colors` overrides the palette for one render (painted poplar is
+not poplar-coloured), and `exposure` undoes the directional light's
+darkening of camera-facing faces, which had turned white paint grey.
+
+Drawing the room surfaced one more constraint: the heat pump hangs on the
+wall, and with its left end 4" off the left wall it overhangs the left
+section by 1-5/16". So there must be wall there — the render leaves a
+2-13/16" pier between the section and the bay opening. If the bay really
+opens at 42", the unit is closer than 4" to the left wall, and the LG side
+clearance is already short on the installer's side.
+
+Everything about the bay is assumed (72" between sections, 18" deep, 45°
+sides, sill 20", head 84") and the sheet says so.

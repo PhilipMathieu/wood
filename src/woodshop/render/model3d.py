@@ -38,7 +38,7 @@ from woodshop.render.hlr import hlr_polylines
 from woodshop.render.raster import Camera, rasterize
 from woodshop.render.trim import trim_interpenetrations
 
-__all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly"]
+__all__ = ["View", "STANDARD_VIEWS", "MATERIAL_COLORS", "render_assembly", "shade_view"]
 
 
 @dataclass(frozen=True)
@@ -213,7 +213,9 @@ def _iter_leaf_parts(node: Any) -> Iterator[Any]:
 
 
 def _tessellate(
-    parts: list[Any], tolerance: float
+    parts: list[Any],
+    tolerance: float,
+    material_colors: dict[str, str] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], list[tuple[float, float, float]]]:
     """Tessellate every part once, lit, plus a sampled polyline per edge.
 
@@ -223,6 +225,8 @@ def _tessellate(
         Leaf parts from :func:`_iter_leaf_parts`.
     tolerance : float
         Passed straight to :meth:`build123d.Shape.tessellate`.
+    material_colors : dict, optional
+        Colours that override :data:`MATERIAL_COLORS` for this render only.
 
     Returns
     -------
@@ -244,7 +248,8 @@ def _tessellate(
     edges: list[np.ndarray] = []
     edge_colors: list[tuple[float, float, float]] = []
     for part in parts:
-        base = to_rgb(MATERIAL_COLORS.get(part.material, _FALLBACK_COLOR))
+        palette = {**MATERIAL_COLORS, **(material_colors or {})}
+        base = to_rgb(palette.get(part.material, _FALLBACK_COLOR))
         vertices, tris = part.tessellate(tolerance)
         verts = np.array([(v.X, v.Y, v.Z) for v in vertices])
         for tri in tris:
@@ -399,6 +404,75 @@ composite.Compound.project_to_viewport` reparents its argument via anytree,
     if close:
         plt.close(fig)
     return fig
+
+
+def shade_view(
+    assembly: Any,
+    view: View,
+    *,
+    material_colors: dict[str, str] | None = None,
+    size: int = _RASTER_LONG_SIDE,
+    tolerance: float = 0.5,
+    background: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    exposure: float = 1.0,
+) -> tuple[np.ndarray, Any]:
+    """Shade one view of *assembly* and return the image with its projection.
+
+    The building block under :func:`render_assembly`'s isometric, exposed
+    for pages that need more than the standard sheet: a proposal render in
+    finish colours, or an elevation with dimensions drawn over it — which
+    is what the returned projection is for.
+
+    Parameters
+    ----------
+    assembly : build123d.Compound
+        What to draw.  Every leaf carrying ``material`` and
+        ``stock_length_mm`` is drawn, cut-list part or not.
+    view : View
+        Camera angle.  Always shaded, whatever ``view.style`` says.
+    material_colors : dict, optional
+        Colour overrides by material key, e.g. painted trim.
+    size : int, optional
+        Long side of the image in pixels.
+    tolerance : float, optional
+        Tessellation tolerance in mm.
+    background : tuple of float, optional
+        RGB for empty pixels.
+    exposure : float, optional
+        Multiplies every lit colour, clipped at white, default 1.0.  The
+        cheap directional light darkens a face toward the camera to ~80% of
+        its colour, which turns painted white grey; ~1.2 brings it back.
+
+    Returns
+    -------
+    image : numpy.ndarray
+        ``(h, w, 3)`` RGB image.
+    projection : woodshop.render.raster.Projection
+        World → pixel mapping, for annotating *image*.
+    """
+    parts = list(_iter_leaf_parts(assembly))
+    if not parts:
+        raise ValueError("assembly contains no drawable parts")
+    triangles, colors, edges, edge_colors = _tessellate(
+        trim_interpenetrations(parts), tolerance, material_colors
+    )
+    colors = np.clip(colors * exposure, 0.0, 1.0)
+    direction = _direction(view.elev, view.azim)
+    _, right, up = _camera_basis(direction)
+    center = assembly.bounding_box().center()
+    camera = Camera(
+        center=(center.X, center.Y, center.Z), right=right, up=up, forward=direction
+    )
+    return rasterize(
+        triangles,
+        colors,
+        camera,
+        edges=edges,
+        edge_colors=edge_colors,
+        size=size,
+        supersample=_RASTER_SUPERSAMPLE,
+        background=background,
+    )
 
 
 def _save(
