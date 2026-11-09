@@ -584,7 +584,10 @@ class BillyBuiltIns:
             if bottom_at - p > z_a:
                 panel(item, "billy_plinth", x0 + p, x0 + w - p, -d, -d + p, z_a, bottom_at - p)
             for z in shelves:
-                panel(item, "billy_shelf", x0 + p + 3, x0 + w - p - 3, -d + 15, -3.0, z - p / 2, z + p / 2)
+                panel(
+                    item, "billy_shelf",
+                    x0 + p + 3, x0 + w - p - 3, -d + 15, -3.0, z - p / 2, z + p / 2,
+                )
 
         bottom = z0 + inches(self.billy_kick_in)
         top_inside = z0 + self.billy_height_mm - p
