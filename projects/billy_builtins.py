@@ -228,6 +228,16 @@ class BillyBuiltIns:
         section's 4-1/2" of extra width all goes to its wall stile.  It also
         happens to centre the left case under the heat pump.  ``False``
         centres each BILLY in its own section.
+    broom_closet : bool, optional
+        Default ``True``: the left section's wall-side gap — 7-1/2" with
+        matched stiles — becomes a closet for a broom and other long
+        things.  Its face board becomes a door on concealed hinges, the
+        nailers come out of it, and a lid closes it at the case top (it
+        cannot rise further: above the case is the heat pump's side
+        clearance).  See :meth:`check_broom_closet`.
+    broom_head_in, broom_head_thick_in, broom_length_in : float, optional
+        The broom the closet is checked against, default a 12" x 2" head on
+        a 56" broom — a typical angle broom.  Measure yours.
     align_shelves : bool, optional
         Default ``True``: the right BILLY's adjustable shelves are set on the
         left case's shelf lines, so the horizontals read straight across the
@@ -275,6 +285,10 @@ class BillyBuiltIns:
     rail_in: float = 1.5
     min_nailer_in: float = 0.75
     match_window_stiles: bool = True
+    broom_closet: bool = True
+    broom_head_in: float = 12.0
+    broom_head_thick_in: float = 2.0
+    broom_length_in: float = 56.0
     align_shelves: bool = True
     side_panel_max_in: float = 95.0
     shelf_load_kg: float = 15.0
@@ -584,6 +598,8 @@ class BillyBuiltIns:
                 )
             )
 
+        # The broom closet: the left wall gap, behind a door.
+        closet = side == "left" and self.broom_closet
         # Nailers: 2x ripped to each gap, front and back, floor to case top.
         wall_x = (x0, billy_x) if window == "right" else (billy_x + self.billy_width_mm, x1)
         win_x = (
@@ -595,7 +611,7 @@ class BillyBuiltIns:
             ("window", win_x, "glued and screwed to the side panel"),
         ):
             gap = xb - xa
-            if gap < inches(self.min_nailer_in):
+            if gap < inches(self.min_nailer_in) or (closet and where == "wall"):
                 continue
             for ya, yb, face in ((self.face_y, self.face_y + nd, "front"), (-nd, 0.0, "back")):
                 pos, *_ = _box(xa, xb, ya, yb, 0.0, case_top)
@@ -623,6 +639,9 @@ class BillyBuiltIns:
             "wall": (x0, x0 + s_wall) if window == "right" else (x1 - s_wall, x1),
             "window": (x1 - s_win, x1) if window == "right" else (x0, x0 + s_win),
         }
+        if closet:
+            del stiles["wall"]
+            children += self._broom_closet(x0, x0 + s_wall, top, fy0, fy1)
         for where, (x_a, x_b) in stiles.items():
             children.append(
                 self._trim(
@@ -750,6 +769,82 @@ class BillyBuiltIns:
             )
         )
         return Compound(children=children, label=f"{side}_section")
+
+    #: Door gaps: 1/8" relieved off the scribed wall edge, 1/16" elsewhere.
+    _DOOR_WALL_GAP_MM: float = 3.2
+    _DOOR_GAP_MM: float = 1.6
+
+    def closet_interior(self) -> tuple[float, float, float]:
+        """Clear inside of the broom closet, mm: (width, depth, height).
+
+        Width wall to BILLY side; depth wall to the back of the door;
+        height floor to the underside of the lid.
+        """
+        return (
+            self.wall_gap("left"),
+            self.billy_depth_mm,
+            self.left_case_top - self.trim_thickness_mm,
+        )
+
+    def _broom_closet(
+        self, x0: float, x1: float, top: float, fy0: float, fy1: float
+    ) -> list[object]:
+        """Return the closet's door, lid and kick.
+
+        The door takes the place of the wall stile from the baseboard top to
+        the case top, overlaying the BILLY side's front edge as the stile
+        did, so closed it reads as the same board.  Hung on concealed
+        hinges whose plates screw to the BILLY side's outer face — the one
+        surface inside the closet square to the door.  Below it, a kick in
+        the face-frame plane carries the baseboard across.
+        """
+        t = self.trim_thickness_mm
+        bb = inches(self.baseboard_in)
+        g, gw = self._DOOR_GAP_MM, self._DOOR_WALL_GAP_MM
+        out: list[object] = []
+
+        pos, *_ = _box(x0 + gw, x1 - g, fy0, fy1, bb + g, top - g)
+        out.append(
+            pos
+            * _UPRIGHT
+            * Panel(
+                length_mm=top - bb - 2 * g,
+                width_mm=x1 - x0 - g - gw,
+                nominal_thickness="3/4",
+                material="plywood_birch",
+                label="broom_closet_door",
+                notes=(
+                    "3/4\" birch ply — a solid board this tall and narrow would "
+                    "cup; scribed to the wall then relieved 1/8\"; three "
+                    "concealed full-overlay hinges on the BILLY side; touch "
+                    "latch, no knob, so it reads as the stile it replaces"
+                ),
+            )
+        )
+        out.append(
+            self._trim(
+                "broom_closet_kick",
+                x0, x1, fy0, fy1, 0.0, bb,
+                orient="rail",
+                notes="backer for the baseboard below the closet door",
+            )
+        )
+        pos, *_ = _box(x0, x1 - self.billy_panel_mm, self.face_y, 0.0, top - t, top)
+        out.append(
+            pos
+            * Board(
+                length_mm=x1 - self.billy_panel_mm - x0,
+                thickness_mm=t,
+                width_mm=self.billy_depth_mm,
+                material="poplar",
+                label="broom_closet_lid",
+                notes=(
+                    "closes the closet at the case top, on cleats to the wall "
+                    "and the BILLY side; the upper wall stile stands on it"
+                ),
+            )
+        )
+        return out
 
     def _trim(
         self,
@@ -936,6 +1031,8 @@ class BillyBuiltIns:
         report.extend(self.check_extension_fit())
         report.extend(self.check_heat_pump())
         report.extend(self.check_symmetry())
+        if self.broom_closet:
+            report.extend(self.check_broom_closet())
         report.extend(
             check_shelf_deflection(
                 material="particleboard",
@@ -1265,7 +1362,11 @@ class BillyBuiltIns:
                 + (" — a pair either side of the bay" if abs(lw - rw) < 0.5 else "")
                 + f"; openings both {fmt(self.billy_width_mm - 2 * self.billy_panel_mm)}; "
                 f"the left section's extra width is in its "
-                f"{fmt(self.wall_stile('left'))} wall stile",
+                + (
+                    f"{fmt(self.wall_stile('left'))} broom-closet door"
+                    if self.broom_closet
+                    else f"{fmt(self.wall_stile('left'))} wall stile"
+                ),
             )
         )
         case_c = self.billy_x("left") + self.billy_width_mm / 2
@@ -1293,6 +1394,116 @@ class BillyBuiltIns:
                     f"each to the nearest pin hole",
                 )
             )
+        return findings
+
+    @staticmethod
+    def _fits_in_plan(w: float, t: float, width: float, depth: float) -> float | None:
+        """Return the smallest angle (degrees) a w x t rectangle fits a box at.
+
+        Rotating a broom head in plan: at angle a its footprint is
+        ``w cos a + t sin a`` by ``w sin a + t cos a``.  ``None`` if no
+        angle between 0 and 90 degrees fits.
+        """
+        for step in range(0, 901):
+            a = math.radians(step / 10)
+            along = w * math.cos(a) + t * math.sin(a)
+            across = w * math.sin(a) + t * math.cos(a)
+            if (along <= depth and across <= width) or (along <= width and across <= depth):
+                return step / 10
+        return None
+
+    def check_broom_closet(self) -> list[Finding]:
+        """Check the closet takes the broom it is meant for.
+
+        Three questions.  Does the head fit the closet's plan — straight,
+        or turned on the diagonal, which a 12" head in an 11" deep closet
+        must be?  Does the broom stand up under the lid?  And can it be
+        lifted over the kick (the baseboard runs across below the door) and
+        swung in, which needs the kick's height on top of its length?
+
+        Returns
+        -------
+        list[Finding]
+            ``INFO`` for each question that passes, ``WARN`` otherwise.
+        """
+        fmt = mm_to_fractional_inch
+        width, depth, height = self.closet_interior()
+        head, thick = inches(self.broom_head_in), inches(self.broom_head_thick_in)
+        length = inches(self.broom_length_in)
+        kick = inches(self.baseboard_in)
+        findings = []
+
+        angle = self._fits_in_plan(head, thick, width, depth)
+        inside = f"{fmt(width)} wide x {fmt(depth)} deep x {fmt(height)} tall inside"
+        if angle is None:
+            widest = max(
+                (n / 16 for n in range(8 * 16, 16 * 16)
+                 if self._fits_in_plan(inches(n / 16), thick, width, depth) is not None),
+                default=0.0,
+            )
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "closet",
+                    f"broom closet is {inside}; a {self.broom_head_in:g}\" x "
+                    f"{self.broom_head_thick_in:g}\" head does not fit at any "
+                    f"angle — at that thickness the widest that fits is "
+                    f"{fmt(inches(widest))}, turned on the diagonal.  Measure "
+                    f"the broom, or pick one to suit",
+                )
+            )
+        else:
+            how = "straight" if angle == 0 else f"turned {angle:.0f}° on the diagonal"
+            how += "; keep it clear of the hinge cups at the front of the BILLY side"
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "closet",
+                    f"broom closet is {inside}; a {self.broom_head_in:g}\" x "
+                    f"{self.broom_head_thick_in:g}\" head fits {how}",
+                )
+            )
+
+        if length > height:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "closet",
+                    f"a {self.broom_length_in:g}\" broom is taller than the "
+                    f"closet's {fmt(height)}",
+                )
+            )
+        elif length + kick > height:
+            findings.append(
+                Finding(
+                    Severity.WARN,
+                    "closet",
+                    f"a {self.broom_length_in:g}\" broom stands inside but has "
+                    f"to be tilted to clear the {fmt(kick)} kick going in",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    Severity.INFO,
+                    "closet",
+                    f"a {self.broom_length_in:g}\" broom lifts over the "
+                    f"{fmt(kick)} kick and stands with "
+                    f"{fmt(height - length)} to spare; brooms, mops, a "
+                    f"Swiffer and umbrellas up to {fmt(height - kick)} go in "
+                    f"upright",
+                )
+            )
+        findings.append(
+            Finding(
+                Severity.INFO,
+                "closet",
+                "the BILLY is fixed by its riser and IKEA's wall bracket "
+                "rather than a nailer on this side; hinge plates take "
+                "particleboard (Euro) screws into the BILLY side; two spring "
+                "clips on the wall hold the handles",
+            )
+        )
         return findings
 
     def check_stock_lengths(self, parts: list[CutPart]) -> list[Finding]:
@@ -1572,7 +1783,14 @@ def render_proposal(
         f"{fmt(design.left_case_cut, 8)} to clear the heat pump; right BILLY "
         "with height extension.  Ceiling not drawn."
     )
-    fig.text(0.5, 0.025, notes, ha="center", va="center", fontsize=10,
+    if design.broom_closet:
+        w, d, h = design.closet_interior()
+        notes += (
+            f"\nThe {fmt(design.wall_stile('left'))} board left of the left case is a "
+            f"door on concealed hinges and a touch latch: a broom closet "
+            f"{fmt(w)} x {fmt(d)} x {fmt(h)} inside."
+        )
+    fig.text(0.5, 0.03, notes, ha="center", va="center", fontsize=10,
              color="#5a534a", wrap=True)
     output_png = Path(output_png)
     fig.savefig(output_png, dpi=130)

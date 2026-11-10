@@ -1729,3 +1729,24 @@ clearance is already short on the installer's side.
 
 Everything about the bay is assumed (72" between sections, 18" deep, 45°
 sides, sill 20", head 84") and the sheet says so.
+
+### Follow-up: a broom closet in the left section's gap
+
+Matching the window-side stiles left 7-1/2" between the left wall and the
+left BILLY — too much to waste behind a nailer. With `broom_closet` (default
+on) it is a closet: the 8-1/16" face board becomes a 3/4" birch-ply door
+(ply because solid poplar that tall and narrow would cup) on three concealed
+hinges, whose plates screw to the BILLY side's outer face — the one surface
+in there square to the door. Touch latch, no knob, so closed it still reads
+as the stile, and the symmetry across the bay survives. The nailers come out
+of that gap; the BILLY is held by its riser and IKEA's wall bracket. A lid
+closes the top at the case-top line, and it cannot go higher: above the case
+is the heat pump's 4" side clearance. The baseboard runs across a kick below
+the door, so a broom is lifted 5-1/2" going in.
+
+Inside: 7-1/2" x 11" x 72-11/16". `check_broom_closet` asks whether a given
+head fits in plan at *any* rotation, which caught my own claim that a 12"
+angle broom would go in on the diagonal: it would if the head had no
+thickness. At 2" thick, 11-9/16" is the widest head that fits; 12" does not.
+The default broom is 12" x 2" on purpose, so the report says so until the
+real broom is measured.

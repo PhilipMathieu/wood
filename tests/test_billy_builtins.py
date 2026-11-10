@@ -82,12 +82,16 @@ def test_the_stiles_flanking_the_bay_are_a_pair(design, parts):
     )
 
 
-def test_the_left_sections_extra_width_goes_to_its_wall_stile(design, parts):
-    by_label = {p.label: p for p in parts}
+def test_the_left_sections_extra_width_goes_to_its_wall_side(design):
     extra = (42 - 37.5) * IN
-    assert by_label["left_wall_stile"].width_mm == pytest.approx(
-        by_label["right_wall_stile"].width_mm + extra
-    )
+    assert design.wall_stile("left") == pytest.approx(design.wall_stile("right") + extra)
+
+
+def test_without_the_closet_the_wall_side_is_a_stile(design):
+    parts = extract(BillyBuiltIns(broom_closet=False).build())
+    by_label = {p.label: p for p in parts}
+    assert by_label["left_wall_stile"].width_mm == pytest.approx(design.wall_stile("left"))
+    assert "broom_closet_door" not in by_label
 
 
 def test_matching_the_window_stiles_centres_the_case_under_the_heat_pump(design):
@@ -167,11 +171,11 @@ def test_the_left_side_panel_stops_at_the_cut_down_case(design, assembly):
 
 def test_nailers_fill_both_gaps_front_and_back(design, parts):
     by_label = {p.label: p for p in parts}
-    for side in ("left", "right"):
-        wall, window = by_label[f"{side}_wall_nailer"], by_label[f"{side}_window_nailer"]
-        assert wall.qty == window.qty == 2
-        assert wall.width_mm == pytest.approx(design.wall_gap(side))
-        assert window.width_mm == pytest.approx(design.window_gap(side))
+    for side, where in (("right", "wall"), ("right", "window"), ("left", "window")):
+        nailer = by_label[f"{side}_{where}_nailer"]
+        gap = design.wall_gap(side) if where == "wall" else design.window_gap(side)
+        assert nailer.qty == 2
+        assert nailer.width_mm == pytest.approx(gap)
 
 
 def test_no_full_width_nailer_stands_beside_the_heat_pump(design, assembly):
@@ -359,3 +363,66 @@ def test_the_proposal_sheet_is_written(design, tmp_path):
 
     out = render_proposal(design, tmp_path / "proposal.png", size=400)
     assert out.exists() and out.stat().st_size > 10_000
+
+
+# ---------------------------------------------------------------------------
+# The broom closet
+# ---------------------------------------------------------------------------
+
+
+def test_the_closet_replaces_the_wall_stile_and_its_nailers(parts):
+    labels = {p.label for p in parts}
+    assert {"broom_closet_door", "broom_closet_lid", "broom_closet_kick"} <= labels
+    assert "left_wall_stile" not in labels
+    assert "left_wall_nailer" not in labels
+
+
+def test_the_closed_door_reads_as_the_stile_it_replaced(design, assembly):
+    door = _child(assembly.children[0], "broom_closet_door").bounding_box()
+    assert door.size.X == pytest.approx(design.wall_stile("left") - 4.8, abs=0.1)
+    assert door.min.Z == pytest.approx(5.5 * IN + 1.6, abs=0.1)
+    assert door.max.Z == pytest.approx(design.left_case_top - 1.6, abs=0.1)
+
+
+def test_the_closet_stops_at_the_case_top(design, assembly):
+    """Above the case is the heat pump's side clearance."""
+    for label in ("broom_closet_door", "broom_closet_lid"):
+        bb = _child(assembly.children[0], label).bounding_box()
+        assert bb.max.Z <= design.left_case_top + 0.01
+
+
+def test_the_inside_is_the_wall_gap_by_the_case_depth(design):
+    width, depth, height = design.closet_interior()
+    assert width == pytest.approx(7.5 * IN, abs=0.5)
+    assert depth == pytest.approx(design.billy_depth_mm)
+    assert height > 70 * IN
+
+
+def test_a_12_by_2_inch_head_does_not_fit_and_the_limit_is_reported(design):
+    findings = design.check_broom_closet()
+    head = findings[0]
+    assert head.severity is Severity.WARN
+    assert "11-9/16" in head.message
+
+
+def test_an_11_and_a_half_inch_head_fits_on_the_diagonal():
+    d = BillyBuiltIns(broom_head_in=11.5)
+    head = d.check_broom_closet()[0]
+    assert head.severity is Severity.INFO
+    assert "diagonal" in head.message
+
+
+def test_a_ten_inch_swiffer_fits_straight():
+    d = BillyBuiltIns(broom_head_in=10.0, broom_head_thick_in=2.5)
+    assert "straight" in d.check_broom_closet()[0].message
+
+
+def test_the_broom_lifts_over_the_kick(design):
+    lift = design.check_broom_closet()[1]
+    assert lift.severity is Severity.INFO
+    assert "lifts over" in lift.message
+
+
+def test_a_long_handle_has_to_be_tilted_in():
+    lift = BillyBuiltIns(broom_length_in=70.0).check_broom_closet()[1]
+    assert lift.severity is Severity.WARN
