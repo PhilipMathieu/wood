@@ -1570,7 +1570,8 @@ figures, not confirmed.
 | 8 line posts, 4x4x10 rough cedar (80 LF @ $4.40) | $352 |
 | 2 gate posts, 6x6x10 rough cedar (20 LF @ $9.45) | $189 |
 | 27 rails + gate frame, 2x4x8 rough cedar (216 LF @ $2.55) | $551 |
-| Welded wire, 4'x100' 14 ga 2"x4" | ~$119 |
+| Welded wire, 4'x100' PVC-coated 16 ga core, 2"x3" or 1"x2" mesh | ~$119+ (coated price not yet checked) |
+| Batten strips over the wire, 1x3 dressed cedar (~226 LF @ $1.10) | ~$250 |
 | Concrete, ~2 x 60 lb bags/post | ~$120 |
 | Gravel under posts | ~$30 |
 | Stainless / hot-dip galvanized screws and staples | ~$100 |
@@ -1579,9 +1580,9 @@ figures, not confirmed.
 | **Materials** | **~$1,605** |
 | Tools: digger + digging bar bought (~$80), haul (~$50–80), towable hydraulic auger only if the test hole is bad (~$75–135) | ~$150–300 |
 | Ledge contingency | ~$100–200 |
-| **Total** | **~$1,850–2,100** |
+| **Total** (with battens) | **~$2,100–2,400** |
 
-Savings against the quote: roughly **$3,800–4,100**, for about two days of
+Savings against the quote: roughly **$3,500–3,800**, for about two days of
 two people's work.
 
 ### Cedar-specific things to get right
@@ -1597,6 +1598,27 @@ two people's work.
 * **Rot at the collar.** Gravel under the post so the end grain drains, and
   crown the concrete above grade so water sheds away from the post rather
   than pooling against it.
+
+### The wire is clamped, not stapled
+
+Decided 2026-11-11. The wire is held by 1x3 cedar battens screwed over it
+along each rail and post, stainless screws every 8–12". No staple gun: the
+Ryobi ONE+ stapler shoots 18 ga, 1/4"-crown staples that barely straddle the
+wire, can cut its PVC coating, pull out of cedar under a dog, and are not
+corrosion-rated for cedar; real fencing staplers (9 ga) are a different class
+of tool and not worth buying for one fence.
+
+Why battens: they clamp the wire along the whole rail instead of at points,
+hide the cut ends, use the drill already owned — and they make the wire
+**replaceable**. Back the screws out, swap the roll, screw the battens back.
+Keep it that way: no glue, and at most a few hand-driven staples to hold the
+wire in place while the battens go on.
+
+Wire: 16 ga core, PVC coated, is enough at 4' on three rails (no unsupported
+span over ~20") for a dog that is not a large jumper or a chewer. It has ~61%
+of 14 ga's steel cross-section ((0.0625/0.080)^2) — the coating makes it
+*look* 14 ga, and vendors list it either way, so compare core gauges. Prefer
+2"x3" or 1"x2" mesh over 2"x4". Step up to 14 ga core if the dog tests it.
 
 ### Open items
 
