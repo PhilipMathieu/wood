@@ -1559,31 +1559,42 @@ days (11/20).
 
 ### The estimate
 
-Assumes ~62 LF (54' + one 8' panel), a 4' gate, bays no longer than 8', so
-10 posts. Posts are 10' long so they reach the ~48" frost line — deeper than
-the quote's 3', which is the quote's real weak point. Cedar prices are the
-Lumbery entries in `stock.yaml` (2026-08-17); the rest are rough big-box
-figures, not confirmed.
+Assumes **54 LF total including a 4' gate, so 50 LF of wire** (revised
+2026-11-11: "54' + 1 panel" read as 54' including the gate, not 54' plus an
+extra 8' — the wire purchase was sized on that). Bays no longer than 8' gives
+7 fence bays plus the gate bay, so 9 posts. Posts are 10' long so they reach
+the ~48" frost line — deeper than the quote's 3', which is the quote's real
+weak point. Cedar prices are the Lumbery entries in `stock.yaml`
+(2026-08-17); the wire is a Home Depot price given 2026-11-11; the rest are
+rough big-box figures, not confirmed.
 
 | Item | Cost |
 |---|---|
-| 8 line posts, 4x4x10 rough cedar (80 LF @ $4.40) | $352 |
+| 7 line posts, 4x4x10 rough cedar (70 LF @ $4.40) | $308 |
 | 2 gate posts, 6x6x10 rough cedar (20 LF @ $9.45) | $189 |
-| 27 rails + gate frame, 2x4x8 rough cedar (216 LF @ $2.55) | $551 |
-| Welded wire, 4'x100' PVC-coated 16 ga core, 2"x3" or 1"x2" mesh | ~$119+ (coated price not yet checked) |
-| Batten strips over the wire, 1x3 dressed cedar (~226 LF @ $1.10) | ~$250 |
-| Concrete, ~2 x 60 lb bags/post | ~$120 |
-| Gravel under posts | ~$30 |
+| 21 rails + 3 gate frame, 2x4x8 rough cedar (192 LF @ $2.55) | $490 |
+| Welded wire, PVC-coated 16 ga core, 4' x 50' (Home Depot) | $109 |
+| Gate infill — **not yet covered**, see below | TBD |
+| Batten strips over the wire, 1x3 dressed cedar (~186 LF @ $1.10) | ~$205 |
+| Concrete, ~2 x 60 lb bags/post | ~$108 |
+| Gravel under posts | ~$27 |
 | Stainless / hot-dip galvanized screws and staples | ~$100 |
 | Gate hardware kit | ~$60 |
-| Maine sales tax 5.5% | ~$84 |
-| **Materials** | **~$1,605** |
+| Maine sales tax 5.5% | ~$88 |
+| **Materials** | **~$1,685** |
 | Tools: digger + digging bar bought (~$80), haul (~$50–80), towable hydraulic auger only if the test hole is bad (~$75–135) | ~$150–300 |
 | Ledge contingency | ~$100–200 |
-| **Total** (with battens) | **~$2,100–2,400** |
+| **Total** (with battens) | **~$1,950–2,200** |
 
-Savings against the quote: roughly **$3,500–3,800**, for about two days of
+Savings against the quote: roughly **$3,700–4,000**, for about two days of
 two people's work.
+
+**The 50' roll has no slack.** 54' less a 4' gate is exactly 50', so it only
+works if the wire runs unbroken and ends flush at the gate posts (the battens
+make a flush cut end fine — no wrap-around needed). Any splice costs one mesh
+cell of overlap; measure the real run before cutting. And the gate's own
+~4' x 4' infill is not in that roll: a second wire roll, or cedar slats on
+the gate frame.
 
 ### Cedar-specific things to get right
 
@@ -1622,7 +1633,9 @@ of 14 ga's steel cross-section ((0.0625/0.080)^2) — the coating makes it
 
 ### Open items
 
-* Confirm with Horizon or by tape what "54' + 1 panel" totals.
+* Tape the real run: the estimate and the 50' wire both assume 54' total
+  including the gate.
+* Decide the gate infill (second wire roll vs. cedar slats).
 * Dig Safe (811) before digging; Horizon's contract disclaims utilities too.
 * No permit needed in South Portland for residential fences under 6'.
 * Season: it is November. Concrete wants unfrozen ground and roughly 40°F+
