@@ -1687,3 +1687,15 @@ and sidesteps the November curing problem. Post length decides depth: a
 
 The dog: check the board gap (a small dog or a head can go through gaps
 over ~2") and keep the bottom gap to ~2" or less.
+
+Layout clarified 2026-11-12: the 46' run turns at the one corner post into
+the gate section; the plain 10' section stands on its own (one full panel
+between two end posts, the long run's offcut filling the remaining gap).
+With 6" posts adding length, roughly: 46' run = 7 posts (end, 5 line,
+corner) + 5 full panels + a ~2.5' piece; gate section = a ~5' panel, hinge
+post, 4' gate, latch post — the ~5.5' offcut from the long run's partial
+covers that 5' panel; plain section = 2 end posts + 8' panel (~9'), ~1' gap.
+Posts: 3 end posts needed against 2 bought (the long run's free end plus the
+plain section's two), unless one of those ends ties into a structure; gate
+posts are separate. One panel spare. Figures assume rails seat flush to the
+post faces; measure a real panel and mortise before cutting anything.
