@@ -1721,3 +1721,14 @@ Stone recalculated: 9 holes x (pi/4)(1 - 0.25)(1.83') = 9.7 ft3, plus 2 gate
 holes x 2.36 ft3 = 4.7 ft3 -> 14.4 ft3 = ~0.53 yd3 loose; with compaction and
 waste **order ~0.75 yd3 of 3/4" minus (about a ton)**. Clean base unchanged,
 ~9 bags. A 2.5' hole is easy with the manual digger and bar: no auger.
+
+Gate changed (2026-11-12): a double gate, two 3' leaves on two 8' hinge
+posts (set ~4' deep), 6' opening. Gate section from the corner: corner post,
+~2.5' panel, hinge post, 6' opening, hinge post (0.5 + 2.5 + 0.5 + 6 + 0.5 =
+10'). Panel 6 now cuts 2.5' (long run) + 2.5' (by gate) + 1' (filler), 2'
+spare; the spare panel 8 can become both leaves (3' + 3', 2' spare) with a
+cedar 2x4 diagonal brace on each, low on the hinge side to high on the free
+side. Hardware: two pairs of hinges (hook-and-strap lag hinges suit round
+posts), a drop rod / cane bolt on the fixed leaf into a sleeve in the
+ground, and a latch across the two leaves. Stone total unchanged — it
+already assumed two 4'-deep gate holes.
