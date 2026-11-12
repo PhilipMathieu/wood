@@ -1706,3 +1706,18 @@ holes 4' deep. Per hole: (pi/4)(1^2 - 0.5^2)(4) = 2.36 ft3 of backfill, x11 =
 minus (crusher run / crushed gravel, with fines)**, ~2 tons, delivered.
 Plus ~9 bags (0.5 ft3) of clean 3/4" stone for a 6" drainage base under each
 post. Tamp the minus in 4-6" lifts. Budget ~$150-250 including delivery.
+
+Post length change (2026-11-12): 6' round posts, so ~1'10" in the ground
+(4' panel + ~2" bottom gap above). That is the usual 1/3-in-the-ground rule
+and enough for a 4' spaced-board fence in wind, but well above the ~48" frost
+line: expect some winter heave. Mitigations: tamped stone full depth (no
+concrete collar for frost to grip), the 6" clean-stone drainage base, and
+tapping risen posts back down in spring; rails in mortises tolerate a little
+movement. Check the bottom mortise height on a real post: it fixes the
+burial depth. Gate posts: buy 8' and set ~4' deep (concrete OK for the
+hinge post) so the gate keeps swinging true.
+
+Stone recalculated: 9 holes x (pi/4)(1 - 0.25)(1.83') = 9.7 ft3, plus 2 gate
+holes x 2.36 ft3 = 4.7 ft3 -> 14.4 ft3 = ~0.53 yd3 loose; with compaction and
+waste **order ~0.75 yd3 of 3/4" minus (about a ton)**. Clean base unchanged,
+~9 bags. A 2.5' hole is easy with the manual digger and bar: no auger.
