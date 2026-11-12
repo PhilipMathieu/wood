@@ -1699,3 +1699,10 @@ Posts: 3 end posts needed against 2 bought (the long run's free end plus the
 plain section's two), unless one of those ends ties into a structure; gate
 posts are separate. One panel spare. Figures assume rails seat flush to the
 post faces; measure a real panel and mortise before cutting anything.
+
+Setting stone (2026-11-12): 11 posts (8 bought + 1 end + 2 gate) in 12"
+holes 4' deep. Per hole: (pi/4)(1^2 - 0.5^2)(4) = 2.36 ft3 of backfill, x11 =
+26 ft3 = ~1 yd3 loose; ~20% compaction plus waste -> **order 1.5 yd3 of 3/4"
+minus (crusher run / crushed gravel, with fines)**, ~2 tons, delivered.
+Plus ~9 bags (0.5 ft3) of clean 3/4" stone for a 6" drainage base under each
+post. Tamp the minus in 4-6" lifts. Budget ~$150-250 including delivery.
