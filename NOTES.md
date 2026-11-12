@@ -1647,3 +1647,43 @@ of 14 ga's steel cross-section ((0.0625/0.080)^2) — the coating makes it
 * No permit needed in South Portland for residential fences under 6'.
 * Season: it is November. Concrete wants unfrozen ground and roughly 40°F+
   while it cures — build in the next couple of weeks or wait for spring.
+
+### Superseded: bought prefab panels at 50% off (2026-11-12)
+
+Lumbery ran an end-of-season 50% sale, so the stick-built design above
+(4x4 posts, rails, wire, battens) is dropped. Bought, **$818.16** total:
+
+* 8 spaced-board #1 panels, 4' x 8' (64' of panel)
+* 6" round cedar posts: 5 line, 2 end, 1 corner (8 posts)
+
+Gate supplies still to buy. Remaining costs, rough: gate ~$100–250, concrete
+or crushed stone ~$60–130, stainless/HDG fasteners and any brackets ~$40–60,
+tools ~$80–150 (digger + bar, haul; auger only if the test hole is bad).
+**All-in ~$1,100–1,400 vs. the $5,924 quote.**
+
+Panel plan for 62' of fence (66' less a 4' gate), no slack: the 46' run is 5
+full panels + one cut to 6'; the plain 10' section is 1 full panel + the 2'
+offcut from that cut; the gate section's 6' is a third cut panel (2' spare).
+Every cut end must land on a post.
+
+Post count check (assumes the U/L layout above and that the gate posts come
+with the gate supplies): the 46' run uses exactly 5 line posts, but the plain
+10' section (8' + 2') needs a line post of its own, and each short section
+that turns off the long run needs a corner. If both short sections turn
+corners and the plain one has a free end, the order is short ~1 corner and
+~1 line post. Confirm the layout before the sale ends.
+
+If the round posts are mortised (line = through both sides, end = one side,
+corner = two at 90°), the fence has to be built in sequence — set a post,
+seat the panel's rails, set the next post — and post spacing is fixed by the
+panels, so measure bay-by-bay rather than laying out all holes first. Cut
+panels need their rail ends re-tenoned to fit.
+
+Setting: round white cedar posts are traditionally set in tamped crushed
+stone rather than concrete in New England — drains, resists frost heave,
+and sidesteps the November curing problem. Post length decides depth: a
+4' panel on an 8' post leaves ~3.5' buried (short of the ~48" frost line);
+10' posts reach it.
+
+The dog: check the board gap (a small dog or a head can go through gaps
+over ~2") and keep the bottom gap to ~2" or less.
