@@ -1746,3 +1746,14 @@ Fallback if 8' gate posts aren't available: 6' posts like the rest, ~1'10"
 deep in tamped stone, with the bottom cleat on each. Expect them to heave a
 little in winter; use a latch with vertical play (gravity/thumb latch with a
 tall catch), a drop-rod sleeve ~1/2" oversize, and re-tap the posts in spring.
+
+Deck post as a gate post (2026-11-13): the far side of the double gate
+hinges on the deck's PT 6x6, so only one new gate post (8', ~4' deep, stone,
+bottom cleat) is needed. Set it 6' + hinge/leaf clearances from the deck
+post's face; the ~2.5' panel between corner and gate post absorbs the rest.
+Hinges on the 6x6: through-bolts or structural screws, hot-dip galvanized or
+stainless (PT copper is as corrosive as cedar), no notching or large holes in
+a structural post. The deck post sits on a frost footing and won't heave, so
+the new gate post should be the 8' one or the leaves will drift out of line.
+Check that the dog can't get out under or around the deck from the fence end.
+Stone: one fewer 4' hole -> ~12 ft3 loose, still order ~0.6-0.75 yd3.
