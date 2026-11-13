@@ -1732,3 +1732,12 @@ side. Hardware: two pairs of hinges (hook-and-strap lag hinges suit round
 posts), a drop rod / cane bolt on the fixed leaf into a sleeve in the
 ground, and a latch across the two leaves. Stone total unchanged — it
 already assumed two 4'-deep gate holes.
+
+Gate posts, concrete or not (2026-11-13): no concrete. At ~4' deep in
+tamped 3/4" minus the 8' posts are at the frost line, and two 3' leaves are a
+light load. Concrete around cedar holds water against the post (rot at the
+collar), and November nights are below the ~40°F it needs to cure. For
+extra stiffness, screw a short cedar 2x4 cleat across each gate post near the
+bottom, perpendicular to the fence line, before backfilling: it resists the
+lean the gate puts on the post. The drop-rod sleeve is the one place a bag of
+concrete is worth it, if the weather allows; tamped stone works too.
