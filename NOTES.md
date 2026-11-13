@@ -1757,3 +1757,15 @@ a structural post. The deck post sits on a frost footing and won't heave, so
 the new gate post should be the 8' one or the leaves will drift out of line.
 Check that the dog can't get out under or around the deck from the fence end.
 Stone: one fewer 4' hole -> ~12 ft3 loose, still order ~0.6-0.75 yd3.
+
+Gate leaves (2026-11-13): each leaf 35-1/4" x 48" (72" opening less 1/2" at
+each hinge and between leaves), hung 2-3" off grade. Panel P8 cut in two;
+rails trimmed 3-1/2" short at each end so 2x4 stiles butt them at both
+edges; a 2x4 diagonal brace in each leaf, low at the hinge, high at the latch
+(~43" on centre, ~48" long point with the angle cuts). 2x4: 4 stiles x 48" +
+2 braces x ~48" + 1 post cleat ~18" = ~26 LF -> three 10' (48+48 | 48+48 |
+48+48+18) or four 8' (two braces will not come out of one 8'). Plus a 1x4x8
+for the stop strip. Hardware: 2 T-hinges through-bolted to the deck 6x6, 2
+screw-hook-and-strap hinges on the round post, cane bolt + sleeve, gravity
+latch, stainless/HDG 3-1/2" structural screws and 3/8" carriage bolts.
+Drawing: scratchpad gate_svg.py (not committed).
