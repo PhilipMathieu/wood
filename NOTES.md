@@ -1741,3 +1741,8 @@ extra stiffness, screw a short cedar 2x4 cleat across each gate post near the
 bottom, perpendicular to the fence line, before backfilling: it resists the
 lean the gate puts on the post. The drop-rod sleeve is the one place a bag of
 concrete is worth it, if the weather allows; tamped stone works too.
+
+Fallback if 8' gate posts aren't available: 6' posts like the rest, ~1'10"
+deep in tamped stone, with the bottom cleat on each. Expect them to heave a
+little in winter; use a latch with vertical play (gravity/thumb latch with a
+tall catch), a drop-rod sleeve ~1/2" oversize, and re-tap the posts in spring.
